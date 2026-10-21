@@ -649,7 +649,7 @@ gantt
 - **`WP-3.2: Şifreli Zarf (EncryptedUpdateEnvelope) ve Nonce Yönetimi`**
   - `yrs` binary güncellemelerinin DEK ile şifrelenip `EncryptedUpdateEnvelope` zarfı haline getirilmesi; UUIDv7 ve artan sayaç sıralaması.
 - **`WP-3.3: SQLite Offline Outbox Kuyruğu ve Retry Yöneticisi`**
-  - Çevrimdışı yapılan mutasyonların `sync_outbox` tablosuna yazılması, ağ geri geldiğinde toplu iletim ve ACK sonrası temizlik döngüsü.
+  - Çevrimdışı yapılan mutasyonların `sync_outbox` tablosuna yazılması, katı FIFO `(created_at ASC, id ASC)` sıralamasıyla toplu iletim ve ACK sonrası temizlik döngüsü.
 - **`WP-3.4: BLAKE3 İçerik-Adresli Şifreli Medya Blob Senkronizasyonu`**
   - Dosya eklerinin DEK ile şifrelenmesi, BLAKE3 hash'i ile adreslenmesi ve talep üzerine (on-demand) asenkron indirme/yükleme modülü.
 
