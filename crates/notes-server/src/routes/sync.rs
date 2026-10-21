@@ -4,7 +4,7 @@ use axum::response::IntoResponse;
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::auth::AuthenticatedUser;
+use crate::auth::AuthenticatedAccount;
 use crate::error::{ServerError, ServerResult};
 use crate::storage::{EncryptedEnvelopeRecord, IncomingEnvelope, PushResultItem};
 use crate::AppState;
@@ -60,11 +60,10 @@ pub struct PullResponse {
     pub has_more: bool,
 }
 
-
 /// `POST /api/v1/sync/push`
-/// İstemciden gelen şifreli update zarflarını idempotent olarak kaydeder.
+/// İstemciden gelen şifreli update zarflarını idempotent ve hesap yetkilendirmesiyle kaydeder.
 pub async fn push_updates(
-    _user: AuthenticatedUser,
+    account: AuthenticatedAccount,
     State(state): State<AppState>,
     Json(payload): Json<PushPayload>,
 ) -> ServerResult<impl IntoResponse> {
@@ -92,7 +91,7 @@ pub async fn push_updates(
         }
     }
 
-    let results = state.store.batch_insert_updates(&envelopes)?;
+    let results = state.store.batch_insert_updates(&account.account_id, &envelopes)?;
     let mut inserted_count = 0;
 
     // Yayın bildirimi gönder (tokio broadcast)
@@ -118,9 +117,9 @@ pub async fn push_updates(
 }
 
 /// `GET /api/v1/sync/pull`
-/// İstemcinin eksik olduğu şifreli zarfları sıralı döner.
+/// İstemcinin eksik olduğu şifreli zarfları sıralı ve hesap izolasyonuyla döner.
 pub async fn pull_updates(
-    _user: AuthenticatedUser,
+    account: AuthenticatedAccount,
     State(state): State<AppState>,
     Query(query): Query<PullQuery>,
 ) -> ServerResult<impl IntoResponse> {
@@ -131,8 +130,12 @@ pub async fn pull_updates(
     let since_seq = query.since_seq.unwrap_or(0);
     let limit = query.limit.unwrap_or(100).clamp(1, 1000);
 
-    let updates = state.store.pull_updates(&query.workspace_id, since_seq, limit)?;
-    let max_seq = state.store.get_max_seq(&query.workspace_id)?;
+    let updates = state
+        .store
+        .pull_updates(&account.account_id, &query.workspace_id, since_seq, limit)?;
+    let max_seq = state
+        .store
+        .get_max_seq(&account.account_id, &query.workspace_id)?;
     let has_more = updates.last().map(|u| u.seq < max_seq).unwrap_or(false);
 
     Ok((
