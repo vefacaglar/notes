@@ -24,7 +24,7 @@ node_modules/
 .pnpm-store/
 dist/
 **/dist/
-build/
+/build/
 .vite/
 **/.vite/
 *.log
@@ -42,9 +42,9 @@ yarn-error.log*
 *.db-shm
 *.sqlite
 *.sqlite3
-storage/
-blobs/
-local_data/
+/storage/
+/blobs/
+/local_data/
 *.enc
 
 # ==============================================================================
