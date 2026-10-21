@@ -1,0 +1,59 @@
+[workspace]
+resolver = "2"
+members = [
+    "crates/notes-core",
+    "crates/notes-sync",
+    "crates/notes-server",
+]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+authors = ["Notes Contributors"]
+license = "MIT OR Apache-2.0"
+
+[workspace.dependencies]
+# Ortak Kriptografi
+argon2 = "0.5"
+chacha20poly1305 = "0.10"
+hkdf = "0.12"
+sha2 = "0.10"
+blake3 = "1.5"
+zeroize = { version = "1.8", features = ["derive"] }
+rand = "0.8"
+subtle = "2.6"
+base64 = "0.22"
+
+# CRDT
+yrs = "0.21"
+
+# Serileştirme & Tipler
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+uuid = { version = "1.10", features = ["v4", "v7", "serde"] }
+chrono = { version = "0.4", features = ["serde"] }
+regex = "1.10"
+
+# Asenkron Çalışma Zamanı
+tokio = { version = "1.40", features = ["full"] }
+tokio-util = "0.7"
+futures = "0.3"
+async-trait = "0.1"
+
+# Veritabanı (İstemci)
+rusqlite = { version = "0.32", features = ["bundled"] }
+
+# Web & Ağ
+axum = { version = "0.7", features = ["ws"] }
+reqwest = { version = "0.12", features = ["json", "stream"] }
+tower = "0.5"
+tower-http = { version = "0.5", features = ["trace", "cors"] }
+
+# Loglama & Hata Yönetimi
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+thiserror = "1.0"
+anyhow = "1.0"
+
+# macOS Entegrasyonu
+security-framework = "2.11"
