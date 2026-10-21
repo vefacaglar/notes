@@ -6,7 +6,7 @@ use axum::response::{IntoResponse, Response};
 use axum::Json;
 use serde::{Deserialize, Serialize};
 
-use crate::auth::{constant_time_eq_str, AuthenticatedUser};
+use crate::auth::{constant_time_eq_hash, AuthenticatedAccount};
 use crate::error::{ServerError, ServerResult};
 use crate::AppState;
 
@@ -17,11 +17,11 @@ pub struct BlobUploadResponse {
     pub created: bool,
 }
 
-
 /// `PUT /api/v1/blobs/{blob_hash}`
-/// Şifreli CAS blob yükler. `blake3(body) == blob_hash` olduğunu doğrular; uyuşmazsa 400 Bad Request döner.
+/// Şifreli CAS blob yükler. `blake3(body) == blob_hash` olduğunu sabit zamanlı doğrular.
+/// Hesap ve workspace sahipliği kontrollerini sağlar.
 pub async fn put_blob(
-    _user: AuthenticatedUser,
+    account: AuthenticatedAccount,
     State(state): State<AppState>,
     Path(blob_hash): Path<String>,
     headers: HeaderMap,
@@ -31,9 +31,9 @@ pub async fn put_blob(
         return Err(ServerError::InvalidInput("blob_hash boş olamaz".into()));
     }
 
-    // Hash doğrulaması (Content-Addressed Storage bütünlük kontrolü)
+    // Hash doğrulaması (Content-Addressed Storage bütünlük kontrolü - sabit zamanlı)
     let computed_hash = blake3::hash(&body).to_hex().to_string();
-    if !constant_time_eq_str(&computed_hash, &blob_hash) {
+    if !constant_time_eq_hash(&computed_hash, &blob_hash) {
         return Err(ServerError::InvalidInput(format!(
             "BLAKE3 hash doğrulaması başarısız: gönderilen hash '{}', hesaplanan '{}'",
             blob_hash, computed_hash
@@ -46,7 +46,14 @@ pub async fn put_blob(
         .and_then(|val| val.to_str().ok())
         .unwrap_or("default");
 
-    let created = state.store.put_blob(&blob_hash, workspace_id, &body)?;
+    // Workspace sahipliği doğrulaması
+    state
+        .store
+        .ensure_workspace_owner(&account.account_id, workspace_id)?;
+
+    let created = state
+        .store
+        .put_blob(&account.account_id, &blob_hash, workspace_id, &body)?;
 
     let status = if created {
         StatusCode::CREATED
@@ -65,15 +72,15 @@ pub async fn put_blob(
 }
 
 /// `GET /api/v1/blobs/{blob_hash}`
-/// Şifreli CAS blob içeriğini binary olarak döner.
+/// Şifreli CAS blob içeriğini binary olarak döner. Yalnızca yükleyen hesaba izin verir.
 pub async fn get_blob(
-    _user: AuthenticatedUser,
+    account: AuthenticatedAccount,
     State(state): State<AppState>,
     Path(blob_hash): Path<String>,
 ) -> ServerResult<Response> {
     let blob = state
         .store
-        .get_blob(&blob_hash)?
+        .get_blob(&account.account_id, &blob_hash)?
         .ok_or_else(|| ServerError::NotFound(format!("Blob bulunamadı: {}", blob_hash)))?;
 
     let response = Response::builder()

@@ -475,4 +475,167 @@ mod tests {
         let resp = app.clone().oneshot(not_found_req).await.unwrap();
         assert_eq!(resp.status(), StatusCode::NOT_FOUND);
     }
+
+    #[tokio::test]
+    async fn test_workspace_and_blob_cross_account_isolation_forbidden() {
+        let state = AppState::in_memory().unwrap();
+        let app = build_router(state);
+
+        let alice_token = setup_auth_token(&app, "alice", "alice-secret-verifier").await;
+        let alice_auth = format!("Bearer {}", alice_token);
+
+        let bob_token = setup_auth_token(&app, "bob", "bob-secret-verifier").await;
+        let bob_auth = format!("Bearer {}", bob_token);
+
+        let alice_ws = "ws-alice-private";
+
+        // 1. Alice kendi çalışma alanına bir güncelleme push eder -> 200 OK
+        let env_alice = IncomingEnvelope {
+            update_id: "upd-alice-1".to_string(),
+            workspace_id: alice_ws.to_string(),
+            doc_id: "doc-alice-1".to_string(),
+            client_id: 101,
+            nonce: vec![1, 1, 1, 1],
+            ciphertext: vec![10, 11, 12, 13],
+        };
+
+        let push_alice_req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/sync/push")
+            .header(header::AUTHORIZATION, &alice_auth)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({
+                    "updates": [env_alice]
+                })
+                .to_string(),
+            ))
+            .unwrap();
+
+        let resp = app.clone().oneshot(push_alice_req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body_bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let push_res: PushResponse = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(push_res.inserted, 1);
+
+        // 2. Bob, Alice'in çalışma alanına push yapmaya çalışır -> 403 Forbidden!
+        let env_bob_intrusion = IncomingEnvelope {
+            update_id: "upd-bob-intrude".to_string(),
+            workspace_id: alice_ws.to_string(),
+            doc_id: "doc-alice-1".to_string(),
+            client_id: 202,
+            nonce: vec![2, 2, 2, 2],
+            ciphertext: vec![20, 21, 22, 23],
+        };
+
+        let push_bob_forbidden_req = Request::builder()
+            .method("POST")
+            .uri("/api/v1/sync/push")
+            .header(header::AUTHORIZATION, &bob_auth)
+            .header(header::CONTENT_TYPE, "application/json")
+            .body(Body::from(
+                json!({
+                    "updates": [env_bob_intrusion]
+                })
+                .to_string(),
+            ))
+            .unwrap();
+
+        let resp = app.clone().oneshot(push_bob_forbidden_req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+        // 3. Bob, Alice'in çalışma alanından pull yapmaya çalışır -> 403 Forbidden!
+        let pull_bob_forbidden_req = Request::builder()
+            .method("GET")
+            .uri(format!("/api/v1/sync/pull?workspace_id={}&since_seq=0", alice_ws))
+            .header(header::AUTHORIZATION, &bob_auth)
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.clone().oneshot(pull_bob_forbidden_req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+        // 4. Alice kendi çalışma alanından pull yapar -> 200 OK
+        let pull_alice_req = Request::builder()
+            .method("GET")
+            .uri(format!("/api/v1/sync/pull?workspace_id={}&since_seq=0", alice_ws))
+            .header(header::AUTHORIZATION, &alice_auth)
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.clone().oneshot(pull_alice_req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let body_bytes = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        let pull_res: PullResponse = serde_json::from_slice(&body_bytes).unwrap();
+        assert_eq!(pull_res.updates.len(), 1);
+        assert_eq!(pull_res.updates[0].update_id, "upd-alice-1");
+
+        // 5. Blob izolasyonu: Alice bir blob yükler
+        let ciphertext_payload = b"secret-payload-of-alice";
+        let blob_hash = blake3::hash(ciphertext_payload).to_hex().to_string();
+
+        let upload_req = Request::builder()
+            .method("PUT")
+            .uri(format!("/api/v1/blobs/{}", blob_hash))
+            .header(header::AUTHORIZATION, &alice_auth)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header("x-workspace-id", alice_ws)
+            .body(Body::from(ciphertext_payload.to_vec()))
+            .unwrap();
+
+        let resp = app.clone().oneshot(upload_req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::CREATED);
+
+        // 6. Bob, Alice'in blob'unu çekmeye çalışır -> 403 Forbidden!
+        let get_blob_bob_req = Request::builder()
+            .method("GET")
+            .uri(format!("/api/v1/blobs/{}", blob_hash))
+            .header(header::AUTHORIZATION, &bob_auth)
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.clone().oneshot(get_blob_bob_req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+        // 7. Bob, Alice'in workspace'ine blob yüklemeye çalışır -> 403 Forbidden!
+        let dummy_payload = b"bob-blob-content";
+        let dummy_hash = blake3::hash(dummy_payload).to_hex().to_string();
+        let put_blob_bob_req = Request::builder()
+            .method("PUT")
+            .uri(format!("/api/v1/blobs/{}", dummy_hash))
+            .header(header::AUTHORIZATION, &bob_auth)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header("x-workspace-id", alice_ws)
+            .body(Body::from(dummy_payload.to_vec()))
+            .unwrap();
+
+        let resp = app.clone().oneshot(put_blob_bob_req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+        // 8. Bob, var olan bir blob_hash'i kendi hesabına yeniden yazmaya / ele geçirmeye çalışır -> 403 Forbidden!
+        let hijack_blob_bob_req = Request::builder()
+            .method("PUT")
+            .uri(format!("/api/v1/blobs/{}", blob_hash))
+            .header(header::AUTHORIZATION, &bob_auth)
+            .header(header::CONTENT_TYPE, "application/octet-stream")
+            .header("x-workspace-id", "ws-bob-priv")
+            .body(Body::from(ciphertext_payload.to_vec()))
+            .unwrap();
+
+        let resp = app.clone().oneshot(hijack_blob_bob_req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::FORBIDDEN);
+
+        // 9. Alice kendi blob'unu çeker -> 200 OK
+        let get_blob_alice_req = Request::builder()
+            .method("GET")
+            .uri(format!("/api/v1/blobs/{}", blob_hash))
+            .header(header::AUTHORIZATION, &alice_auth)
+            .body(Body::empty())
+            .unwrap();
+
+        let resp = app.clone().oneshot(get_blob_alice_req).await.unwrap();
+        assert_eq!(resp.status(), StatusCode::OK);
+        let downloaded = to_bytes(resp.into_body(), usize::MAX).await.unwrap();
+        assert_eq!(downloaded.as_ref(), ciphertext_payload);
+    }
 }
