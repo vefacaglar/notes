@@ -1,8 +1,10 @@
 pub mod commands;
 pub mod state;
+pub mod ui;
 
 pub use commands::*;
 pub use state::*;
+pub use ui::*;
 
 #[cfg(test)]
 mod tests {
@@ -345,5 +347,134 @@ mod tests {
         lock_vault(&state).unwrap();
         let locked_err = cmd_get_attachment(&state, &meta.blob_hash);
         assert!(matches!(locked_err, Err(AppError::VaultLocked)));
+    }
+
+    #[test]
+    fn test_seed_starter_pages_and_markdown_integration() {
+        let (state, _tmp) = setup_test_state();
+
+        assert!(!is_vault_initialized(&state).unwrap());
+        init_vault_fast(&state, "MasterKey!42", Some("Test Alanı".into())).unwrap();
+        assert!(is_vault_initialized(&state).unwrap());
+
+        // 1. Seed verilerini oluştur
+        seed_starter_pages(&state).expect("Seed başarısız olmamalı");
+
+        // 2. Sayfa ağacını kontrol et
+        let tree = cmd_get_page_tree(&state, None, false).unwrap();
+        assert_eq!(tree.len(), 2);
+
+        // "Hoş Geldiniz" sayfasını bul ve markdown gövdesini doğrula
+        let welcome = tree.iter().find(|n| n.page.title.contains("Hoş Geldiniz")).unwrap();
+        let md = cmd_get_page_markdown(&state, welcome.page.id).unwrap();
+        assert!(md.contains("# Hoş Geldiniz — Notes Native macOS"));
+        assert!(md.contains("[[Proje Görevleri DB]]"));
+        assert!(md.contains("#rust"));
+
+        // FTS5 aramasının çalıştığını doğrula
+        let search_hits = cmd_search_fts(&state, "XChaCha20", None).unwrap();
+        assert!(!search_hits.is_empty());
+
+        // 3. Markdown düzenleme ve otomatik kaydetme testi
+        let updated_md = format!("{}\n\n- [ ] Ekstra yapılacak test görevi", md);
+        cmd_save_page_markdown(&state, welcome.page.id, &updated_md).unwrap();
+
+        let retrieved_md = cmd_get_page_markdown(&state, welcome.page.id).unwrap();
+        assert!(retrieved_md.contains("Ekstra yapılacak test görevi"));
+
+        // 4. Veritabanı sayfasını kontrol et
+        let db_node = tree.iter().find(|n| n.page.title == "Proje Görevleri DB").unwrap();
+        assert!(db_node.page.is_database);
+
+        let schema = cmd_get_database(&state, db_node.page.id).unwrap();
+        let views = cmd_list_database_views(&state, schema.id).unwrap();
+        assert!(views.len() >= 3); // Table, Board, Calendar
+
+        // Satır sorgulama
+        let query_res = cmd_query_database_view(&state, schema.id, views[0].id).unwrap();
+        assert_eq!(query_res.rows.len(), 3);
+        assert_eq!(query_res.rows[0].title, "Native macOS eframe arayüzü");
+
+        // Satır durum güncellemesi
+        let row_id = query_res.rows[0].page_id;
+        cmd_update_database_row(
+            &state,
+            row_id,
+            Some("Native macOS eframe arayüzü (Tamamlandı)".into()),
+            Some(serde_json::json!({ "Durum": "Tamamlandı", "Öncelik": "Yüksek" })),
+        )
+        .unwrap();
+
+        let re_query = cmd_query_database_view(&state, schema.id, views[0].id).unwrap();
+        assert_eq!(re_query.rows[0].title, "Native macOS eframe arayüzü (Tamamlandı)");
+        assert_eq!(re_query.rows[0].properties["Durum"], "Tamamlandı");
+    }
+
+    #[test]
+    fn test_cmd_save_page_markdown_extra_blocks_and_wikilink_workspace() {
+        let (state, _tmp) = setup_test_state();
+        init_vault_fast(&state, "pass123", None).unwrap();
+
+        let page_target = cmd_create_page(&state, "Hedef Sayfa", None, None, None).unwrap();
+        let page_main = cmd_create_page(&state, "Ana Doküman", None, None, None).unwrap();
+
+        // 3 ayrı blok ekleyelim
+        cmd_insert_block(
+            &state,
+            page_main.id,
+            None,
+            BlockType::Paragraph,
+            serde_json::json!({ "text": "Blok 1 [[Hedef Sayfa]]" }),
+            None,
+            1.0,
+        )
+        .unwrap();
+        cmd_insert_block(
+            &state,
+            page_main.id,
+            None,
+            BlockType::Paragraph,
+            serde_json::json!({ "text": "Blok 2" }),
+            None,
+            2.0,
+        )
+        .unwrap();
+        cmd_insert_block(
+            &state,
+            page_main.id,
+            None,
+            BlockType::Paragraph,
+            serde_json::json!({ "text": "Blok 3" }),
+            None,
+            3.0,
+        )
+        .unwrap();
+
+        let blocks = cmd_list_blocks(&state, page_main.id).unwrap();
+        assert_eq!(blocks.len(), 3);
+
+        // Wikilink başlığa göre doğru çözümlenmiş olmalı
+        let backlinks = cmd_get_backlinks(&state, page_target.id).unwrap();
+        assert_eq!(backlinks.len(), 1);
+        assert_eq!(backlinks[0].source_page_id, page_main.id);
+
+        // Şimdi tek gövde markdown ile kaydet
+        cmd_save_page_markdown(&state, page_main.id, "# Birleştirilmiş Metin").unwrap();
+
+        // Fazlalık bloklar silinmiş ve sadece 1 blok kalmış olmalı
+        let remaining_blocks = cmd_list_blocks(&state, page_main.id).unwrap();
+        assert_eq!(remaining_blocks.len(), 1);
+        assert_eq!(remaining_blocks[0].extract_plain_text(), "# Birleştirilmiş Metin");
+
+        // Outbox temizliğini doğrula
+        let store = state.store.lock().unwrap();
+        let page_repo = PageRepo::new(store.conn());
+        let items = page_repo.list_outbox_fifo(100).unwrap();
+        assert!(!items.is_empty());
+        for item in &items {
+            page_repo.remove_outbox(item.id).unwrap();
+        }
+        let after_removal = page_repo.list_outbox_fifo(100).unwrap();
+        assert!(after_removal.is_empty());
     }
 }

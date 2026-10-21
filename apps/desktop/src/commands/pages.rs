@@ -170,6 +170,86 @@ pub fn cmd_hard_delete_page(state: &DesktopAppState, page_id: Uuid) -> Result<()
     Ok(())
 }
 
+/// Sayfa başlığını, simgesini veya kapak görselini günceller.
+pub fn cmd_update_page(
+    state: &DesktopAppState,
+    page_id: Uuid,
+    title: Option<String>,
+    icon: Option<String>,
+    cover_image: Option<String>,
+) -> Result<Page, AppError> {
+    state.require_unlocked()?;
+
+    let store = state.store.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    let page_repo = PageRepo::new(store.conn());
+
+    let mut page = page_repo
+        .get_page(page_id)?
+        .ok_or_else(|| AppError::NotFound(format!("Sayfa bulunamadı: {page_id}")))?;
+
+    if let Some(t) = title {
+        let trimmed = t.trim();
+        if !trimmed.is_empty() {
+            page.title = trimmed.to_string();
+        }
+    }
+    if let Some(ic) = icon {
+        page.icon = Some(ic);
+    }
+    if let Some(cov) = cover_image {
+        page.cover_image = Some(cov);
+    }
+    page.touch();
+    page_repo.update_page(&page)?;
+
+    Ok(page)
+}
+
+/// Sayfanın tüm bloklarını birleştirip tek gövde Markdown metni olarak döndürür.
+pub fn cmd_get_page_markdown(state: &DesktopAppState, page_id: Uuid) -> Result<String, AppError> {
+    let blocks = crate::commands::blocks::cmd_list_blocks(state, page_id)?;
+    if blocks.is_empty() {
+        return Ok(String::new());
+    }
+
+    let texts: Vec<String> = blocks.iter().map(|b| b.extract_plain_text()).collect();
+    Ok(texts.join("\n\n"))
+}
+
+/// Sayfanın Markdown metnini blok tablosuna, FTS5 arama indeksine, wikilink grafiğine ve outbox'a kaydeder.
+pub fn cmd_save_page_markdown(
+    state: &DesktopAppState,
+    page_id: Uuid,
+    markdown: &str,
+) -> Result<(), AppError> {
+    let blocks = crate::commands::blocks::cmd_list_blocks(state, page_id)?;
+    if let Some(first_block) = blocks.first() {
+        crate::commands::blocks::cmd_update_block(
+            state,
+            first_block.id,
+            Some(serde_json::json!({ "text": markdown })),
+            None,
+            None,
+        )?;
+        if blocks.len() > 1 {
+            for extra_block in &blocks[1..] {
+                crate::commands::blocks::cmd_delete_block(state, extra_block.id)?;
+            }
+        }
+    } else {
+        crate::commands::blocks::cmd_insert_block(
+            state,
+            page_id,
+            None,
+            notes_core::model::block::BlockType::Paragraph,
+            serde_json::json!({ "text": markdown }),
+            None,
+            0.0,
+        )?;
+    }
+    Ok(())
+}
+
 fn build_page_tree(pages: &[Page], parent_id: Option<Uuid>) -> Vec<PageTreeNode> {
     pages
         .iter()

@@ -41,7 +41,7 @@ pub fn cmd_insert_block(
     block_repo.insert_block(&block, Some(&page.title))?;
 
     // 2. İçerikten [[Wikilink]] ve #etiket çıkarıp indeks tablolarına kaydet
-    process_block_links_and_tags(&page_repo, &block, &page.title)?;
+    process_block_links_and_tags(&page_repo, workspace_id, &block, &page.title)?;
 
     // 3. CRDT doküman güncellemesini oluştur ve DEK ile zarflayarak sync_outbox kuyruğuna yaz
     enqueue_crdt_upsert(&page_repo, workspace_id, page_id, &block, &dek)?;
@@ -86,7 +86,7 @@ pub fn cmd_update_block(
     block_repo.update_block(&block, Some(&page.title))?;
 
     // 2. Wikilink ve tag indekslerini tazele
-    process_block_links_and_tags(&page_repo, &block, &page.title)?;
+    process_block_links_and_tags(&page_repo, workspace_id, &block, &page.title)?;
 
     // 3. CRDT outbox zarfını ekle
     enqueue_crdt_upsert(&page_repo, workspace_id, block.page_id, &block, &dek)?;
@@ -177,6 +177,7 @@ pub fn cmd_reorder_block(
 
 fn process_block_links_and_tags(
     page_repo: &PageRepo<'_>,
+    workspace_id: Uuid,
     block: &Block,
     _page_title: &str,
 ) -> Result<(), AppError> {
@@ -190,7 +191,7 @@ fn process_block_links_and_tags(
         } else {
             // Başlığa göre hedef sayfayı bul
             page_repo
-                .list_workspace_pages(block.page_id, false)
+                .list_workspace_pages(workspace_id, false)
                 .ok()
                 .and_then(|pages| {
                     pages

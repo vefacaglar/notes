@@ -402,3 +402,86 @@ fn map_view_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DatabaseView> {
         updated_at,
     })
 }
+
+/// Veritabanına yeni bir kayıt (satır / alt sayfa) ekler.
+pub fn cmd_insert_database_row(
+    state: &DesktopAppState,
+    db_page_id: Uuid,
+    title: &str,
+    properties: serde_json::Value,
+) -> Result<DatabaseRow, AppError> {
+    let row_page = crate::commands::pages::cmd_create_page(
+        state,
+        title,
+        Some(db_page_id),
+        Some("📄".to_string()),
+        None,
+    )?;
+
+    let _block = crate::commands::blocks::cmd_insert_block(
+        state,
+        row_page.id,
+        None,
+        notes_core::model::block::BlockType::Paragraph,
+        serde_json::json!({ "text": "" }),
+        Some(properties.clone()),
+        0.0,
+    )?;
+
+    Ok(DatabaseRow {
+        page_id: row_page.id,
+        title: row_page.title,
+        icon: row_page.icon,
+        properties,
+        created_at: row_page.created_at.timestamp_millis(),
+        updated_at: row_page.updated_at.timestamp_millis(),
+    })
+}
+
+/// Veritabanı satırının başlığını veya özelliklerini günceller.
+pub fn cmd_update_database_row(
+    state: &DesktopAppState,
+    row_page_id: Uuid,
+    new_title: Option<String>,
+    new_properties: Option<serde_json::Value>,
+) -> Result<(), AppError> {
+    state.require_unlocked()?;
+    if let Some(ref title) = new_title {
+        let store = state.store.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+        let page_repo = notes_core::storage::PageRepo::new(store.conn());
+        if let Some(mut p) = page_repo.get_page(row_page_id)? {
+            p.title = title.clone();
+            p.touch();
+            page_repo.update_page(&p)?;
+        }
+    }
+
+    if let Some(props) = new_properties {
+        let blocks = crate::commands::blocks::cmd_list_blocks(state, row_page_id)?;
+        if let Some(first_block) = blocks.first() {
+            crate::commands::blocks::cmd_update_block(
+                state,
+                first_block.id,
+                None,
+                Some(props),
+                None,
+            )?;
+        } else {
+            crate::commands::blocks::cmd_insert_block(
+                state,
+                row_page_id,
+                None,
+                notes_core::model::block::BlockType::Paragraph,
+                serde_json::json!({ "text": "" }),
+                Some(props),
+                0.0,
+            )?;
+        }
+    }
+    Ok(())
+}
+
+/// Veritabanı satırını siler.
+pub fn cmd_delete_database_row(state: &DesktopAppState, row_page_id: Uuid) -> Result<(), AppError> {
+    crate::commands::pages::cmd_soft_delete_page(state, row_page_id)
+}

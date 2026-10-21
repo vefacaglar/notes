@@ -236,6 +236,13 @@ pub fn lock_vault(state: &DesktopAppState) -> Result<(), AppError> {
     Ok(())
 }
 
+/// Kasanın yerel depoda başlatılıp başlatılmadığını (workspace kaydı var mı) denetler.
+pub fn is_vault_initialized(state: &DesktopAppState) -> Result<bool, AppError> {
+    let store = state.store.lock().map_err(|e| AppError::Internal(e.to_string()))?;
+    let workspaces = store.list_workspaces()?;
+    Ok(!workspaces.is_empty())
+}
+
 fn get_target_workspace_and_wrapped_dek(
     state: &DesktopAppState,
 ) -> Result<(WorkspaceRecord, WrappedDek), AppError> {
