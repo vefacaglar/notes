@@ -11,7 +11,7 @@ pub use page_repo::{OutboxItem, PageRepo};
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::block::{Block, BlockType};
+    use crate::model::block::Block;
     use crate::model::page::{Page, PageLink};
     use uuid::Uuid;
 

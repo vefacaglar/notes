@@ -14,7 +14,7 @@ pub use sync_codec::{apply_update, encode_state_as_update, state_vector};
 mod tests {
     use super::*;
     use crate::error::CoreError;
-    use crate::model::{Block, BlockType};
+    use crate::model::Block;
     use uuid::Uuid;
 
     #[test]
@@ -109,7 +109,7 @@ mod tests {
         let page_id = Uuid::now_v7();
 
         let mut b1 = Block::paragraph(page_id, "Paragraf 1", 100.0);
-        let mut b2 = Block::paragraph(page_id, "Paragraf 2", 200.0);
+        let b2 = Block::paragraph(page_id, "Paragraf 2", 200.0);
 
         doc.upsert_block(&b1).unwrap();
         doc.upsert_block(&b2).unwrap();
@@ -301,7 +301,7 @@ mod tests {
 
     #[test]
     fn test_sync_codec_idempotency() {
-        let mut peer_a = PageCrdtDoc::with_client_id(3001);
+        let peer_a = PageCrdtDoc::with_client_id(3001);
         let mut peer_b = PageCrdtDoc::with_client_id(3002);
 
         peer_a.set_title("Tekrarlı Güncelleme Testi");

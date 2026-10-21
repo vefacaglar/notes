@@ -3,12 +3,11 @@
 //! Bu modül, sayfa meta verilerini, blok koleksiyonunu ve blok içi zengin
 //! metinleri (`yrs::TextRef`) yöneten çatışmasız replike edilebilir veri yapısını (CRDT) sunar.
 
-use std::sync::Arc;
 use chrono::Utc;
 use yrs::{
     types::map::Map,
     types::text::Text,
-    Any, Doc, GetString, MapRef, Out, ReadTxn, TextRef, Transact,
+    Any, Doc, GetString, MapRef, Out, TextRef, Transact,
 };
 
 use crate::error::{CoreError, Result};

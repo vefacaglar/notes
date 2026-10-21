@@ -90,7 +90,6 @@ mod tests {
     fn test_fts_block_lifecycle_and_lock_screen_clear() {
         let conn = setup_in_memory_db();
         let page_id = Uuid::now_v7();
-        let block_id = Uuid::now_v7();
 
         let block = Block::paragraph(page_id, "Kriptografik anahtar türetimi HKDF", 1.0);
         let block_id = block.id;

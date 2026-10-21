@@ -16,7 +16,7 @@ static WIKI_LINK_REGEX: LazyLock<Regex> =
 /// Metin içi `#etiket` regex deseni.
 /// Başlık (`## `) ve link içi URL fragment (`site.com#anchor`) durumlarını hariç tutar.
 static HASHTAG_REGEX: LazyLock<Regex> = LazyLock::new(|| {
-    Regex::new(r"(?:^|[^\p{Alphanumeric}_#])#([\p{Alphabetic}\p{Number}_][\p{Alphabetic}\p{Number}_-]*)")
+    Regex::new(r"(?:^|[^\p{Alphabetic}\p{Number}_#])#([\p{Alphabetic}\p{Number}_][\p{Alphabetic}\p{Number}_-]*)")
         .expect("Geçersiz hashtag regex deseni")
 });
 
@@ -83,7 +83,18 @@ pub fn extract_hashtags(text: &str) -> Vec<String> {
     for cap in HASHTAG_REGEX.captures_iter(text) {
         if let Some(matched) = cap.get(1) {
             let raw_match = matched.as_str().trim_end_matches(['-', '_']);
-            if let Ok(normalized) = Tag::normalize(raw_match) {
+            // Türkçe büyük İ/I harflerinin Unicode standardında birleşik noktalı \u{307}
+            // karakterine ayrışmasını önlemek için ön dönüşüm yapılır.
+            let tr_prepared: String = raw_match
+                .chars()
+                .map(|c| match c {
+                    'İ' => 'i',
+                    'I' => 'ı',
+                    other => other,
+                })
+                .collect();
+
+            if let Ok(normalized) = Tag::normalize(&tr_prepared) {
                 if seen.insert(normalized.clone()) {
                     tags.push(normalized);
                 }

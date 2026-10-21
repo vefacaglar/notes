@@ -8,7 +8,7 @@ use yrs::updates::decoder::Decode;
 use yrs::updates::encoder::Encode;
 use yrs::{ReadTxn, StateVector, Transact, Update};
 
-use crate::crdt::doc::PageCrdtDoc;
+use super::doc::PageCrdtDoc;
 use crate::error::{CoreError, Result};
 
 impl PageCrdtDoc {
