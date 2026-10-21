@@ -101,8 +101,8 @@ impl<'a> OutboxQueue<'a> {
     /// Başarısız gönderimde deneme sayısını artırır ve hata mesajını günceller.
     ///
     /// Güncel deneme sayısı `policy.max_retries` eşiğine ulaştıysa veya aştıysa
-    /// `SyncError::MaxRetriesExceeded` döndürür.
-    pub fn mark_retry(&self, id: Uuid, error_msg: &str) -> Result<u32> {
+    /// `SyncError::MaxRetriesExceeded { id, retries }` döndürür.
+    pub fn mark_failed(&self, id: Uuid, error_msg: &str) -> Result<u32> {
         let repo = PageRepo::new(self.store.conn());
 
         // Mevcut retry sayısını sorgula
@@ -124,11 +124,21 @@ impl<'a> OutboxQueue<'a> {
         if new_count >= self.policy.max_retries {
             return Err(SyncError::MaxRetriesExceeded {
                 id,
-                attempts: new_count,
+                retries: new_count,
             });
         }
 
         Ok(new_count)
+    }
+
+    /// `mark_failed` için fonksiyon takma adı (alias).
+    pub fn record_failure(&self, id: Uuid, error_msg: &str) -> Result<u32> {
+        self.mark_failed(id, error_msg)
+    }
+
+    /// Geriye dönük uyumluluk için `mark_retry` fonksiyonu.
+    pub fn mark_retry(&self, id: Uuid, error_msg: &str) -> Result<u32> {
+        self.mark_failed(id, error_msg)
     }
 
     /// Belirtilen deneme sayısı için yeniden deneme bekleme süresini (exponential backoff + jitter) hesaplar.
@@ -280,20 +290,20 @@ mod tests {
         let env_id = queue.enqueue(&env).unwrap();
 
         // 1. Başarısızlık: retry_count = 1 (< 3)
-        let count1 = queue.mark_retry(env_id, "503 Service Unavailable").unwrap();
+        let count1 = queue.mark_failed(env_id, "503 Service Unavailable").unwrap();
         assert_eq!(count1, 1);
 
-        // 2. Başarısızlık: retry_count = 2 (< 3)
-        let count2 = queue.mark_retry(env_id, "Connection Timeout").unwrap();
+        // 2. Başarısızlık (record_failure takma adı ile): retry_count = 2 (< 3)
+        let count2 = queue.record_failure(env_id, "Connection Timeout").unwrap();
         assert_eq!(count2, 2);
 
         // 3. Başarısızlık: retry_count = 3 (== max_retries) -> MaxRetriesExceeded hatası dönmeli
-        let res3 = queue.mark_retry(env_id, "Fatal network error");
+        let res3 = queue.mark_failed(env_id, "Fatal network error");
         assert!(res3.is_err());
         match res3.unwrap_err() {
-            SyncError::MaxRetriesExceeded { id, attempts } => {
+            SyncError::MaxRetriesExceeded { id, retries } => {
                 assert_eq!(id, env_id);
-                assert_eq!(attempts, 3);
+                assert_eq!(retries, 3);
             }
             other => panic!("Beklenmeyen hata türü: {other:?}"),
         }

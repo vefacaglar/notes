@@ -3,10 +3,19 @@
 //! Bu crate, çevrimdışı outbox kuyruğu, yrs CRDT durum vektörü el sıkışması
 //! ve kör senkronizasyon (Blind Relay) protokolü istemci bileşenlerini içerir.
 
+pub mod blob;
+pub mod client;
 pub mod error;
 pub mod protocol;
 pub mod queue;
 
+pub use blob::{
+    BlobTransferClient, BlobTransferError, BlobTransport, InMemoryBlobTransport,
+    ReqwestBlobTransport,
+};
+pub use client::{
+    InMemorySyncTransport, ReqwestSyncTransport, SyncClientConfig, SyncClientError, SyncTransport,
+};
 pub use error::{Result, SyncError};
 pub use protocol::{
     create_handshake_request, envelope_aad, open_handshake_envelopes, BlobUploadMeta,

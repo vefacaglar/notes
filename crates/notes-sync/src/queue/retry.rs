@@ -159,7 +159,7 @@ mod tests {
             let delay = policy.calculate_delay_with_jitter(0);
             let millis = delay.as_millis();
             // %20 jitter: 800ms .. 1200ms
-            assert!(millis >= 800 && millis <= 1200, "Jitter aralık dışı: {millis}");
+            assert!((800..=1200).contains(&millis), "Jitter aralık dışı: {millis}");
         }
     }
 }
