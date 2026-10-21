@@ -18,6 +18,8 @@ reqwest.workspace = true
 yrs.workspace = true
 blake3.workspace = true
 chacha20poly1305.workspace = true
+rand.workspace = true
+rusqlite.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
