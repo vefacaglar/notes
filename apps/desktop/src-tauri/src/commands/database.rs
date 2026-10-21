@@ -194,8 +194,13 @@ pub fn cmd_get_database_view(state: &DesktopAppState, view_id: Uuid) -> Result<D
     state.require_unlocked()?;
 
     let store = state.store.lock().map_err(|e| AppError::Internal(e.to_string()))?;
-    let conn = store.conn();
+    get_database_view_from_conn(store.conn(), view_id)
+}
 
+pub(crate) fn get_database_view_from_conn(
+    conn: &rusqlite::Connection,
+    view_id: Uuid,
+) -> Result<DatabaseView, AppError> {
     let mut stmt = conn
         .prepare(
             "SELECT id, database_id, title, view_type, filter_groups_json, sort_rules_json, visible_properties_json, created_at, updated_at
@@ -234,7 +239,7 @@ pub fn cmd_query_database_view(
         .map_err(|_| AppError::NotFound(format!("Veritabanı bulunamadı: {database_id}")))?;
     let db_page_id = Uuid::parse_str(&page_id_str).map_err(|e| AppError::Internal(e.to_string()))?;
 
-    let view = cmd_get_database_view(state, view_id)?;
+    let view = get_database_view_from_conn(conn, view_id)?;
 
     // 2. Alt sayfaları (Database Satırlarını) çek
     let mut stmt_rows = conn

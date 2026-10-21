@@ -5,8 +5,6 @@ edition = "2021"
 authors = ["Notes Contributors"]
 license = "MIT OR Apache-2.0"
 
-[workspace]
-
 [dependencies]
 notes-core = { path = "../../../crates/notes-core" }
 serde = { version = "1.0", features = ["derive"] }

@@ -1106,6 +1106,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "notes-desktop"
+version = "0.1.0"
+dependencies = [
+ "blake3",
+ "chrono",
+ "notes-core",
+ "regex",
+ "rusqlite",
+ "serde",
+ "serde_json",
+ "tempfile",
+ "thiserror",
+ "tokio",
+ "uuid",
+ "zeroize",
+]
+
+[[package]]
 name = "notes-server"
 version = "0.1.0"
 dependencies = [

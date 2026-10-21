@@ -4,6 +4,7 @@ members = [
     "crates/notes-core",
     "crates/notes-sync",
     "crates/notes-server",
+    "apps/desktop/src-tauri",
 ]
 
 [workspace.package]
