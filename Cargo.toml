@@ -58,3 +58,8 @@ anyhow = "1.0"
 
 # macOS Entegrasyonu
 security-framework = "2.11"
+
+# GUI & Markdown (Native macOS Masaüstü)
+eframe = "0.29"
+egui = "0.29"
+pulldown-cmark = "0.12"
