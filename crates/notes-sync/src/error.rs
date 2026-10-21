@@ -19,8 +19,8 @@ pub enum SyncError {
     #[error("Bütünlük (MAC / Hash) hatası: {0}")]
     IntegrityError(String),
 
-    #[error("Maksimum yeniden deneme sınırı aşıldı: id={id}, attempts={attempts}")]
-    MaxRetriesExceeded { id: Uuid, attempts: u32 },
+    #[error("Maksimum yeniden deneme sınırı aşıldı: id={id}, retries={retries}")]
+    MaxRetriesExceeded { id: Uuid, retries: u32 },
 
     #[error("Kuyruk işlem hatası: {0}")]
     Queue(String),
@@ -30,6 +30,18 @@ pub enum SyncError {
 
     #[error("Kriptografi hatası: {0}")]
     Crypto(String),
+
+    #[error("HTTP istek hatası: {0}")]
+    Http(#[from] reqwest::Error),
+
+    #[error("Sunucu hatası ({status}): {message}")]
+    Server { status: u16, message: String },
+
+    #[error("Kaynak veya blob bulunamadı: {0}")]
+    NotFound(String),
+
+    #[error("BLAKE3 hash bütünlük hatası! Beklenen: {expected}, Gerçekleşen: {actual}")]
+    HashMismatch { expected: String, actual: String },
 }
 
 impl From<serde_json::Error> for SyncError {
@@ -55,11 +67,26 @@ mod tests {
         let test_id = Uuid::nil();
         let err3 = SyncError::MaxRetriesExceeded {
             id: test_id,
-            attempts: 5,
+            retries: 5,
         };
         assert_eq!(
             err3.to_string(),
-            format!("Maksimum yeniden deneme sınırı aşıldı: id={test_id}, attempts=5")
+            format!("Maksimum yeniden deneme sınırı aşıldı: id={test_id}, retries=5")
+        );
+
+        let err4 = SyncError::Server {
+            status: 500,
+            message: "Internal Server Error".into(),
+        };
+        assert_eq!(err4.to_string(), "Sunucu hatası (500): Internal Server Error");
+
+        let err5 = SyncError::HashMismatch {
+            expected: "a".into(),
+            actual: "b".into(),
+        };
+        assert_eq!(
+            err5.to_string(),
+            "BLAKE3 hash bütünlük hatası! Beklenen: a, Gerçekleşen: b"
         );
     }
 
