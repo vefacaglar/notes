@@ -50,6 +50,69 @@
       "command": "dotnet",
       "args": ["clean", "Notes.slnx", "-p:Platform=x64", "-nologo", "-v", "q"],
       "problemMatcher": []
+    },
+    {
+      "label": "macOS: Build",
+      "type": "shell",
+      "command": "swift build",
+      "options": { "cwd": "${workspaceFolder}/apps/macos" },
+      "problemMatcher": "$swiftc",
+      "group": "build",
+      "presentation": { "reveal": "silent", "clear": true }
+    },
+    {
+      "label": "macOS: Test",
+      "type": "shell",
+      "command": "swift test",
+      "options": { "cwd": "${workspaceFolder}/apps/macos" },
+      "problemMatcher": "$swiftc",
+      "group": "test",
+      "presentation": { "reveal": "always", "clear": true }
+    },
+    {
+      "label": "macOS: Build and Test",
+      "dependsOrder": "sequence",
+      "dependsOn": ["macOS: Build", "macOS: Test"],
+      "problemMatcher": []
+    },
+    {
+      "label": "macOS: Run (temp notes)",
+      "type": "shell",
+      "command": "mkdir -p \"$TMPDIR/NotesTemp\" \"$TMPDIR/NotesTempSupport\" && swift run Notes -notesFolder \"$TMPDIR/NotesTemp\" -supportFolder \"$TMPDIR/NotesTempSupport\"",
+      "options": { "cwd": "${workspaceFolder}/apps/macos" },
+      "problemMatcher": "$swiftc",
+      "presentation": { "reveal": "silent", "clear": true }
+    },
+    {
+      "label": "macOS: Run (real notes)",
+      "type": "shell",
+      "command": "./scripts/bundle.sh && open build/Notes.app",
+      "options": { "cwd": "${workspaceFolder}/apps/macos" },
+      "problemMatcher": "$swiftc",
+      "presentation": { "reveal": "silent", "clear": true }
+    },
+    {
+      "label": "macOS: Bundle",
+      "type": "shell",
+      "command": "./scripts/bundle.sh",
+      "options": { "cwd": "${workspaceFolder}/apps/macos" },
+      "problemMatcher": "$swiftc",
+      "presentation": { "reveal": "always", "clear": true }
+    },
+    {
+      "label": "macOS: Clean",
+      "type": "shell",
+      "command": "swift package clean && rm -rf build",
+      "options": { "cwd": "${workspaceFolder}/apps/macos" },
+      "problemMatcher": []
+    },
+    {
+      "label": "macOS: Build for debugging",
+      "type": "shell",
+      "command": "mkdir -p \"$TMPDIR/NotesTemp\" \"$TMPDIR/NotesTempSupport\" && swift build",
+      "options": { "cwd": "${workspaceFolder}/apps/macos" },
+      "problemMatcher": "$swiftc",
+      "presentation": { "reveal": "silent", "clear": true }
     }
   ]
 }

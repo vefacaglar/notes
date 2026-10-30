@@ -27,6 +27,30 @@
       "type": "coreclr",
       "request": "attach",
       "processName": "Notes.exe"
+    },
+    {
+      "name": "macOS: Debug (temp notes)",
+      "type": "swift",
+      "request": "launch",
+      "preLaunchTask": "macOS: Build for debugging",
+      "program": "${workspaceFolder}/apps/macos/.build/debug/Notes",
+      "args": ["-notesFolder", "${env:TMPDIR}/NotesTemp", "-supportFolder", "${env:TMPDIR}/NotesTempSupport"],
+      "cwd": "${workspaceFolder}/apps/macos"
+    },
+    {
+      "name": "macOS: Debug (temp notes, Turkish)",
+      "type": "swift",
+      "request": "launch",
+      "preLaunchTask": "macOS: Build for debugging",
+      "program": "${workspaceFolder}/apps/macos/.build/debug/Notes",
+      "args": ["-notesFolder", "${env:TMPDIR}/NotesTemp", "-supportFolder", "${env:TMPDIR}/NotesTempSupport", "-lang", "tr"],
+      "cwd": "${workspaceFolder}/apps/macos"
+    },
+    {
+      "name": "macOS: Attach to running app",
+      "type": "swift",
+      "request": "attach",
+      "program": "${workspaceFolder}/apps/macos/.build/debug/Notes"
     }
   ]
 }
