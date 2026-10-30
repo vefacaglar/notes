@@ -46,7 +46,8 @@ A JSON object as above. Keys are case-sensitive; unknown keys are ignored (so ne
 | `appearance` | **yes** | `"light"` or `"dark"`. |
 | `colors` | no | Editor colors, see below. |
 | `syntax` | no | Code colors, see below. |
-| `fonts` | no | `body` and `mono`, each `{ "family": string, "size": number }`. |
+
+Fonts are not part of a theme: the text and code fonts are app settings (Ayarlar → Editör), so they stay the same when the theme changes. Older files may still have a `fonts` key; it is ignored like any unknown key.
 
 ### Colors
 
@@ -90,16 +91,9 @@ Alpha:
 | `property` | JSON/YAML/TOML keys, XML attribute names, CSS properties, shell variables |
 | `tag` | Markup tags with their brackets, TOML/INI section headers |
 
-### Fonts
-
-- `fonts.body` is used for Markdown notes, `fonts.mono` for inline code, code blocks and code files.
-- `family` is a font family name as installed on the system (e.g. `"Georgia"`, `"Menlo"`). Missing → the system font (`mono`: the system monospaced font). If the family is not installed, the app uses the system font as well.
-- `family` is trimmed; an empty or whitespace-only `family` is an error (leave the key out to get the system font).
-- `size` is in logical pixels (macOS points = WPF/WinUI DIPs), 6–72 inclusive, fractional allowed (`13.5`). Missing → the app's default size.
-
 ## Fallback rules
 
-A theme may set any subset of `colors`, `syntax` and `fonts`. Every value it leaves out is taken from the **default built-in theme of the same appearance** (`default-light` for `"light"`, `default-dark` for `"dark"`), field by field. Fonts fall back per field too (`{"mono": {"size": 14}}` keeps the default mono family). Values are never taken from another theme, so a partial theme only depends on its appearance.
+A theme may set any subset of `colors` and `syntax`. Every value it leaves out is taken from the **default built-in theme of the same appearance** (`default-light` for `"light"`, `default-dark` for `"dark"`), field by field. Values are never taken from another theme, so a partial theme only depends on its appearance.
 
 ## Validation and errors
 
@@ -107,7 +101,7 @@ A file is skipped, and the problem shown to the user, when:
 
 - it breaks the JSON grammar above, is not an object (including a file that is just `null`), is larger than 1,000,000 bytes, is not a regular file, or cannot be read;
 - `name` or `appearance` is missing or `null`, or any value has the wrong type;
-- a color is not `#RRGGBB`/`#RRGGBBAA`, a font size is outside 6–72, or `id`/`name`/`family` is empty;
+- a color is not `#RRGGBB`/`#RRGGBBAA`, or `id`/`name` is empty;
 - its `id` is already used by a built-in theme or by a user file earlier in file-name order. The first one wins.
 - it is past the 500th candidate file.
 
@@ -130,7 +124,7 @@ Built-ins are stored in the same JSON format (macOS: `apps/macos/Sources/NotesCo
 
 ## Full example
 
-Every key set (this is the `default-light` palette with fonts added):
+Every key set (this is the `default-light` palette):
 
 ```json
 {
@@ -161,10 +155,6 @@ Every key set (this is the `default-light` palette with fonts added):
     "type": "#0B4F79",
     "property": "#326D74",
     "tag": "#0F68A0"
-  },
-  "fonts": {
-    "body": { "family": "Georgia", "size": 15 },
-    "mono": { "family": "Menlo", "size": 13 }
   }
 }
 ```
@@ -180,9 +170,6 @@ Saved as `Gece Yarısı.json`, so its id is `Gece Yarısı`. Everything not list
   "colors": {
     "background": "#101014",
     "selection": "#5E9BFF55"
-  },
-  "fonts": {
-    "mono": { "size": 14 }
   }
 }
 ```

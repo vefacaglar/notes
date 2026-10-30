@@ -227,16 +227,14 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
     public var appearance: ThemeAppearance
     public var colors: Colors
     public var syntax: Syntax
-    public var fonts: Fonts
 
-    /// Applies the same normalization and validation as reading a file (trims, NFC, font checks).
-    public init(id: String, name: String, appearance: ThemeAppearance, colors: Colors = .init(), syntax: Syntax = .init(), fonts: Fonts = .init()) throws {
+    /// Applies the same normalization and validation as reading a file (trims, NFC).
+    public init(id: String, name: String, appearance: ThemeAppearance, colors: Colors = .init(), syntax: Syntax = .init()) throws {
         self.id = id
         self.name = name
         self.appearance = appearance
         self.colors = colors
         self.syntax = syntax
-        self.fonts = fonts
         try normalize()
     }
 
@@ -290,31 +288,9 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
         }
     }
 
-    public struct Fonts: Codable, Hashable, Sendable {
-        public var body: Font?
-        public var mono: Font?
-
-        public init(body: Font? = nil, mono: Font? = nil) {
-            self.body = body
-            self.mono = mono
-        }
-    }
-
-    /// `family` and `size` are each optional; nil means the system font / system size.
-    public struct Font: Codable, Hashable, Sendable {
-        public var family: String?
-        public var size: Double?
-
-        public init(family: String? = nil, size: Double? = nil) {
-            self.family = family
-            self.size = size
-        }
-
-        public static let sizeRange: ClosedRange<Double> = 6...72
-    }
-
+    /// Fonts are app settings, not part of a theme; a `fonts` key in older files is ignored like any unknown key.
     private enum CodingKeys: String, CodingKey {
-        case id, name, appearance, colors, syntax, fonts
+        case id, name, appearance, colors, syntax
     }
 
     public init(from decoder: Decoder) throws {
@@ -327,39 +303,18 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
         appearance = try c.decode(ThemeAppearance.self, forKey: .appearance)
         colors = try c.decodeIfPresent(Colors.self, forKey: .colors) ?? .init()
         syntax = try c.decodeIfPresent(Syntax.self, forKey: .syntax) ?? .init()
-        fonts = try c.decodeIfPresent(Fonts.self, forKey: .fonts) ?? .init()
         try normalize()
     }
 
-    /// Trims `id`, `name` and font families, normalizes `id` and `name` to NFC, then validates.
+    /// Trims `id` and `name`, normalizes them to NFC, then validates.
     private mutating func normalize() throws {
         func clean(_ s: String) -> String {
             s.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
         }
         id = clean(id)
         name = clean(name)
-        for key in [\Fonts.body, \Fonts.mono] {
-            let family = fonts[keyPath: key]?.family
-            fonts[keyPath: key]?.family = family.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        }
-        try validate()
-    }
-
-    private func validate() throws {
         if id.isEmpty { throw ThemeError.invalidValue(field: "id", reason: "boş olamaz.") }
         if name.isEmpty { throw ThemeError.invalidValue(field: "name", reason: "boş olamaz.") }
-        for (field, font) in [("fonts.body", fonts.body), ("fonts.mono", fonts.mono)] {
-            guard let font else { continue }
-            if let family = font.family, family.isEmpty {
-                throw ThemeError.invalidValue(field: "\(field).family", reason: "boş olamaz; sistem yazı tipi için alanı silin.")
-            }
-            if let size = font.size, !Font.sizeRange.contains(size) {
-                throw ThemeError.invalidValue(
-                    field: "\(field).size",
-                    reason: "\(Int(Font.sizeRange.lowerBound)) ile \(Int(Font.sizeRange.upperBound)) arasında olmalı."
-                )
-            }
-        }
     }
 
     private static let fallbackIDKey = CodingUserInfoKey(rawValue: "notes.theme.fallbackID")!
@@ -412,10 +367,6 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
                 keyword: s.keyword ?? bs.keyword, string: s.string ?? bs.string, number: s.number ?? bs.number,
                 comment: s.comment ?? bs.comment, literal: s.literal ?? bs.literal, type: s.type ?? bs.type,
                 property: s.property ?? bs.property, tag: s.tag ?? bs.tag
-            ),
-            fonts: .init(
-                body: .init(family: fonts.body?.family ?? base.fonts.body.family, size: fonts.body?.size ?? base.fonts.body.size),
-                mono: .init(family: fonts.mono?.family ?? base.fonts.mono.family, size: fonts.mono?.size ?? base.fonts.mono.size)
             )
         )
     }
@@ -462,7 +413,6 @@ public struct ResolvedTheme: Hashable, Sendable, Identifiable {
     public var appearance: ThemeAppearance
     public var colors: Colors
     public var syntax: Syntax
-    public var fonts: Fonts
 
     public struct Colors: Hashable, Sendable {
         public var background, text, secondaryText, marker, heading, link: ThemeColor
@@ -484,13 +434,6 @@ public struct ResolvedTheme: Hashable, Sendable, Identifiable {
             case .tag: tag
             }
         }
-    }
-
-    public struct Fonts: Hashable, Sendable {
-        /// nil family = system font (monospaced system font for `mono`); nil size = system default size.
-        /// Sizes are logical pixels (macOS points).
-        public var body: Theme.Font
-        public var mono: Theme.Font
     }
 
     /// Contrast of `foreground` on `background` (default: the editor background) as drawn by this theme:
@@ -554,8 +497,7 @@ public struct ThemeLibrary: Sendable {
             syntax: .init(
                 keyword: v(s.keyword), string: v(s.string), number: v(s.number), comment: v(s.comment),
                 literal: v(s.literal), type: v(s.type), property: v(s.property), tag: v(s.tag)
-            ),
-            fonts: .init(body: theme.fonts.body ?? .init(), mono: theme.fonts.mono ?? .init())
+            )
         )
     }
 

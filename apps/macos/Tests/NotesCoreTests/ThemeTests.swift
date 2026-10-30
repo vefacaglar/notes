@@ -60,7 +60,6 @@ struct ThemeDecodingTests {
         #expect(resolved.name == "Benim")
         #expect(resolved.colors == base.colors)
         #expect(resolved.syntax == base.syntax)
-        #expect(resolved.fonts == base.fonts)
     }
 
     @Test func partialThemeOverridesOnlyWhatItSets() throws {
@@ -83,8 +82,6 @@ struct ThemeDecodingTests {
         #expect(resolved.colors.accent == base.colors.accent)
         #expect(resolved.syntax.comment.hex == "#808080")
         #expect(resolved.syntax.keyword == base.syntax.keyword)
-        #expect(resolved.fonts.body == Theme.Font(family: "Georgia", size: nil))
-        #expect(resolved.fonts.mono == Theme.Font(family: nil, size: 13))
     }
 
     @Test func idInFileWinsOverFallbackAndIsTrimmed() throws {
@@ -109,12 +106,6 @@ struct ThemeDecodingTests {
          ThemeError.invalidValue(field: "colors.text", reason: "metin bekleniyordu.")),
         (##"{"name": null, "appearance": "light"}"##,
          ThemeError.invalidValue(field: "name", reason: "null olamaz.")),
-        (##"{"name": "A", "appearance": "light", "fonts": {"body": {"size": 200}}}"##,
-         ThemeError.invalidValue(field: "fonts.body.size", reason: "6 ile 72 arasında olmalı.")),
-        (##"{"name": "A", "appearance": "light", "fonts": {"mono": {"size": "12"}}}"##,
-         ThemeError.invalidValue(field: "fonts.mono.size", reason: "sayı bekleniyordu.")),
-        (##"{"name": "A", "appearance": "light", "fonts": {"mono": {"family": ""}}}"##,
-         ThemeError.invalidValue(field: "fonts.mono.family", reason: "boş olamaz; sistem yazı tipi için alanı silin.")),
     ])
     func invalidThemesReportTheField(json: String, error: ThemeError) {
         #expect(throws: error) { try Theme.decode(Data(json.utf8), fallbackID: "f") }
@@ -132,12 +123,12 @@ struct ThemeDecodingTests {
     }
 
     @Test func encodingRoundTripsAndOmitsUnsetFields() throws {
-        let theme = try Theme(id: "t", name: "Tema", appearance: .dark, colors: .init(background: .black), fonts: .init(mono: .init(size: 14)))
+        let theme = try Theme(id: "t", name: "Tema", appearance: .dark, colors: .init(background: .black))
         let data = try theme.encodedJSON()
         let text = String(decoding: data, as: UTF8.self)
         #expect(text.contains("\"background\" : \"#000000\""))
         #expect(!text.contains("text"))
-        #expect(!text.contains("family"))
+        #expect(!text.contains("fonts"))
         #expect(try Theme.decode(data) == theme)
     }
 
@@ -452,23 +443,21 @@ struct ThemeJSONGrammarTests {
         #expect(theme.name.unicodeScalars.count == 3)
     }
 
-    @Test func fontFamilyIsTrimmedAndSizeMayBeFractional() throws {
-        let theme = try decode("{\(head), \"fonts\": {\"body\": {\"family\": \" Georgia\\n\", \"size\": 13.5}}}")
-        #expect(theme.fonts.body == Theme.Font(family: "Georgia", size: 13.5))
-        #expect(thrown { _ = try decode("{\(head), \"fonts\": {\"body\": {\"family\": \"\\n\\t \"}}}") }
-                == .invalidValue(field: "fonts.body.family", reason: "boş olamaz; sistem yazı tipi için alanı silin."))
+    /// Fonts left the theme format (they are app settings now); old files that still have them load unchanged,
+    /// even with values that used to be errors.
+    @Test func legacyFontsAreIgnored() throws {
+        let theme = try decode("""
+        {\(head), "fonts": {"body": {"family": "", "size": 200}, "mono": {"family": "Menlo", "size": "12"}}, "colors": {"text": "#123456"}}
+        """)
+        #expect(theme.colors.text?.hex == "#123456")
+        let text = String(decoding: try theme.encodedJSON(), as: UTF8.self)
+        #expect(!text.contains("fonts"))
     }
 
     @Test func initAndEncodingValidateLikeDecoding() throws {
-        let sizeError = ThemeError.invalidValue(field: "fonts.mono.size", reason: "6 ile 72 arasında olmalı.")
-        #expect(thrown { _ = try Theme(id: "a", name: "A", appearance: .light, fonts: .init(mono: .init(size: .nan))) } == sizeError)
-        #expect(thrown { _ = try Theme(id: "a", name: "A", appearance: .light, fonts: .init(mono: .init(size: .infinity))) } == sizeError)
         #expect(thrown { _ = try Theme(id: " ", name: "A", appearance: .light) } == .invalidValue(field: "id", reason: "boş olamaz."))
         var theme = try Theme(id: " Gu\u{308}l ", name: " Gül ", appearance: .light)
         #expect(theme.id == "Gül" && theme.id.unicodeScalars.count == 3 && theme.name == "Gül")
-        theme.fonts.mono = .init(size: 100)
-        #expect(thrown { _ = try theme.encodedJSON() } == sizeError)
-        theme.fonts.mono = nil
         theme.name = "\n"
         #expect(thrown { _ = try theme.encodedJSON() } == .invalidValue(field: "name", reason: "boş olamaz."))
     }
