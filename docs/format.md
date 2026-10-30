@@ -57,6 +57,14 @@ Rules:
 - **Auto-named**: a note is auto-named when its name (without `.md`), or that name without a number suffix, is one of the untitled names (`Untitled`, `Adsız`) or equals the title of its content. Names compare after NFC normalization, case-sensitively (`alışveriş` is not `Alışveriş`). This is decided when the note is opened, reloaded after an external change, or renamed by the user (renaming its folder does not count), and holds in between. Any other note was named by hand and is never renamed automatically.
 - **Sync**: after each save of an auto-named note, if its first line (not the first non-blank one) is not blank and has a title that differs from both the current name and the name without its number suffix, the file is renamed to that title, made unique in its folder with ` 2`, ` 3`, … (a name is taken when the file system already has an item by that name other than the note's own file, so a case-only change is allowed). If the first line is blank or yields no title, the name is kept. If the rename fails, the note keeps its name and the rename is tried again after the next save.
 
+## Drafts (app state, outside the notes folders)
+
+A new tab opens a draft: an unsaved note that lives only in the app until the user saves it. Drafts are app state, not part of any notes folder.
+
+- Store: one UTF-8 file per draft, named `<32 lowercase hex>.md`, in the app's own folder (Windows: `%LOCALAPPDATA%\Notes\Drafts\`), plus `order.txt` listing the draft file names in tab order. Written atomically like notes. Apps never put drafts or anything else into a notes folder before the user saves.
+- Drafts survive closing the app, quitting and logging off without a prompt, and come back as tabs in their order. Empty draft files are deleted at startup. Closing a non-empty draft tab asks Save / Don't Save / Cancel.
+- Saving a draft writes `<title>.md` (the title as in *Automatic naming*, else the untitled name, made unique) into the folder selected in the sidebar, else the first root, then deletes the draft file; from then on it is an ordinary auto-named note. Saving an empty draft does nothing. Save As writes anywhere the user picks.
+
 ## File contents
 
 - Encoding: **UTF-8**. Apps write UTF-8 **without a BOM**; on read a leading BOM is tolerated and ignored.
