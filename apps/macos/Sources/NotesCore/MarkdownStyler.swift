@@ -45,6 +45,20 @@ public enum MarkdownStyler {
         scanner.run()
         return scanner.spans
     }
+
+    /// What to restyle after an edit when no fence moved: the whole lines it touches, through the end of the line
+    /// where it ends, so text split off by Return (which keeps e.g. a heading's font) is included.
+    /// Lines end at LF only, like the scanner; `NSString.paragraphRange` would also split at a lone CR.
+    /// `editedRange` is in post-edit UTF-16 coordinates of `text`.
+    public static func restyleRange(afterEditing editedRange: NSRange, in text: String) -> NSRange {
+        let ns = text as NSString
+        var start = min(editedRange.location, ns.length)
+        var end = min(max(NSMaxRange(editedRange), start), ns.length)
+        while start > 0 && ns.character(at: start - 1) != Unit.newline { start -= 1 }
+        while end < ns.length && ns.character(at: end) != Unit.newline { end += 1 }
+        if end < ns.length { end += 1 }
+        return NSRange(location: start, length: end - start)
+    }
 }
 
 // MARK: - Scanner

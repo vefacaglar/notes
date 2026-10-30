@@ -135,6 +135,61 @@ struct MarkdownStylerTests {
         }
     }
 
+    @Test func restyleAfterReturnInsideAHeadingIncludesTheSplitOffLine() {
+        let text = "# Başlık devam\nsonraki\nüçüncü"
+        // Return after "Başlık": the inserted "\n" is at UTF-16 offset 8.
+        let edited = (text as NSString).replacingCharacters(in: NSRange(location: 8, length: 0), with: "\n")
+        let range = MarkdownStyler.restyleRange(afterEditing: NSRange(location: 8, length: 1), in: edited)
+        #expect((edited as NSString).substring(with: range) == "# Başlık\n devam\n")
+    }
+
+    @Test func restyleRangeAtTheEdges() {
+        #expect(MarkdownStyler.restyleRange(afterEditing: NSRange(location: 0, length: 0), in: "") == NSRange(location: 0, length: 0))
+        #expect(MarkdownStyler.restyleRange(afterEditing: NSRange(location: 3, length: 0), in: "abc") == NSRange(location: 0, length: 3))
+        // A deletion inside a line restyles that line only.
+        #expect(MarkdownStyler.restyleRange(afterEditing: NSRange(location: 3, length: 0), in: "# aüb\nc") == NSRange(location: 0, length: 6))
+        // Deleting the line break between two lines restyles the merged line.
+        #expect(MarkdownStyler.restyleRange(afterEditing: NSRange(location: 5, length: 0), in: "# aübc\nd") == NSRange(location: 0, length: 7))
+    }
+
+    /// Simulates keystrokes without fences: outside `restyleRange`, every character keeps exactly the spans it had.
+    @Test func restyleRangeCoversEveryRestyledCharacter() {
+        let samples = [
+            "# Başlık **kalın** ve *eğik*\n- [ ] görev `kod`\n> alıntı [b](https://ex.com) 😀\nDüz ~~sil~~ metin\n",
+            "## İki\r\n1. bir\r\n2) iki **x**\r\n\r\n***\r\nson",
+        ]
+        let inserts = ["\n", "#", "# ", "*", "**", "~~", "`", "[", "](u)", "> ", "- ", "x", " ", "😀", "\r\n"]
+        var rng = SystemRandomNumberGenerator()
+        for sample in samples {
+            for _ in 0..<400 {
+                let old = sample as NSString
+                let start = Int.random(in: 0...old.length, using: &rng)
+                let removed = Int.random(in: 0...min(3, old.length - start), using: &rng)
+                let inserted = Bool.random(using: &rng) ? inserts.randomElement(using: &rng)! : ""
+                let newText = old.replacingCharacters(in: NSRange(location: start, length: removed), with: inserted)
+                let insertedLength = (inserted as NSString).length
+                let delta = insertedLength - removed
+                let range = MarkdownStyler.restyleRange(
+                    afterEditing: NSRange(location: start, length: insertedLength), in: newText)
+
+                let oldKinds = kinds(sample)
+                let newKinds = kinds(newText)
+                for x in 0..<newKinds.count where !NSLocationInRange(x, range) {
+                    let before = x < start ? x : x - delta
+                    #expect(oldKinds[before] == newKinds[x], "\(newText.debugDescription) at \(x)")
+                }
+            }
+        }
+    }
+
+    private func kinds(_ text: String) -> [Set<MarkdownSpan.Kind>] {
+        var result = [Set<MarkdownSpan.Kind>](repeating: [], count: (text as NSString).length)
+        for span in MarkdownStyler.spans(in: text) {
+            for k in span.range.location..<NSMaxRange(span.range) { result[k].insert(span.kind) }
+        }
+        return result
+    }
+
     @Test func emptyAndTrivialInput() {
         #expect(MarkdownStyler.spans(in: "").isEmpty)
         #expect(MarkdownStyler.spans(in: "\n\n").isEmpty)
