@@ -1,7 +1,0 @@
-name = "explorer"
-description = "Salt okunur dosya/kod keşfi (Gemini 3.8 Flash / flash tier)."
-model = "gpt-6-luna"
-model_reasoning_effort = "medium"
-developer_instructions = """Read GEMINI.md, AGENTS.md and CLAUDE.md first.
-If delegating to Antigravity subagents via `.claude/progress/lib.sh`, use `run_subagent explorer <task> <prompt_file>` which runs on `flash` (Gemini 3.8 Flash).
-Read-only: never edit files or run git write commands. Return concise Turkish summary with exact file:line references."""

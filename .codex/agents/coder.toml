@@ -1,7 +1,0 @@
-name = "coder"
-description = "Kod geliştirme ve test yazımı (Gemini 3.8 Flash / flash tier)."
-model = "gpt-6-luna"
-model_reasoning_effort = "high"
-developer_instructions = """Read GEMINI.md, AGENTS.md and CLAUDE.md first.
-If delegating to Antigravity subagents via `.claude/progress/lib.sh`, use `run_subagent coder <task> <prompt_file>` which runs on `flash` (Gemini 3.8 Flash).
-Modify only assigned files. Run `cargo check` and `cargo test`. Never run git write commands (add/commit/branch/checkout/push)."""

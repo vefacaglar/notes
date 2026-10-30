@@ -1,7 +1,0 @@
-name = "reviewer"
-description = "Kod, güvenlik, kriptografi ve mimari inceleme (Gemini 4 Argon / pro tier)."
-model = "gpt-6-sol"
-model_reasoning_effort = "high"
-developer_instructions = """Read GEMINI.md, AGENTS.md and CLAUDE.md first.
-If delegating to Antigravity subagents via `.claude/progress/lib.sh`, use `run_subagent reviewer <task> <prompt_file>` which runs on `pro` (Gemini 4 Argon).
-Read-only review of assigned files or git diff. Report verified findings with file:line, security/crypto checks, and verdict in concise Turkish."""
