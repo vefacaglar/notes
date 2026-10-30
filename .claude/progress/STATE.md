@@ -4,10 +4,8 @@
 
 macOS app on main (local, 20+ commits ahead of origin, NOT pushed): core, live Markdown/code editors, auto-naming, JSON format, themes + settings window + fonts, multi-root workspace, tabs, drafts, session restore, outside-file windows, EN/TR localization with language setting, VS Code macOS tasks, muted palette (1b8fdb7).
 
-In flight — Windows-parity batch done with Pi (opencode-go/deepseek-v4.1-flash) in worktrees (prompts in the session scratchpad pi-b.txt / pi-c.txt):
-- B `pi/tabs-editor` worktree scratchpad/wt-b: "+" tab button (tab bar always shown), Format button above JSON + editor context menu item, selected tab blends into editor, Windows placeholder and draft-close wording, Save(retry) in the save-failure close dialog.
-- C `pi/sidebar` worktree scratchpad/wt-c: ⌘F search focus, Esc clears, Return renames, ⌘⌫ trashes; New Note (+ New Folder on roots) in context menus; Add Folder toolbar button; search results grouped per root + "No results for “q”"; repeatable -notesFolder and -theme light|dark test flags.
-Next: when each finishes, check its output/diff, build + test in the worktree, merge into main (expect Localizable.xcstrings conflicts — merge both key sets), commit, `git worktree remove` + delete branch. Then ONE batched reviewer pass over the whole phase (commits since 8da335e), fixes, then ask the user to look at the app (no screen recording permission here).
+Windows-parity batch done and merged (Pi B: df63a8d, Pi C: dee1168): "+" tab button, Format button/menu, tab blending, Save(retry) on failed close; sidebar ⌘F/Esc/Return/⌘⌫, New Note in menus, Add Folder button, grouped search, repeatable -notesFolder, -theme.
+Next: ONE batched reviewer pass over commits since 8da335e, fixes, then ask the user to look at the app (no screen recording permission here). Known small gaps: quit-time save-failure alert has no retry; a conflict copy during close-retry may still report failure.
 
 Working rules now in CLAUDE.md: Pi for bounded jobs (run in separate worktrees when parallel), explorer agent on Haiku for exploration, swift-dev/windows-dev on Sonnet medium, reviewer (Opus) only for risky changes or batched per phase, commit directly on main, never push unless asked.
 
