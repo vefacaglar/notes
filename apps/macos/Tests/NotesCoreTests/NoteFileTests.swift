@@ -71,4 +71,98 @@ struct NoteFileTests {
         #expect(after != before)
         #expect(NoteFile.stamp(folder.appendingPathComponent("yok.md")) == nil)
     }
+
+    @Test func brokenLinkHasNoStampAndIsNeverReplaced() throws {
+        let missing = folder.appendingPathComponent("yok.md")
+        let link = folder.appendingPathComponent("kırık.md")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: missing)
+
+        #expect(NoteFile.stamp(link) == nil)
+        #expect(NoteFile.size(link) == nil)
+        #expect(!NoteFile.isWritable(link))
+        #expect(throws: NoteFileError.self) { try NoteFile.write("x", to: link) }
+        #expect(try FileManager.default.destinationOfSymbolicLink(atPath: link.path) == missing.path)
+        #expect(!FileManager.default.fileExists(atPath: missing.path))
+    }
+
+    @Test func brokenLinkChainIsRejected() throws {
+        let first = folder.appendingPathComponent("bir.md")
+        let second = folder.appendingPathComponent("iki.md")
+        try FileManager.default.createSymbolicLink(at: second, withDestinationURL: folder.appendingPathComponent("yok.md"))
+        try FileManager.default.createSymbolicLink(at: first, withDestinationURL: second)
+        #expect(NoteFile.stamp(first) == nil)
+        #expect(throws: NoteFileError.self) { try NoteFile.write("x", to: first) }
+        #expect((try? FileManager.default.destinationOfSymbolicLink(atPath: first.path)) == second.path)
+    }
+
+    @Test func fallsBackToATempFileInTheTargetFolder() throws {
+        let file = folder.appendingPathComponent("a.md")
+        try Data("eski".utf8).write(to: file)
+        struct NoReplacementFolder: Error {}
+        try NoteFile.write("yeni çğ", to: file) { _ in throw NoReplacementFolder() }
+        #expect(try String(contentsOf: file, encoding: .utf8) == "yeni çğ")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["a.md"])
+    }
+
+    @Test func fallsBackWhenTheReplacementFolderCannotBeWritten() throws {
+        let file = folder.appendingPathComponent("a.md")
+        try Data("eski".utf8).write(to: file)
+        let gone = folder.appendingPathComponent("yok-klasör/alt")
+        try NoteFile.write("yeni", to: file) { _ in gone }
+        #expect(try String(contentsOf: file, encoding: .utf8) == "yeni")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["a.md"])
+    }
+
+    @Test func readOnlyFileThrowsNotWritableAndKeepsItsContent() throws {
+        let file = folder.appendingPathComponent("kilitli.md")
+        try Data("eski".utf8).write(to: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: file.path)
+        #expect(!NoteFile.isWritable(file))
+        do {
+            try NoteFile.write("yeni", to: file)
+            Issue.record("write should have thrown")
+        } catch let error as NoteFileError {
+            #expect(error == .notWritable(path: file.resolvingSymlinksInPath().path))
+            #expect(error.errorDescription?.contains("kilitli.md") == true)
+        }
+        #expect(try String(contentsOf: file, encoding: .utf8) == "eski")
+        #expect(try FileManager.default.contentsOfDirectory(atPath: folder.path) == ["kilitli.md"])
+    }
+
+    @Test func readOnlyFolderThrowsNotWritable() throws {
+        let sub = folder.appendingPathComponent("sub")
+        try FileManager.default.createDirectory(at: sub, withIntermediateDirectories: true)
+        let file = sub.appendingPathComponent("a.md")
+        try Data("eski".utf8).write(to: file)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: sub.path)
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: sub.path) }
+        #expect(!NoteFile.isWritable(file))
+        #expect(throws: NoteFileError.notWritable(path: file.resolvingSymlinksInPath().path)) {
+            try NoteFile.write("yeni", to: file)
+        }
+        #expect(try String(contentsOf: file, encoding: .utf8) == "eski")
+    }
+
+    @Test func isWritableFollowsLinksAndHandlesMissingFiles() throws {
+        let file = folder.appendingPathComponent("a.md")
+        let link = folder.appendingPathComponent("bağ.md")
+        try Data("a".utf8).write(to: file)
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: file)
+        #expect(NoteFile.isWritable(file))
+        #expect(NoteFile.isWritable(link))
+        #expect(NoteFile.isWritable(folder.appendingPathComponent("yeni.md")))
+        try FileManager.default.setAttributes([.posixPermissions: 0o444], ofItemAtPath: file.path)
+        #expect(!NoteFile.isWritable(link))
+    }
+
+    @Test func writeKeepsTheHiddenFlag() throws {
+        let file = folder.appendingPathComponent("gizli.md")
+        try Data("eski".utf8).write(to: file)
+        #expect(chflags(file.path, UInt32(UF_HIDDEN)) == 0)
+        try NoteFile.write("yeni", to: file)
+        var info = stat()
+        #expect(stat(file.path, &info) == 0)
+        #expect(info.st_flags & UInt32(UF_HIDDEN) != 0)
+        #expect(try String(contentsOf: file, encoding: .utf8) == "yeni")
+    }
 }
