@@ -124,25 +124,25 @@ public enum ThemeError: Error, Hashable, Sendable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidColor(let value):
-            "Geçersiz renk \"\(value)\": #RRGGBB ya da #RRGGBBAA biçiminde olmalı."
+            L("Invalid color \"\(value)\": it must be #RRGGBB or #RRGGBBAA.")
         case .invalidJSON:
-            "Dosya geçerli bir JSON nesnesi değil."
+            L("The file is not a valid JSON object.")
         case .malformedJSON(let line, let reason):
-            "JSON hatası, satır \(line): \(reason)"
+            L("JSON error, line \(line): \(reason)")
         case .notUTF8:
-            "Dosya UTF-8 olarak kaydedilmeli (UTF-16 desteklenmez)."
+            L("The file must be saved as UTF-8 (UTF-16 is not supported).")
         case .missingField(let field):
-            "\"\(field)\" alanı eksik."
+            L("The field \"\(field)\" is missing.")
         case .invalidValue(let field, let reason):
-            "\"\(field)\" alanı geçersiz: \(reason)"
+            L("The field \"\(field)\" is invalid: \(reason)")
         case .fileTooLarge:
-            "Dosya bir tema için fazla büyük (en çok 1.000.000 bayt)."
+            L("The file is too large for a theme (1,000,000 bytes at most).")
         case .tooManyFiles:
-            "Klasörde en çok \(ThemeLibrary.maxFileCount) tema dosyası okunur; bu dosya atlandı."
+            L("At most \(ThemeLibrary.maxFileCount) theme files are read from the folder; this file was skipped.")
         case .unreadable(let reason):
-            "Dosya okunamadı: \(reason)"
+            L("The file could not be read: \(reason)")
         case .duplicateID(let id):
-            "\"\(id)\" kimliği başka bir tema tarafından kullanılıyor; bu dosya yok sayıldı."
+            L("The id \"\(id)\" is already used by another theme; this file was ignored.")
         }
     }
 }
@@ -154,8 +154,8 @@ public enum ThemeAppearance: String, Codable, Sendable, CaseIterable {
 
     public var displayName: String {
         switch self {
-        case .light: "Açık"
-        case .dark: "Koyu"
+        case .light: L("Light")
+        case .dark: L("Dark")
         }
     }
 }
@@ -166,9 +166,9 @@ public enum AppearanceMode: String, Codable, Sendable, CaseIterable {
 
     public var displayName: String {
         switch self {
-        case .system: "Sistem"
-        case .light: "Açık"
-        case .dark: "Koyu"
+        case .system: L("System")
+        case .light: L("Light")
+        case .dark: L("Dark")
         }
     }
 
@@ -227,16 +227,27 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
     public var appearance: ThemeAppearance
     public var colors: Colors
     public var syntax: Syntax
-    public var fonts: Fonts
 
-    /// Applies the same normalization and validation as reading a file (trims, NFC, font checks).
-    public init(id: String, name: String, appearance: ThemeAppearance, colors: Colors = .init(), syntax: Syntax = .init(), fonts: Fonts = .init()) throws {
+    /// The name to show: built-in themes are named in the UI language (their `name` is data), others use `name`.
+    public var displayName: String {
+        switch id {
+        case "default-light": L("Default Light")
+        case "sepia": L("Sepia")
+        case "paper": L("Paper")
+        case "default-dark": L("Default Dark")
+        case "midnight": L("Midnight")
+        case "ocean": L("Ocean")
+        default: name
+        }
+    }
+
+    /// Applies the same normalization and validation as reading a file (trims, NFC).
+    public init(id: String, name: String, appearance: ThemeAppearance, colors: Colors = .init(), syntax: Syntax = .init()) throws {
         self.id = id
         self.name = name
         self.appearance = appearance
         self.colors = colors
         self.syntax = syntax
-        self.fonts = fonts
         try normalize()
     }
 
@@ -290,31 +301,9 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
         }
     }
 
-    public struct Fonts: Codable, Hashable, Sendable {
-        public var body: Font?
-        public var mono: Font?
-
-        public init(body: Font? = nil, mono: Font? = nil) {
-            self.body = body
-            self.mono = mono
-        }
-    }
-
-    /// `family` and `size` are each optional; nil means the system font / system size.
-    public struct Font: Codable, Hashable, Sendable {
-        public var family: String?
-        public var size: Double?
-
-        public init(family: String? = nil, size: Double? = nil) {
-            self.family = family
-            self.size = size
-        }
-
-        public static let sizeRange: ClosedRange<Double> = 6...72
-    }
-
+    /// Fonts are app settings, not part of a theme; a `fonts` key in older files is ignored like any unknown key.
     private enum CodingKeys: String, CodingKey {
-        case id, name, appearance, colors, syntax, fonts
+        case id, name, appearance, colors, syntax
     }
 
     public init(from decoder: Decoder) throws {
@@ -327,39 +316,18 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
         appearance = try c.decode(ThemeAppearance.self, forKey: .appearance)
         colors = try c.decodeIfPresent(Colors.self, forKey: .colors) ?? .init()
         syntax = try c.decodeIfPresent(Syntax.self, forKey: .syntax) ?? .init()
-        fonts = try c.decodeIfPresent(Fonts.self, forKey: .fonts) ?? .init()
         try normalize()
     }
 
-    /// Trims `id`, `name` and font families, normalizes `id` and `name` to NFC, then validates.
+    /// Trims `id` and `name`, normalizes them to NFC, then validates.
     private mutating func normalize() throws {
         func clean(_ s: String) -> String {
             s.trimmingCharacters(in: .whitespacesAndNewlines).precomposedStringWithCanonicalMapping
         }
         id = clean(id)
         name = clean(name)
-        for key in [\Fonts.body, \Fonts.mono] {
-            let family = fonts[keyPath: key]?.family
-            fonts[keyPath: key]?.family = family.map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
-        }
-        try validate()
-    }
-
-    private func validate() throws {
-        if id.isEmpty { throw ThemeError.invalidValue(field: "id", reason: "boş olamaz.") }
-        if name.isEmpty { throw ThemeError.invalidValue(field: "name", reason: "boş olamaz.") }
-        for (field, font) in [("fonts.body", fonts.body), ("fonts.mono", fonts.mono)] {
-            guard let font else { continue }
-            if let family = font.family, family.isEmpty {
-                throw ThemeError.invalidValue(field: "\(field).family", reason: "boş olamaz; sistem yazı tipi için alanı silin.")
-            }
-            if let size = font.size, !Font.sizeRange.contains(size) {
-                throw ThemeError.invalidValue(
-                    field: "\(field).size",
-                    reason: "\(Int(Font.sizeRange.lowerBound)) ile \(Int(Font.sizeRange.upperBound)) arasında olmalı."
-                )
-            }
-        }
+        if id.isEmpty { throw ThemeError.invalidValue(field: "id", reason: L("must not be empty.")) }
+        if name.isEmpty { throw ThemeError.invalidValue(field: "name", reason: L("must not be empty.")) }
     }
 
     private static let fallbackIDKey = CodingUserInfoKey(rawValue: "notes.theme.fallbackID")!
@@ -412,10 +380,6 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
                 keyword: s.keyword ?? bs.keyword, string: s.string ?? bs.string, number: s.number ?? bs.number,
                 comment: s.comment ?? bs.comment, literal: s.literal ?? bs.literal, type: s.type ?? bs.type,
                 property: s.property ?? bs.property, tag: s.tag ?? bs.tag
-            ),
-            fonts: .init(
-                body: .init(family: fonts.body?.family ?? base.fonts.body.family, size: fonts.body?.size ?? base.fonts.body.size),
-                mono: .init(family: fonts.mono?.family ?? base.fonts.mono.family, size: fonts.mono?.size ?? base.fonts.mono.size)
             )
         )
     }
@@ -432,22 +396,22 @@ private extension ThemeError {
         case .valueNotFound(_, let context):
             self = context.codingPath.isEmpty
                 ? .invalidJSON
-                : .invalidValue(field: path(context.codingPath), reason: "null olamaz.")
+                : .invalidValue(field: path(context.codingPath), reason: L("must not be null."))
         case .typeMismatch(let type, let context):
-            let expected = type == String.self ? "metin" : (type == Double.self ? "sayı" : "nesne")
+            let expected = type == String.self ? L("a string") : (type == Double.self ? L("a number") : L("an object"))
             self = context.codingPath.isEmpty
                 ? .invalidJSON
-                : .invalidValue(field: path(context.codingPath), reason: "\(expected) bekleniyordu.")
+                : .invalidValue(field: path(context.codingPath), reason: L("Expected \(expected)."))
         case .dataCorrupted(let context):
             let field = path(context.codingPath)
             if field.isEmpty {
                 self = .invalidJSON
             } else if context.codingPath.last?.stringValue == "appearance" {
-                self = .invalidValue(field: field, reason: "\"light\" ya da \"dark\" olmalı.")
+                self = .invalidValue(field: field, reason: L("must be \"light\" or \"dark\"."))
             } else if context.debugDescription == "invalid color" {
-                self = .invalidValue(field: field, reason: "#RRGGBB ya da #RRGGBBAA biçiminde bir renk olmalı.")
+                self = .invalidValue(field: field, reason: L("must be a color like #RRGGBB or #RRGGBBAA."))
             } else {
-                self = .invalidValue(field: field, reason: "okunamadı.")
+                self = .invalidValue(field: field, reason: L("could not be read."))
             }
         @unknown default:
             self = .invalidJSON
@@ -462,7 +426,6 @@ public struct ResolvedTheme: Hashable, Sendable, Identifiable {
     public var appearance: ThemeAppearance
     public var colors: Colors
     public var syntax: Syntax
-    public var fonts: Fonts
 
     public struct Colors: Hashable, Sendable {
         public var background, text, secondaryText, marker, heading, link: ThemeColor
@@ -484,13 +447,6 @@ public struct ResolvedTheme: Hashable, Sendable, Identifiable {
             case .tag: tag
             }
         }
-    }
-
-    public struct Fonts: Hashable, Sendable {
-        /// nil family = system font (monospaced system font for `mono`); nil size = system default size.
-        /// Sizes are logical pixels (macOS points).
-        public var body: Theme.Font
-        public var mono: Theme.Font
     }
 
     /// Contrast of `foreground` on `background` (default: the editor background) as drawn by this theme:
@@ -554,8 +510,7 @@ public struct ThemeLibrary: Sendable {
             syntax: .init(
                 keyword: v(s.keyword), string: v(s.string), number: v(s.number), comment: v(s.comment),
                 literal: v(s.literal), type: v(s.type), property: v(s.property), tag: v(s.tag)
-            ),
-            fonts: .init(body: theme.fonts.body ?? .init(), mono: theme.fonts.mono ?? .init())
+            )
         )
     }
 
@@ -622,7 +577,7 @@ public struct ThemeLibrary: Sendable {
         } catch {
             throw ThemeError.unreadable(error.localizedDescription)
         }
-        guard values.isRegularFile == true else { throw ThemeError.unreadable("normal bir dosya değil.") }
+        guard values.isRegularFile == true else { throw ThemeError.unreadable(L("not a regular file.")) }
         if let size = values.fileSize, size > maxFileSize { throw ThemeError.fileTooLarge }
         let data: Data
         do {
@@ -678,29 +633,29 @@ enum BuiltInThemes {
       "name": "Varsayılan Açık",
       "appearance": "light",
       "colors": {
-        "background": "#FFFFFF",
-        "text": "#1F1F1F",
-        "secondaryText": "#6E6E73",
-        "marker": "#8A8A8F",
-        "heading": "#1D1D1F",
-        "link": "#0068DA",
-        "inlineCode": "#B42318",
-        "inlineCodeBackground": "#F1F1F3",
-        "codeBlockBackground": "#F6F6F8",
-        "blockquote": "#4B4B50",
+        "background": "#FAFAFA",
+        "text": "#1B1B1B",
+        "secondaryText": "#5F5F5F",
+        "marker": "#767676",
+        "heading": "#1B1B1B",
+        "link": "#2F6396",
+        "inlineCode": "#1B1B1B",
+        "inlineCodeBackground": "#F1F1F1",
+        "codeBlockBackground": "#F1F1F1",
+        "blockquote": "#5F5F5F",
         "selection": "#B3D7FF",
         "cursor": "#007AFF",
         "accent": "#007AFF"
       },
       "syntax": {
-        "keyword": "#9B2393",
-        "string": "#C41A16",
-        "number": "#1C00CF",
-        "comment": "#5D6C79",
-        "literal": "#6C36A9",
-        "type": "#0B4F79",
-        "property": "#326D74",
-        "tag": "#0F68A0"
+        "keyword": "#8C4A6B",
+        "string": "#8A5A3C",
+        "number": "#3F6A95",
+        "comment": "#767676",
+        "literal": "#8C4A6B",
+        "type": "#2F7771",
+        "property": "#6E5A94",
+        "tag": "#3F6A95"
       }
     }
     """
@@ -715,25 +670,25 @@ enum BuiltInThemes {
         "text": "#3B2F23",
         "secondaryText": "#6F5F4B",
         "marker": "#8F7C66",
-        "heading": "#2E2318",
-        "link": "#8A4B12",
-        "inlineCode": "#8C3A1E",
+        "heading": "#3B2F23",
+        "link": "#3F6280",
+        "inlineCode": "#3B2F23",
         "inlineCodeBackground": "#EADFC6",
         "codeBlockBackground": "#EEE4CE",
-        "blockquote": "#5C4B39",
+        "blockquote": "#6F5F4B",
         "selection": "#DCC79A",
-        "cursor": "#8A4B12",
-        "accent": "#A0522D"
+        "cursor": "#6F5F4B",
+        "accent": "#6B543C"
       },
       "syntax": {
-        "keyword": "#8E3A59",
-        "string": "#5F6B00",
-        "number": "#2F5F8A",
-        "comment": "#857259",
-        "literal": "#7B4FA0",
-        "type": "#2E6B5E",
-        "property": "#7A4B1E",
-        "tag": "#9C3D2B"
+        "keyword": "#7C4A61",
+        "string": "#7A5836",
+        "number": "#45688C",
+        "comment": "#8F7C66",
+        "literal": "#7C4A61",
+        "type": "#47655B",
+        "property": "#6B4E80",
+        "tag": "#45688C"
       }
     }
     """
@@ -747,26 +702,26 @@ enum BuiltInThemes {
         "background": "#FAFAF7",
         "text": "#2B2B2B",
         "secondaryText": "#6B6B66",
-        "marker": "#8C8C85",
-        "heading": "#111111",
+        "marker": "#7C7C76",
+        "heading": "#2B2B2B",
         "link": "#2F5D8C",
-        "inlineCode": "#6A3D9A",
+        "inlineCode": "#2B2B2B",
         "inlineCodeBackground": "#EFEFEA",
         "codeBlockBackground": "#F2F2EE",
-        "blockquote": "#55554F",
+        "blockquote": "#6B6B66",
         "selection": "#D8E2EC",
         "cursor": "#2B2B2B",
         "accent": "#2F5D8C"
       },
       "syntax": {
-        "keyword": "#5B3E8C",
-        "string": "#2F6B3A",
-        "number": "#9A4A12",
-        "comment": "#7E7E78",
-        "literal": "#8C2F5A",
-        "type": "#1F5A73",
-        "property": "#6B4A1F",
-        "tag": "#8A2F2F"
+        "keyword": "#7A4F66",
+        "string": "#7A5A3E",
+        "number": "#3F6A95",
+        "comment": "#7C7C76",
+        "literal": "#7A4F66",
+        "type": "#4F6F6B",
+        "property": "#6A5A86",
+        "tag": "#3F6A95"
       }
     }
     """
@@ -777,29 +732,29 @@ enum BuiltInThemes {
       "name": "Varsayılan Koyu",
       "appearance": "dark",
       "colors": {
-        "background": "#1E1E1E",
+        "background": "#272727",
         "text": "#E3E3E3",
-        "secondaryText": "#A1A1A6",
-        "marker": "#7D7D82",
-        "heading": "#F5F5F7",
-        "link": "#4DA3FF",
-        "inlineCode": "#FF8170",
-        "inlineCodeBackground": "#2C2C2E",
-        "codeBlockBackground": "#262628",
-        "blockquote": "#BDBDC2",
+        "secondaryText": "#C5C5C5",
+        "marker": "#8A8A8A",
+        "heading": "#E3E3E3",
+        "link": "#8DB4DE",
+        "inlineCode": "#E3E3E3",
+        "inlineCodeBackground": "#313131",
+        "codeBlockBackground": "#313131",
+        "blockquote": "#C5C5C5",
         "selection": "#3F638B",
         "cursor": "#0A84FF",
         "accent": "#0A84FF"
       },
       "syntax": {
-        "keyword": "#FF7AB2",
-        "string": "#FF8170",
-        "number": "#D9C97C",
-        "comment": "#7F8C98",
-        "literal": "#D0A8FF",
-        "type": "#5DD8FF",
-        "property": "#67B7A4",
-        "tag": "#ACF2E4"
+        "keyword": "#D18AA8",
+        "string": "#C9A27F",
+        "number": "#86A9D1",
+        "comment": "#8A8A8A",
+        "literal": "#D18AA8",
+        "type": "#7FBAB3",
+        "property": "#A99BD0",
+        "tag": "#86A9D1"
       }
     }
     """
@@ -812,27 +767,27 @@ enum BuiltInThemes {
       "colors": {
         "background": "#141B2D",
         "text": "#D8DEE9",
-        "secondaryText": "#94A0B8",
-        "marker": "#6B7894",
-        "heading": "#EEF2F8",
-        "link": "#7AB8FF",
-        "inlineCode": "#F2A97C",
+        "secondaryText": "#A4AEC2",
+        "marker": "#7C88A3",
+        "heading": "#D8DEE9",
+        "link": "#8DB4DE",
+        "inlineCode": "#D8DEE9",
         "inlineCodeBackground": "#1E2740",
         "codeBlockBackground": "#19213A",
-        "blockquote": "#AEB8CC",
+        "blockquote": "#A4AEC2",
         "selection": "#2E4373",
         "cursor": "#7AB8FF",
-        "accent": "#5E9BFF"
+        "accent": "#6E9BD6"
       },
       "syntax": {
-        "keyword": "#C59BFF",
-        "string": "#A5D6A7",
-        "number": "#F2C879",
-        "comment": "#7383A3",
-        "literal": "#FF9EBB",
-        "type": "#7FD4E8",
-        "property": "#8FB8FF",
-        "tag": "#FF8F8F"
+        "keyword": "#C79BB8",
+        "string": "#C4A385",
+        "number": "#8FAAD0",
+        "comment": "#7C88A3",
+        "literal": "#C79BB8",
+        "type": "#82B8B0",
+        "property": "#A79BCB",
+        "tag": "#8FAAD0"
       }
     }
     """
@@ -845,27 +800,27 @@ enum BuiltInThemes {
       "colors": {
         "background": "#0F2229",
         "text": "#D4E6E8",
-        "secondaryText": "#8FB0B5",
-        "marker": "#5F858C",
-        "heading": "#E8F5F6",
-        "link": "#5CD0E6",
-        "inlineCode": "#FFC07A",
+        "secondaryText": "#A6BEC2",
+        "marker": "#7D9CA3",
+        "heading": "#D4E6E8",
+        "link": "#8DB4DE",
+        "inlineCode": "#D4E6E8",
         "inlineCodeBackground": "#173039",
         "codeBlockBackground": "#132A32",
-        "blockquote": "#A6C4C8",
+        "blockquote": "#A6BEC2",
         "selection": "#1F4D5A",
         "cursor": "#5CD0E6",
-        "accent": "#2FB5C8"
+        "accent": "#6FAEB8"
       },
       "syntax": {
-        "keyword": "#7FB2FF",
-        "string": "#9FE0A8",
-        "number": "#FFC07A",
-        "comment": "#6E959C",
-        "literal": "#F49AC1",
-        "type": "#5CD0E6",
-        "property": "#B9A6FF",
-        "tag": "#FF8A80"
+        "keyword": "#C79BB8",
+        "string": "#C4A385",
+        "number": "#8FAAC4",
+        "comment": "#7D9CA3",
+        "literal": "#C79BB8",
+        "type": "#82B8B0",
+        "property": "#A79BCB",
+        "tag": "#8FAAC4"
       }
     }
     """
@@ -889,12 +844,12 @@ struct StrictJSONValidator {
     mutating func run() throws {
         skipWhitespace()
         guard peek == UInt8(ascii: "{") else {
-            if peek == UInt8(ascii: "/") { throw fail("yorumlara izin verilmez.") }
+            if peek == UInt8(ascii: "/") { throw fail(L("comments are not allowed.")) }
             throw ThemeError.invalidJSON
         }
         try value(depth: 1)
         skipWhitespace()
-        guard i == s.count else { throw unexpected("JSON nesnesinden sonra fazladan içerik var.") }
+        guard i == s.count else { throw unexpected(L("unexpected content after the JSON object.")) }
     }
 
     private var peek: UInt8? { i < s.count ? s[i] : nil }
@@ -903,8 +858,8 @@ struct StrictJSONValidator {
 
     private func unexpected(_ reason: String) -> ThemeError {
         switch peek {
-        case nil: fail("dosya beklenmedik biçimde bitti.")
-        case UInt8(ascii: "/"): fail("yorumlara izin verilmez.")
+        case nil: fail(L("the file ended unexpectedly."))
+        case UInt8(ascii: "/"): fail(L("comments are not allowed."))
         default: fail(reason)
         }
     }
@@ -920,7 +875,7 @@ struct StrictJSONValidator {
     }
 
     private mutating func value(depth: Int) throws {
-        guard let c = peek else { throw unexpected("değer bekleniyordu.") }
+        guard let c = peek else { throw unexpected(L("a value was expected.")) }
         switch c {
         case UInt8(ascii: "{"): try object(depth: depth)
         case UInt8(ascii: "["): try array(depth: depth)
@@ -929,12 +884,12 @@ struct StrictJSONValidator {
         case UInt8(ascii: "f"): try word("false")
         case UInt8(ascii: "n"): try word("null")
         case UInt8(ascii: "-"), UInt8(ascii: "0")...UInt8(ascii: "9"): try number()
-        default: throw unexpected("değer bekleniyordu.")
+        default: throw unexpected(L("a value was expected."))
         }
     }
 
     private mutating func object(depth: Int) throws {
-        guard depth <= Self.maxDepth else { throw fail("en çok \(Self.maxDepth) düzey iç içe nesne/dizi olabilir.") }
+        guard depth <= Self.maxDepth else { throw fail(L("objects and arrays can be nested \(Self.maxDepth) levels deep at most.")) }
         i += 1
         skipWhitespace()
         if peek == UInt8(ascii: "}") { i += 1; return }
@@ -942,14 +897,14 @@ struct StrictJSONValidator {
         while true {
             skipWhitespace()
             guard peek == UInt8(ascii: "\"") else {
-                throw unexpected(peek == UInt8(ascii: "}") ? "sondaki virgüle izin verilmez." : "tırnak içinde anahtar bekleniyordu.")
+                throw unexpected(peek == UInt8(ascii: "}") ? L("a trailing comma is not allowed.") : L("a key in quotes was expected."))
             }
             let key = try string()
             guard keys.insert(key.unicodeScalars.map(\.value)).inserted else {
-                throw ThemeError.invalidValue(field: (path + [key]).joined(separator: "."), reason: "aynı anahtar birden fazla kez yazılmış.")
+                throw ThemeError.invalidValue(field: (path + [key]).joined(separator: "."), reason: L("the same key appears more than once."))
             }
             skipWhitespace()
-            guard peek == UInt8(ascii: ":") else { throw unexpected("':' bekleniyordu.") }
+            guard peek == UInt8(ascii: ":") else { throw unexpected(L("a colon was expected.")) }
             i += 1
             skipWhitespace()
             path.append(key)
@@ -959,20 +914,20 @@ struct StrictJSONValidator {
             switch peek {
             case UInt8(ascii: ","): i += 1
             case UInt8(ascii: "}"): i += 1; return
-            default: throw unexpected("',' ya da '}' bekleniyordu.")
+            default: throw unexpected(L("a comma or a closing brace was expected."))
             }
         }
     }
 
     private mutating func array(depth: Int) throws {
-        guard depth <= Self.maxDepth else { throw fail("en çok \(Self.maxDepth) düzey iç içe nesne/dizi olabilir.") }
+        guard depth <= Self.maxDepth else { throw fail(L("objects and arrays can be nested \(Self.maxDepth) levels deep at most.")) }
         i += 1
         skipWhitespace()
         if peek == UInt8(ascii: "]") { i += 1; return }
         var index = 0
         while true {
             skipWhitespace()
-            if peek == UInt8(ascii: "]") { throw fail("sondaki virgüle izin verilmez.") }
+            if peek == UInt8(ascii: "]") { throw fail(L("a trailing comma is not allowed.")) }
             path.append(String(index))
             try value(depth: depth + 1)
             path.removeLast()
@@ -981,14 +936,14 @@ struct StrictJSONValidator {
             switch peek {
             case UInt8(ascii: ","): i += 1
             case UInt8(ascii: "]"): i += 1; return
-            default: throw unexpected("',' ya da ']' bekleniyordu.")
+            default: throw unexpected(L("a comma or a closing bracket was expected."))
             }
         }
     }
 
     private mutating func word(_ literal: StaticString) throws {
         let bytes = UnsafeBufferPointer(start: literal.utf8Start, count: literal.utf8CodeUnitCount)
-        guard s.count - i >= bytes.count, s[i..<(i + bytes.count)].elementsEqual(bytes) else { throw fail("geçersiz değer.") }
+        guard s.count - i >= bytes.count, s[i..<(i + bytes.count)].elementsEqual(bytes) else { throw fail(L("invalid value.")) }
         i += bytes.count
     }
 
@@ -1003,19 +958,19 @@ struct StrictJSONValidator {
         if peek == UInt8(ascii: "0") {
             i += 1
         } else if digits() == 0 {
-            throw fail("geçersiz sayı.")
+            throw fail(L("the number is not valid."))
         }
         if peek == UInt8(ascii: ".") {
             i += 1
-            guard digits() > 0 else { throw fail("geçersiz sayı.") }
+            guard digits() > 0 else { throw fail(L("the number is not valid.")) }
         }
         if peek == UInt8(ascii: "e") || peek == UInt8(ascii: "E") {
             i += 1
             if peek == UInt8(ascii: "+") || peek == UInt8(ascii: "-") { i += 1 }
-            guard digits() > 0 else { throw fail("geçersiz sayı.") }
+            guard digits() > 0 else { throw fail(L("the number is not valid.")) }
         }
         guard let number = Double(String(decoding: s[start..<i], as: UTF8.self)), number.isFinite else {
-            throw ThemeError.invalidValue(field: path.joined(separator: "."), reason: "sayı çok büyük.")
+            throw ThemeError.invalidValue(field: path.joined(separator: "."), reason: L("the number is too large."))
         }
     }
 
@@ -1024,16 +979,16 @@ struct StrictJSONValidator {
         i += 1
         var scalars = String.UnicodeScalarView()
         while true {
-            guard let c = peek else { throw fail("kapanmamış metin.") }
+            guard let c = peek else { throw fail(L("a string is not terminated.")) }
             switch c {
             case UInt8(ascii: "\""):
                 i += 1
                 return String(scalars)
             case 0..<0x20:
-                throw fail("metin içinde kaçışsız kontrol karakteri var.")
+                throw fail(L("unescaped control character in a string."))
             case UInt8(ascii: "\\"):
                 i += 1
-                guard let e = peek else { throw fail("kapanmamış metin.") }
+                guard let e = peek else { throw fail(L("a string is not terminated.")) }
                 i += 1
                 switch e {
                 case UInt8(ascii: "\""): scalars.append("\"")
@@ -1045,7 +1000,7 @@ struct StrictJSONValidator {
                 case UInt8(ascii: "r"): scalars.append("\r")
                 case UInt8(ascii: "t"): scalars.append("\t")
                 case UInt8(ascii: "u"): scalars.append(try unicodeEscape())
-                default: throw fail("geçersiz kaçış dizisi.")
+                default: throw fail(L("invalid escape sequence in a string."))
                 }
             default:
                 // Already validated as UTF-8: decode one scalar.
@@ -1061,24 +1016,24 @@ struct StrictJSONValidator {
     /// `i` is after `\u`. Surrogates must come as a valid pair.
     private mutating func unicodeEscape() throws -> Unicode.Scalar {
         func hex4() throws -> UInt32 {
-            guard s.count - i >= 4 else { throw fail("geçersiz \\u kaçışı.") }
+            guard s.count - i >= 4 else { throw fail(L("invalid \\u escape in a string.")) }
             var value: UInt32 = 0
             for _ in 0..<4 {
-                guard let digit = ThemeColor.hexValue(s[i]).map(UInt32.init) else { throw fail("geçersiz \\u kaçışı.") }
+                guard let digit = ThemeColor.hexValue(s[i]).map(UInt32.init) else { throw fail(L("invalid \\u escape in a string.")) }
                 value = value << 4 | digit
                 i += 1
             }
             return value
         }
         let first = try hex4()
-        if (0xDC00...0xDFFF).contains(first) { throw fail("eşi olmayan UTF-16 vekil karakteri.") }
+        if (0xDC00...0xDFFF).contains(first) { throw fail(L("unpaired UTF-16 surrogate.")) }
         guard (0xD800...0xDBFF).contains(first) else { return Unicode.Scalar(first)! }
         guard s.count - i >= 2, s[i] == UInt8(ascii: "\\"), s[i + 1] == UInt8(ascii: "u") else {
-            throw fail("eşi olmayan UTF-16 vekil karakteri.")
+            throw fail(L("unpaired UTF-16 surrogate."))
         }
         i += 2
         let second = try hex4()
-        guard (0xDC00...0xDFFF).contains(second) else { throw fail("eşi olmayan UTF-16 vekil karakteri.") }
+        guard (0xDC00...0xDFFF).contains(second) else { throw fail(L("unpaired UTF-16 surrogate.")) }
         return Unicode.Scalar(0x10000 + ((first - 0xD800) << 10) + (second - 0xDC00))!
     }
 }

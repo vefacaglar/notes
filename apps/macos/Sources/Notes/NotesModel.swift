@@ -1,354 +1,426 @@
 import AppKit
 import NotesCore
 
-enum NamePrompt: Equatable {
-    case newFolder(in: String?)
-    case rename(String)
-
-    var title: String {
-        switch self {
-        case .newFolder: "Yeni Klasör"
-        case .rename: "Yeniden Adlandır"
-        }
-    }
-
-    var action: String {
-        if case .rename = self { "Yeniden Adlandır" } else { "Oluştur" }
-    }
-}
-
 enum WindowRequest: Equatable {
     case main
-    case file(URL)
+    case workspace(UUID)
 }
 
+/// The app: the main window's workspace (the user's roots), the windows of files opened from outside them, drafts and
+/// the saved session.
 @Observable @MainActor
 final class NotesModel {
-    private static let folderKey = "notesFolder"
+    private static let rootsKey = "workspaceRoots"
+    /// The single notes folder saved by earlier versions; read once when there is no root list yet.
+    private static let legacyRootKey = "notesFolder"
 
-    private(set) var store: NoteStore?
-    private(set) var tree: [NoteNode] = []
-    /// Path of the selected file or folder in the sidebar.
-    var selection: String? { didSet { if selection != oldValue && !isRevertingSelection { selectionChanged(from: oldValue) } } }
-    /// The note shown in the main window's editor.
-    private(set) var document: NoteDocument?
-
-    var query = "" { didSet { if query != oldValue { scheduleSearch() } } }
-    private(set) var hits: [SearchHit] = []
-    var isSearching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
-
-    var prompt: NamePrompt?
-    var promptName = ""
-    var trashCandidate: String?
-    var errorMessage: String?
+    let main: Workspace
+    private(set) var external: [Workspace] = []
     /// Windows the views should open; consumed by `WindowRequestHandler`.
     var windowRequests: [WindowRequest] = []
 
-    @ObservationIgnored private var watcher: FolderWatcher?
-    @ObservationIgnored private var searchTask: Task<Void, Never>?
-    @ObservationIgnored private var scanTask: Task<Void, Never>?
-    /// Pending "is it really gone?" checks, per document.
-    @ObservationIgnored private var missingChecks: [UUID: Task<Void, Never>] = [:]
-    @ObservationIgnored private var isRevertingSelection = false
+    @ObservationIgnored private var draftStore: DraftStore?
+    /// Another process owns the draft store, so this one keeps its drafts in a pending store of its own.
+    @ObservationIgnored private(set) var draftsArePending = false
+    /// A test run's throwaway draft folder, deleted on quit.
+    @ObservationIgnored private var temporaryDrafts: URL?
+    @ObservationIgnored private var lastDraftOrder: [String]?
+    @ObservationIgnored private var sessionTask: Task<Void, Never>?
+    @ObservationIgnored private var isRestoring = false
+    @ObservationIgnored private var hasQuit = false
+
+    /// The roots the user configured, in order, whether or not they could be opened this time: a folder that is missing
+    /// now (an unmounted volume) is still in the list and comes back when it reappears.
+    private(set) var configuredRoots: [String] = []
 
     init() {
-        let saved = UserDefaults.standard.string(forKey: Self.folderKey).map { URL(fileURLWithPath: $0) }
-        let fallback = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-            .appendingPathComponent("Notes")
-        setRoot(saved ?? fallback)
-    }
-
-    // MARK: Folder
-
-    /// Opens `url` as the notes folder. Only a folder the user picked is remembered, so launching with
-    /// `-notesFolder <path>` (e.g. a temp folder in tests) never replaces the saved choice.
-    func setRoot(_ url: URL, remember: Bool = false) {
-        // A failed save keeps the current folder and note open; the document's alert says why.
-        if let document, !document.flush() { return }
-        document = nil
-        selection = nil
-        query = ""
-        do {
-            let store = try NoteStore(root: url)
-            self.store = store
-            if remember { UserDefaults.standard.set(store.root.path, forKey: Self.folderKey) }
-            watcher = FolderWatcher(url: store.root) { [weak self] in self?.refresh() }
-        } catch {
-            store = nil
-            watcher = nil
-            errorMessage = error.localizedDescription
+        main = Workspace(isMain: true, sidebarVisible: true)
+        main.model = self
+        let initial = Self.initialRoots()
+        configuredRoots = initial.paths
+        for path in initial.paths {
+            openRoot(URL(fileURLWithPath: path, isDirectory: true), createIfMissing: initial.createsDefault)
         }
-        tree = []
-        refresh()
+        if initial.isFirstRun { persistRoots() }
+        publishRoots()
+        let settings = AppSettings.shared
+        settings.addRoot = { [weak self] in self?.chooseRoot() }
+        settings.removeRoot = { [weak self] path in self?.removeRoot(path: path) }
+        setUpDrafts()
+        restore()
     }
 
-    func chooseFolder() {
+    var workspaces: [Workspace] { [main] + external }
+
+    func workspace(_ id: UUID) -> Workspace? { workspaces.first { $0.id == id } }
+
+    /// The sidebar settings as the store's listing options.
+    var listingOptions: ListingOptions {
+        let settings = AppSettings.shared
+        return ListingOptions(order: settings.sidebarSort == .modified ? .modified : .name,
+                              markdownOnly: !settings.showNonMarkdownFiles)
+    }
+
+    func refreshAll() {
+        retryUnavailableRoots()
+        workspaces.forEach { $0.refresh() }
+    }
+
+    // MARK: Roots
+
+    /// `-notesFolder <path>` for a test run; else the saved list; else the folder of earlier versions; else
+    /// `~/Documents/Notes`, the only root that is created when missing and only on the very first run.
+    private static func initialRoots() -> (paths: [String], createsDefault: Bool, isFirstRun: Bool) {
+        if let root = LaunchOptions.testRoot { return ([root], false, false) }
+        let defaults = UserDefaults.standard
+        if let roots = defaults.stringArray(forKey: rootsKey) { return (roots, false, false) }
+        if let legacy = defaults.string(forKey: legacyRootKey) { return ([legacy], false, true) }
+        let documents = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+        return ([documents.appendingPathComponent("Notes").standardizedFileURL.path], true, true)
+    }
+
+    /// Opens `url` in the main window. When it can't be, the root stays configured and shows as unavailable.
+    @discardableResult
+    private func openRoot(_ url: URL, createIfMissing: Bool = false) -> Bool {
+        guard let problem = main.addRoot(url, createIfMissing: createIfMissing) else { return true }
+        main.markUnavailable(url.standardizedFileURL, reason: problem)
+        main.report(problem)
+        return false
+    }
+
+    /// A configured root that was missing may be back (volume mounted, folder restored).
+    private func retryUnavailableRoots() {
+        for item in main.unavailableRoots where FilePaths.isFolder(item.url) {
+            main.addRoot(item.url)
+        }
+    }
+
+    private func persistRoots() {
+        if LaunchOptions.isPersistent {
+            UserDefaults.standard.set(configuredRoots, forKey: Self.rootsKey)
+        }
+    }
+
+    /// Remembers the root list (never in a test run) and shows it in Settings.
+    private func rootsChanged() {
+        persistRoots()
+        publishRoots()
+        main.refresh()
+    }
+
+    private func publishRoots() {
+        AppSettings.shared.workspaceRoots = configuredRoots
+    }
+
+    /// "Add Folder…": asks for a folder and adds it to the main window's workspace.
+    func chooseRoot() {
         let panel = NSOpenPanel()
         panel.canChooseDirectories = true
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
-        panel.prompt = "Seç"
-        panel.message = "Notların bulunduğu klasörü seçin"
-        panel.directoryURL = store?.root
-        guard panel.runModal() == .OK, let url = panel.url else { return }
-        setRoot(url, remember: true)
-    }
-
-    /// Re-reads the tree off the main thread and reloads the open note if it changed on disk.
-    /// Runs on every file system event below the root, including our own autosaves.
-    func refresh() {
-        guard let store else { return }
-        scanTask?.cancel()
-        scanTask = Task { [weak self] in
-            let tree = await Task.detached { store.tree() }.value
-            guard let self, !Task.isCancelled, self.store?.root == store.root, tree != self.tree else { return }
-            self.tree = tree
-        }
-        if let document {
-            if FileManager.default.fileExists(atPath: document.url.path) {
-                document.reloadIfChanged()
-            } else if !document.hasUnsavedChanges {
-                closeIfStillMissing(document)
+        panel.allowsMultipleSelection = true
+        panel.prompt = L("Add")
+        panel.message = L("Choose folders to add to the workspace")
+        guard panel.runModal() == .OK else { return }
+        for url in panel.urls {
+            if let problem = main.addRoot(url) {
+                main.report(problem)
+            } else if !configuredRoots.contains(url.standardizedFileURL.path) {
+                configuredRoots.append(url.standardizedFileURL.path)
             }
         }
-        if isSearching { scheduleSearch() }
+        rootsChanged()
+        windowRequests.append(.main)
     }
 
-    /// Closes `document` when its file is gone for good. Some apps save by deleting and recreating the file,
-    /// so this waits a moment first.
-    private func closeIfStillMissing(_ document: NoteDocument) {
-        guard missingChecks[document.id] == nil else { return }
-        missingChecks[document.id] = Task { [weak self] in
-            try? await Task.sleep(for: .seconds(1))
-            guard let self else { return }
-            self.missingChecks[document.id] = nil
-            guard self.document === document, !document.hasUnsavedChanges,
-                  !FileManager.default.fileExists(atPath: document.url.path)
-            else { return }
-            self.document = nil
-            self.selection = nil
-        }
-    }
-
-    private func selectionChanged(from old: String?) {
-        guard let store else { return }
-        if let document, let selection, let url = try? store.url(for: selection),
-           NoteDocument.canonical(url) == NoteDocument.canonical(document.url) { return }
-        if let document, !document.flush() {
-            // Keep the note open with its edits; its alert explains what happened. The save may have moved it to a
-            // conflict copy, so select wherever it is now.
-            revertSelection(to: notePath(for: document.url) ?? old)
+    func removeRoot(_ root: RootFolder) {
+        guard main.removeRoot(root) else {
+            windowRequests.append(.main)
             return
         }
-        document = nil
-        guard let selection, NoteStore.isListed(selection) else { return }
-        do {
-            let url = try store.url(for: selection)
-            var isFolder: ObjCBool = false
-            guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), !isFolder.boolValue else { return }
-            let document = try NoteDocument.open(url)
-            document.autoRename = { [weak self] in self?.autoRename($0, to: $1) }
-            document.relocated = { [weak self] in self?.follow($0) }
-            self.document = document
-        } catch {
-            errorMessage = error.localizedDescription
+        configuredRoots.removeAll { $0 == root.url.path }
+        rootsChanged()
+    }
+
+    /// Removes a configured root by path, whether it is open or unavailable.
+    func removeRoot(path: String) {
+        if let root = main.roots.first(where: { $0.url.path == path }) {
+            removeRoot(root)
+        } else if configuredRoots.contains(path) {
+            main.dropUnavailable(path: path)
+            configuredRoots.removeAll { $0 == path }
+            rootsChanged()
         }
     }
 
-    private func revertSelection(to old: String?) {
-        isRevertingSelection = true
-        selection = old
-        isRevertingSelection = false
+    // MARK: Documents
+
+    /// Hooks a document up to automatic naming and relocation; every workspace calls this for what it opens.
+    func configure(_ document: NoteDocument) {
+        document.autoRename = { [weak self] in self?.autoRename($0, to: $1) }
+        document.relocated = { [weak self] _ in
+            self?.itemsChanged(by: nil)
+            self?.sessionChanged()
+        }
     }
 
-    /// Renames an auto-named note after its first line (docs/format.md) while it stays open in the editor.
+    /// Renames an auto-named note after its first line (docs/format.md) while it stays open. Only notes inside the
+    /// main window's roots are named automatically, and only while the setting is on.
     private func autoRename(_ document: NoteDocument, to title: String) {
-        guard let store, let path = notePath(for: document.url) else { return }
+        guard AppSettings.shared.autoNaming, !document.isDraft, let item = main.locate(document.url), !item.isRoot,
+              let root = main.root(item.root)
+        else { return }
+        let path = item.path
         let folder = NoteStore.parent(path)
         // On failure the text is still saved; the name is retried after the next save.
-        guard let newPath = try? store.rename(path, to: store.uniqueNoteName(title, in: folder, ignoring: path) + ".md"),
-              newPath != path, let url = try? store.url(for: newPath)
+        guard let newPath = try? root.store.rename(path, to: root.store.uniqueNoteName(title, in: folder, ignoring: path) + ".md"),
+              newPath != path, let url = try? root.store.url(for: newPath)
         else { return }
-        // Move the document first so the selection change below finds it already open at the new path.
         document.moved(to: url)
-        if let selection, let moved = NoteStore.moved(selection, from: path, to: newPath) { self.selection = moved }
-        if case .rename(let target)? = prompt, let moved = NoteStore.moved(target, from: path, to: newPath) {
-            prompt = .rename(moved)
+        main.itemMoved(in: root, from: path, to: newPath)
+        itemsChanged(by: main)
+    }
+
+    /// Files moved or vanished: every other workspace re-reads its trees and selects its active file again.
+    func itemsChanged(by origin: Workspace?) {
+        for workspace in workspaces where workspace !== origin {
+            workspace.refresh()
+            workspace.syncSelection()
         }
-        if let trashCandidate, let moved = NoteStore.moved(trashCandidate, from: path, to: newPath) {
-            self.trashCandidate = moved
-        }
-        refresh()
+        origin?.refresh()
+        sessionChanged()
     }
 
-    /// Selects the document's file after it switched to a conflict copy, so the sidebar matches the editor.
-    private func follow(_ document: NoteDocument) {
-        guard self.document === document, let path = notePath(for: document.url) else { return }
-        refresh()
-        selection = path
-    }
-
-    /// Saves the open document before `path` is renamed or trashed (`action` names that for the message) and returns
-    /// `path`, following it if that save auto-renamed the note. `nil` when the save needs the user and `path` is the
-    /// document or a folder holding it; the operation is then cancelled and the document's alert says so.
-    private func saveDocument(following path: String, action: String) -> String? {
-        guard let store, let document else { return path }
-        let before = notePath(for: document.url)
-        let saved = document.flush()
-        var path = path
-        if let before, let after = notePath(for: document.url) { path = NoteStore.moved(path, from: before, to: after) ?? path }
-        guard !saved, let target = try? store.url(for: path), Self.url(document.url, isInside: target) else { return path }
-        document.error = (document.error ?? "") + " \(action) iptal edildi."
-        return nil
-    }
-
-    /// Whether `url` is `folder` or inside it, comparing resolved paths per Unicode scalar.
-    private static func url(_ url: URL, isInside folder: URL) -> Bool {
-        let file = NoteDocument.canonical(url).path.unicodeScalars
-        let base = NoteDocument.canonical(folder).path.unicodeScalars
-        return file.elementsEqual(base) || file.starts(with: base + ["/"])
+    /// Closes the tabs of documents whose files went to the Trash, in every window.
+    func documentsRemoved(_ documents: [NoteDocument]) {
+        let removed = Set(documents.map(ObjectIdentifier.init))
+        workspaces.forEach { $0.removeTabs { removed.contains(ObjectIdentifier($0)) } }
     }
 
     // MARK: Opening files from Finder
 
+    /// A file inside a root opens in the main window as that root's item. Any other file opens in a window of its
+    /// own rooted at its folder (sidebar closed, no automatic names); further files from that folder join it as tabs.
     func open(_ urls: [URL]) {
-        for url in urls {
-            if let path = notePath(for: url) {
-                query = ""
-                refresh()
-                selection = path
+        for url in urls.map({ $0.standardizedFileURL }) {
+            if main.contains(url) {
+                main.query = ""
+                main.open(url, newTab: true, focus: true)
                 windowRequests.append(.main)
-            } else {
-                windowRequests.append(.file(url.resolvingSymlinksInPath().standardizedFileURL))
+                continue
             }
+            let workspace = external.first { $0.contains(url) } ?? newExternalWorkspace(for: url)
+            workspace.open(url, newTab: true, focus: true)
+            windowRequests.append(.workspace(workspace.id))
         }
     }
 
-    /// The store path of `url` when it is a listed file inside the current root.
-    private func notePath(for url: URL) -> String? {
-        guard let store else { return nil }
-        let root = (store.root.resolvingSymlinksInPath().path + "/").unicodeScalars
-        let file = url.resolvingSymlinksInPath().standardizedFileURL.path.unicodeScalars
-        guard file.starts(with: root) else { return nil }
-        let path = String(file.dropFirst(root.count))
-        guard NoteStore.isListed(path), (try? store.url(for: path)) != nil else { return nil }
-        return path
+    private func newExternalWorkspace(for url: URL) -> Workspace {
+        let workspace = Workspace(isMain: false, sidebarVisible: false)
+        workspace.model = self
+        if let problem = workspace.addRoot(url.deletingLastPathComponent()) { workspace.report(problem) }
+        external.append(workspace)
+        return workspace
     }
 
-    // MARK: Creating, renaming, trashing
-
-    /// The folder new items go into: the selected folder, the selected note's folder, or the root.
-    private var targetFolder: String? {
-        guard let selection else { return nil }
-        // Asks the disk, not `tree`, which is refreshed in the background.
-        var isFolder: ObjCBool = false
-        if let url = try? store?.url(for: selection),
-           FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), isFolder.boolValue {
-            return selection
-        }
-        let parent = NoteStore.parent(selection)
-        return parent.isEmpty ? nil : parent
+    /// An outside file's window closed: its drafts with text move to the main window, the rest goes away.
+    func workspaceClosed(_ workspace: Workspace) {
+        guard !workspace.isMain, external.contains(where: { $0 === workspace }) else { return }
+        workspace.moveUnsavedDocuments(to: main)
+        external.removeAll { $0 === workspace }
+        sessionChanged()
     }
 
-    /// Creates "Adsız" (or "Adsız 2"…) right away and focuses the editor; the first line names it later.
-    func newNote() {
-        guard let store else { return }
-        // Save the open note first, so a failed save doesn't leave a new empty note behind.
-        if let document, !document.flush() { return }
-        let folder = targetFolder
-        do {
-            let path = try store.createNote(named: store.uniqueNoteName(NoteStore.untitledName, in: folder), in: folder)
-            query = ""
-            refresh()
-            selection = path
-            document?.focusOnOpen = true
-            windowRequests.append(.main)
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
+    // MARK: Drafts
 
-    func newFolder() { ask(.newFolder(in: targetFolder), name: "Yeni Klasör") }
-
-    func rename(_ path: String) {
-        ask(.rename(path), name: NoteStore.displayName(path))
-    }
-
-    private func ask(_ prompt: NamePrompt, name: String) {
-        guard store != nil else { return }
-        promptName = name
-        self.prompt = prompt
-        windowRequests.append(.main)
-    }
-
-    /// Runs the prompt's action; `prompt` is the one the alert showed (passed in, since the alert clears
-    /// `self.prompt` before its button action runs).
-    func commitPrompt(_ prompt: NamePrompt) {
-        guard let store else { return }
-        // Still set if the alert calls the action before dismissing; then it has followed any automatic rename.
-        let prompt = self.prompt ?? prompt
-        self.prompt = nil
-        do {
-            switch prompt {
-            case .newFolder(let parent):
-                let path = try store.createFolder(named: promptName, in: parent)
-                query = ""
-                refresh()
-                selection = path
-            case .rename(let path):
-                guard let path = saveDocument(following: path, action: "Yeniden adlandırma") else { return }
-                // Before the rename: afterwards the old URL no longer resolves.
-                let docPath = document.flatMap { notePath(for: $0.url) }
-                let newPath = try store.rename(path, to: promptName)
-                guard newPath != path else { return }
-                // Keep the open document (text, cursor, undo) and point it at the new location.
-                if let document, let docPath, let moved = NoteStore.moved(docPath, from: path, to: newPath) {
-                    let url = try store.url(for: moved)
-                    // Renaming the note itself is a hand-picked name; renaming its folder is not.
-                    if docPath == path { document.renamedByHand(to: url) } else { document.moved(to: url) }
-                }
-                if let selection, let moved = NoteStore.moved(selection, from: path, to: newPath) { self.selection = moved }
-                refresh()
-            }
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func trash(_ path: String) {
-        guard let store, let path = saveDocument(following: path, action: "Çöp Kutusuna taşıma") else { return }
-        do {
-            try store.trash(path)
-            if let selection, NoteStore.moved(selection, from: path, to: path) != nil {
-                document = nil
-                self.selection = nil
-            }
-            refresh()
-        } catch {
-            errorMessage = error.localizedDescription
-        }
-    }
-
-    func revealInFinder(_ path: String) {
-        guard let url = try? store?.url(for: path) else { return }
-        NSWorkspace.shared.activateFileViewerSelecting([url])
-    }
-
-    // MARK: Search
-
-    private func scheduleSearch() {
-        searchTask?.cancel()
-        guard let store, isSearching else {
-            hits = []
+    /// Takes the draft store; when another process owns it (or the lock can't be taken), uses a pending store of its
+    /// own (docs/format.md, "Drafts"). A test run without `-supportFolder` keeps throwaway drafts in a temporary folder.
+    private func setUpDrafts() {
+        guard let support = LaunchOptions.supportFolder else {
+            let folder = FileManager.default.temporaryDirectory.appendingPathComponent("NotesTestDrafts-\(UUID().uuidString)")
+            temporaryDrafts = folder
+            draftStore = DraftStore(folder: folder)
             return
         }
-        let query = query
-        searchTask = Task { [weak self] in
-            try? await Task.sleep(for: .milliseconds(150))
-            guard !Task.isCancelled else { return }
-            let hits = await Task.detached { store.search(query) }.value
-            guard !Task.isCancelled else { return }
-            self?.hits = hits
+        let store = DraftStore(folder: support.appendingPathComponent("Drafts", isDirectory: true))
+        let pendingRoot = support.appendingPathComponent("PendingDrafts", isDirectory: true)
+        let reason: String
+        do {
+            if try store.lock() {
+                store.adoptPending(in: pendingRoot)
+                draftStore = store
+                return
+            }
+            reason = L("Another Notes process is using the drafts folder. New tabs are kept in a separate folder and move there once it quits.")
+        } catch {
+            reason = L("The drafts folder can't be used (\(error.localizedDescription)). New tabs are kept in a separate folder and move there when it works again.")
         }
+        // A fresh name for every try: a pending folder that can't be locked or created is simply skipped.
+        for _ in 0..<3 {
+            let pending = DraftStore(folder: pendingRoot.appendingPathComponent(UUID().uuidString, isDirectory: true))
+            if (try? pending.lock()) == true {
+                draftStore = pending
+                draftsArePending = true
+                main.report(reason)
+                return
+            }
+        }
+        main.report(L("Drafts can't be stored right now, so new tabs can't be opened. Check that the Notes folder in Application Support is writable."))
+    }
+
+    /// Where a new draft's file goes.
+    func newDraftURL() -> URL? {
+        guard let draftStore else {
+            main.report(L("A new tab couldn't be opened because drafts can't be stored right now."))
+            return nil
+        }
+        do {
+            return try draftStore.newDraftURL()
+        } catch {
+            main.report(L("A new tab couldn't be opened: \(error.localizedDescription)"))
+            return nil
+        }
+    }
+
+    /// Writes the tab order of the drafts when it changed.
+    private func writeDraftOrder() {
+        guard let draftStore else { return }
+        let order = workspaces.flatMap(\.documents).filter(\.isDraft).map(\.url.lastPathComponent)
+            .filter(DraftStore.isDraftName)
+        guard order != lastDraftOrder else { return }
+        if (try? draftStore.writeOrder(order)) != nil { lastDraftOrder = order }
+    }
+
+    /// On quit: a test run's drafts are deleted; a pending store moves into the real one if that is free now, and
+    /// otherwise stays for the next owner to adopt.
+    private func finishDrafts() {
+        if let temporaryDrafts {
+            try? FileManager.default.removeItem(at: temporaryDrafts)
+            return
+        }
+        guard draftsArePending, let pending = draftStore, let support = LaunchOptions.supportFolder else { return }
+        let store = DraftStore(folder: support.appendingPathComponent("Drafts", isDirectory: true))
+        guard (try? store.lock()) == true else { return }
+        if store.takeDrafts(from: pending.folder) {
+            try? FileManager.default.removeItem(at: pending.folder)
+        }
+        store.unlock()
+    }
+
+    // MARK: Session
+
+    private var sessionURL: URL? { LaunchOptions.supportFolder?.appendingPathComponent("session.json") }
+
+    /// Something worth restoring changed; saves a moment later.
+    func sessionChanged() {
+        guard !isRestoring, !hasQuit else { return }
+        sessionTask?.cancel()
+        sessionTask = Task { [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            guard !Task.isCancelled else { return }
+            self?.saveSession()
+        }
+    }
+
+    func saveSessionSoon() { sessionChanged() }
+
+    /// Writes the draft order and, with "Restore tabs" on, `session.json` (atomically). Cursor and scroll positions
+    /// are read from the editors now.
+    func saveSession() {
+        guard !hasQuit else { return }
+        sessionTask?.cancel()
+        writeDraftOrder()
+        // A second process (pending drafts) must not overwrite the session of the one that owns the app state.
+        guard !draftsArePending, AppSettings.shared.restoreTabs, let sessionURL else { return }
+        for workspace in workspaces {
+            if let tab = workspace.activeTab { workspace.captureViewState(of: tab) }
+        }
+        try? Session(windows: workspaces.compactMap(state)).write(to: sessionURL)
+    }
+
+    private func state(of workspace: Workspace) -> Session.Window? {
+        let root = workspace.roots.first?.url.path
+        guard workspace.isMain || root != nil else { return nil }
+        let tabs = workspace.tabs.map { tab in
+            let document = tab.document
+            return Session.Tab(file: document.isDraft ? nil : document.url.path,
+                               draft: document.isDraft ? document.url.lastPathComponent : nil,
+                               showsSource: tab.showsSource, view: tab.viewState)
+        }
+        return Session.Window(
+            isMain: workspace.isMain, root: workspace.isMain ? nil : root, tabs: tabs,
+            activeTab: workspace.activeTab.flatMap { active in workspace.tabs.firstIndex { $0 === active } },
+            sidebarVisible: workspace.isSidebarVisible,
+            frame: workspace.isMain ? nil : workspace.window.map { NSStringFromRect($0.frame) }
+        )
+    }
+
+    /// Lets a relaunched instance own the drafts folder right away (the lock would otherwise last until this process exits).
+    func releaseDraftsForRelaunch() {
+        draftStore?.unlock()
+    }
+
+    /// Saves for the last time before the app quits; later changes (windows closing) are not recorded.
+    func prepareForQuit() {
+        guard !hasQuit else { return }
+        saveSession()
+        hasQuit = true
+        finishDrafts()
+    }
+
+    /// Reopens the last session's tabs and outside-file windows (with "Restore tabs" on), skipping files and folders
+    /// that are gone, then every other draft as a tab of the main window in its saved order.
+    private func restore() {
+        isRestoring = true
+        defer { isRestoring = false }
+        let drafts = draftsArePending ? [] : draftStore?.saved() ?? []
+        let draftURLs = Dictionary(drafts.map { ($0.lastPathComponent, $0) }, uniquingKeysWith: { a, _ in a })
+        var restoredDrafts = Set<String>()
+
+        if !draftsArePending, AppSettings.shared.restoreTabs, let sessionURL, let session = Session.read(sessionURL) {
+            for window in session.windows {
+                let workspace: Workspace
+                if window.isMain {
+                    workspace = main
+                    main.isSidebarVisible = window.sidebarVisible
+                } else {
+                    guard let root = window.root, FilePaths.isFolder(URL(fileURLWithPath: root)) else { continue }
+                    workspace = Workspace(isMain: false, sidebarVisible: window.sidebarVisible)
+                    workspace.model = self
+                    guard workspace.addRoot(URL(fileURLWithPath: root, isDirectory: true)) == nil else { continue }
+                    workspace.pendingFrame = window.frame.map(NSRectFromString)
+                }
+                var active: Int?
+                for (index, saved) in window.tabs.enumerated() {
+                    var document: NoteDocument?
+                    if let name = saved.draft {
+                        guard let url = draftURLs[name], restoredDrafts.insert(name).inserted else { continue }
+                        document = try? NoteDocument.openDraft(url)
+                    } else if let path = saved.file {
+                        let url = URL(fileURLWithPath: path)
+                        guard FileManager.default.fileExists(atPath: path), !FilePaths.isFolder(url) else { continue }
+                        document = try? NoteDocument.open(url)
+                    }
+                    guard let document else { continue }
+                    configure(document)
+                    let tab = EditorTab(document: document)
+                    tab.showsSource = saved.showsSource && document.language == .markdown
+                    tab.viewState = saved.view
+                    workspace.append(tab)
+                    if index == window.activeTab { active = workspace.tabs.count - 1 }
+                }
+                if let active { workspace.setActiveTab(index: active) }
+                guard !window.isMain else { continue }
+                guard !workspace.tabs.isEmpty || workspace.isSidebarVisible else { continue }
+                external.append(workspace)
+                windowRequests.append(.workspace(workspace.id))
+            }
+        }
+        for url in drafts where !restoredDrafts.contains(url.lastPathComponent) {
+            guard let document = try? NoteDocument.openDraft(url) else { continue }
+            configure(document)
+            main.append(EditorTab(document: document))
+        }
+        main.syncSelection()
     }
 }

@@ -46,7 +46,8 @@ A JSON object as above. Keys are case-sensitive; unknown keys are ignored (so ne
 | `appearance` | **yes** | `"light"` or `"dark"`. |
 | `colors` | no | Editor colors, see below. |
 | `syntax` | no | Code colors, see below. |
-| `fonts` | no | `body` and `mono`, each `{ "family": string, "size": number }`. |
+
+Fonts are not part of a theme: the text and code fonts are app settings (Settings → Editor; Ayarlar → Editör in Turkish), so they stay the same when the theme changes. Older files may still have a `fonts` key; it is ignored like any unknown key.
 
 ### Colors
 
@@ -90,16 +91,9 @@ Alpha:
 | `property` | JSON/YAML/TOML keys, XML attribute names, CSS properties, shell variables |
 | `tag` | Markup tags with their brackets, TOML/INI section headers |
 
-### Fonts
-
-- `fonts.body` is used for Markdown notes, `fonts.mono` for inline code, code blocks and code files.
-- `family` is a font family name as installed on the system (e.g. `"Georgia"`, `"Menlo"`). Missing → the system font (`mono`: the system monospaced font). If the family is not installed, the app uses the system font as well.
-- `family` is trimmed; an empty or whitespace-only `family` is an error (leave the key out to get the system font).
-- `size` is in logical pixels (macOS points = WPF/WinUI DIPs), 6–72 inclusive, fractional allowed (`13.5`). Missing → the app's default size.
-
 ## Fallback rules
 
-A theme may set any subset of `colors`, `syntax` and `fonts`. Every value it leaves out is taken from the **default built-in theme of the same appearance** (`default-light` for `"light"`, `default-dark` for `"dark"`), field by field. Fonts fall back per field too (`{"mono": {"size": 14}}` keeps the default mono family). Values are never taken from another theme, so a partial theme only depends on its appearance.
+A theme may set any subset of `colors` and `syntax`. Every value it leaves out is taken from the **default built-in theme of the same appearance** (`default-light` for `"light"`, `default-dark` for `"dark"`), field by field. Values are never taken from another theme, so a partial theme only depends on its appearance.
 
 ## Validation and errors
 
@@ -107,13 +101,13 @@ A file is skipped, and the problem shown to the user, when:
 
 - it breaks the JSON grammar above, is not an object (including a file that is just `null`), is larger than 1,000,000 bytes, is not a regular file, or cannot be read;
 - `name` or `appearance` is missing or `null`, or any value has the wrong type;
-- a color is not `#RRGGBB`/`#RRGGBBAA`, a font size is outside 6–72, or `id`/`name`/`family` is empty;
+- a color is not `#RRGGBB`/`#RRGGBBAA`, or `id`/`name` is empty;
 - its `id` is already used by a built-in theme or by a user file earlier in file-name order. The first one wins.
 - it is past the 500th candidate file.
 
 **File-name order**: file names (with extension) are normalized to NFC and compared ordinally by Unicode scalar value, which equals comparing their UTF-8 bytes. Uppercase sorts before lowercase (`B.json` < `a.json`), `é` sorts after `z`, and U+FFFD sorts before 😀. On Windows this is *not* `string.CompareOrdinal` (UTF-16 code units order 😀 before U+FFFD); compare the UTF-8 bytes or `Rune`s instead.
 
-One bad file never affects the other themes. Errors name the field, e.g. `"colors.link" alanı geçersiz: #RRGGBB ya da #RRGGBBAA biçiminde bir renk olmalı.`
+One bad file never affects the other themes. Errors name the field, e.g. `The field "colors.link" is invalid: must be a color like #RRGGBB or #RRGGBBAA.`
 
 ## Built-in themes
 
@@ -126,11 +120,15 @@ One bad file never affects the other themes. Errors name the field, e.g. `"color
 | `midnight` | Gece Mavisi | dark |
 | `ocean` | Okyanus | dark |
 
+The names above are the built-in files' JSON `name` values (data, like any other theme's). The apps show a built-in theme's name in the UI language instead, through `Theme.displayName`, matching the theme by `id`.
+
 Built-ins are stored in the same JSON format (macOS: `apps/macos/Sources/NotesCore/Theme.swift`) and set every color. Their body text, headings, links, quotes, inline code and code tokens have a contrast ratio of at least 4.5:1 against their background (WCAG 2), and Markdown markers, comments, secondary text, cursor and accent at least 3:1. User themes are not checked.
+
+All six built-ins use one muted palette: low-saturation colors whose lightness sits close to the body text, no bright reds, purples or neon tones. Headings and inline code text are the body color, `literal` tokens take the keyword color, and markers, comments and dimmed text are one tinted grey; the syntax hues are dull plum (keywords, literals), brown (strings), slate blue (numbers, tags), grey (comments), teal (types) and lavender grey (properties), with the same hue families lightened for the dark themes. Keywords are drawn semibold in both apps.
 
 ## Full example
 
-Every key set (this is the `default-light` palette with fonts added):
+Every key set (this is the `default-light` palette):
 
 ```json
 {
@@ -138,33 +136,29 @@ Every key set (this is the `default-light` palette with fonts added):
   "name": "Benim Açık Temam",
   "appearance": "light",
   "colors": {
-    "background": "#FFFFFF",
-    "text": "#1F1F1F",
-    "secondaryText": "#6E6E73",
-    "marker": "#8A8A8F",
-    "heading": "#1D1D1F",
-    "link": "#0068DA",
-    "inlineCode": "#B42318",
-    "inlineCodeBackground": "#F1F1F3",
-    "codeBlockBackground": "#F6F6F8",
-    "blockquote": "#4B4B50",
+    "background": "#FAFAFA",
+    "text": "#1B1B1B",
+    "secondaryText": "#5F5F5F",
+    "marker": "#767676",
+    "heading": "#1B1B1B",
+    "link": "#2F6396",
+    "inlineCode": "#1B1B1B",
+    "inlineCodeBackground": "#F1F1F1",
+    "codeBlockBackground": "#F1F1F1",
+    "blockquote": "#5F5F5F",
     "selection": "#B3D7FF",
     "cursor": "#007AFF",
     "accent": "#007AFF"
   },
   "syntax": {
-    "keyword": "#9B2393",
-    "string": "#C41A16",
-    "number": "#1C00CF",
-    "comment": "#5D6C79",
-    "literal": "#6C36A9",
-    "type": "#0B4F79",
-    "property": "#326D74",
-    "tag": "#0F68A0"
-  },
-  "fonts": {
-    "body": { "family": "Georgia", "size": 15 },
-    "mono": { "family": "Menlo", "size": 13 }
+    "keyword": "#8C4A6B",
+    "string": "#8A5A3C",
+    "number": "#3F6A95",
+    "comment": "#767676",
+    "literal": "#8C4A6B",
+    "type": "#2F7771",
+    "property": "#6E5A94",
+    "tag": "#3F6A95"
   }
 }
 ```
@@ -180,9 +174,6 @@ Saved as `Gece Yarısı.json`, so its id is `Gece Yarısı`. Everything not list
   "colors": {
     "background": "#101014",
     "selection": "#5E9BFF55"
-  },
-  "fonts": {
-    "mono": { "size": 14 }
   }
 }
 ```

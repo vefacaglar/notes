@@ -29,6 +29,7 @@ struct NoteNamingTests {
     ])
     func title(content: String, expected: String) {
         #expect(NoteStore.title(from: content) == expected)
+        #expect(NamingLanguage.resolve(localization: nil) == .english)
     }
 
     @Test(arguments: ["", "   \n\t\n", "# ", "#", "## ##", "- [ ] ", "> ", "---", "***", "```swift\nkod\n```", "???", "//", "**"])
@@ -141,6 +142,28 @@ struct NoteNamingTests {
         #expect(NoteStore.baseName(name) == expected)
     }
 
+    @Test func bothUntitledNamesAreRecognizedWhateverTheLanguage() {
+        #expect(NoteStore.untitledNames == ["Untitled", "Adsız"])
+        #expect(NoteStore.isAutoNamed("Untitled", content: "# Başka"))
+        #expect(NoteStore.isAutoNamed("Untitled 7", content: ""))
+        #expect(NoteStore.isAutoNamed("Ads\u{131}z 2", content: "x"))
+        #expect(!NoteStore.isAutoNamed("untitled", content: "x"))
+        #expect(NoteStore.autoName(for: "Untitled 2", content: "Untitled") == nil)
+        #expect(NoteStore.untitledName == NamingLanguage.current.untitledName)
+    }
+
+    @Test(arguments: [("tr", NamingLanguage.turkish), ("tr-TR", .turkish), ("en", .english), ("de", .english), ("", .english)])
+    func namingLanguageFollowsTheLocalization(localization: String, expected: NamingLanguage) {
+        #expect(NamingLanguage.resolve(localization: localization) == expected)
+    }
+
+    @Test func localizedNames() {
+        #expect(NamingLanguage.english.untitledName == "Untitled")
+        #expect(NamingLanguage.turkish.untitledName == "Adsız")
+        #expect(NamingLanguage.english.conflictMarker == "conflict")
+        #expect(NamingLanguage.turkish.conflictMarker == "çakışma")
+    }
+
     @Test func autoNamedNotes() {
         #expect(NoteStore.isAutoNamed("Adsız", content: ""))
         #expect(NoteStore.isAutoNamed("Adsız 3", content: "# Bambaşka"))
@@ -200,6 +223,7 @@ struct UniqueNoteNameTests {
     }
 
     @Test func isPerFolderAndIgnoresCase() throws {
+        try store.createFolder(named: "İş")
         try store.createNote(named: "Plan", in: "İş")
         #expect(store.uniqueNoteName("Plan", in: nil) == "Plan")
         #expect(store.uniqueNoteName("plan", in: "İş") == "plan 2")
@@ -230,16 +254,20 @@ struct UniqueNoteNameTests {
 
 struct ConflictCopyNameTests {
     @Test func appendsTheMarkerBeforeTheExtension() {
-        #expect(NoteStore.conflictCopyName(for: "Toplantı.md") { _ in false } == "Toplantı (çakışma).md")
-        #expect(NoteStore.conflictCopyName(for: "config.json") { _ in false } == "config (çakışma).json")
-        #expect(NoteStore.conflictCopyName(for: "Makefile") { _ in false } == "Makefile (çakışma)")
-        #expect(NoteStore.conflictCopyName(for: "e\u{301}.md") { _ in false }
+        #expect(NoteStore.conflictCopyName(for: "Toplantı.md", language: .turkish) { _ in false } == "Toplantı (çakışma).md")
+        #expect(NoteStore.conflictCopyName(for: "config.json", language: .turkish) { _ in false } == "config (çakışma).json")
+        #expect(NoteStore.conflictCopyName(for: "Makefile", language: .turkish) { _ in false } == "Makefile (çakışma)")
+        #expect(NoteStore.conflictCopyName(for: "e\u{301}.md", language: .turkish) { _ in false }
             .unicodeScalars.elementsEqual("e\u{301} (çakışma).md".unicodeScalars))
+        #expect(NoteStore.conflictCopyName(for: "Plan.md", language: .english) { _ in false } == "Plan (conflict).md")
+        #expect(NoteStore.conflictCopyName(for: "Makefile", language: .english) { _ in false } == "Makefile (conflict)")
     }
 
     @Test func picksTheFirstFreeNumber() {
         let existing: Set = ["Not (çakışma).md", "Not (çakışma 2).md"]
-        #expect(NoteStore.conflictCopyName(for: "Not.md") { existing.contains($0) } == "Not (çakışma 3).md")
+        #expect(NoteStore.conflictCopyName(for: "Not.md", language: .turkish) { existing.contains($0) } == "Not (çakışma 3).md")
+        let english: Set = ["Not (conflict).md"]
+        #expect(NoteStore.conflictCopyName(for: "Not.md", language: .english) { english.contains($0) } == "Not (conflict 2).md")
     }
 
     @Test func urlIsNextToTheFileAndUnused() throws {
@@ -248,6 +276,7 @@ struct ConflictCopyNameTests {
         let file = folder.appendingPathComponent("a.md")
         try Data().write(to: file)
         try Data().write(to: folder.appendingPathComponent("a (çakışma).md"))
-        #expect(NoteStore.conflictCopyURL(for: file) == folder.appendingPathComponent("a (çakışma 2).md"))
+        #expect(NoteStore.conflictCopyURL(for: file, language: .turkish) == folder.appendingPathComponent("a (çakışma 2).md"))
+        #expect(NoteStore.conflictCopyURL(for: file, language: .english) == folder.appendingPathComponent("a (conflict).md"))
     }
 }

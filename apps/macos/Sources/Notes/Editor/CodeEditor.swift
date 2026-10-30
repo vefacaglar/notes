@@ -6,15 +6,17 @@ import SwiftUI
 struct CodeEditor: NSViewRepresentable {
     @Binding var text: String
     let language: CodeLanguage
+    var style: EditorStyle
     var focusOnAppear = false
     var proxy: TextEditorProxy?
     var undoManager: UndoManager?
     var isEditable = true
 
-    init(text: Binding<String>, language: CodeLanguage, focusOnAppear: Bool = false, proxy: TextEditorProxy? = nil,
-         undoManager: UndoManager? = nil, isEditable: Bool = true) {
+    init(text: Binding<String>, language: CodeLanguage, style: EditorStyle = .standard, focusOnAppear: Bool = false,
+         proxy: TextEditorProxy? = nil, undoManager: UndoManager? = nil, isEditable: Bool = true) {
         _text = text
         self.language = language
+        self.style = style
         self.focusOnAppear = focusOnAppear
         self.proxy = proxy
         self.undoManager = undoManager
@@ -22,18 +24,13 @@ struct CodeEditor: NSViewRepresentable {
     }
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(text: $text, language: language, undoManager: undoManager)
+        Coordinator(text: $text, language: language, undoManager: undoManager, style: style)
     }
 
     func makeNSView(context: Context) -> NSScrollView {
         let textView = CodeTextView(usingTextLayoutManager: false)
         textView.configureAsPlainTextEditor()
         textView.textContainerInset = NSSize(width: 12, height: 10)
-        textView.isContinuousSpellCheckingEnabled = false
-        textView.isGrammarCheckingEnabled = false
-        textView.font = CodeTheme.font
-        textView.defaultParagraphStyle = CodeTheme.paragraphStyle
-        textView.typingAttributes = CodeTheme.base
         textView.isEditable = isEditable
 
         textView.delegate = context.coordinator
@@ -42,6 +39,7 @@ struct CodeEditor: NSViewRepresentable {
         proxy?.language = language
 
         let scrollView = textView.embeddedInScrollView()
+        context.coordinator.configure(textView, style: style, initial: true)
         context.coordinator.load(text, into: textView)
         if focusOnAppear { textView.requestFocus() }
         return scrollView
@@ -53,6 +51,7 @@ struct CodeEditor: NSViewRepresentable {
         proxy?.textView = textView
         proxy?.language = language
         let coordinator = context.coordinator
+        coordinator.configure(textView, style: style, initial: false)
         let languageChanged = coordinator.language != language
         coordinator.language = language
         if !coordinator.update($text, in: textView) && languageChanged {
@@ -68,11 +67,30 @@ struct CodeEditor: NSViewRepresentable {
 
     final class Coordinator: TextEditorCoordinator {
         var language: CodeLanguage
+        private var palette: EditorPalette
         private var spans: [CodeSpan] = []
 
-        init(text: Binding<String>, language: CodeLanguage, undoManager: UndoManager?) {
+        init(text: Binding<String>, language: CodeLanguage, undoManager: UndoManager?, style: EditorStyle) {
             self.language = language
+            palette = EditorPalette(style)
             super.init(text: text, undoManager: undoManager)
+        }
+
+        /// Applies a new style in place: the text, selection and undo stack stay.
+        func configure(_ textView: CodeTextView, style: EditorStyle, initial: Bool) {
+            guard initial || style != palette.style else { return }
+            palette = EditorPalette(style)
+            textView.apply(palette, spellCheck: false)
+            textView.defaultParagraphStyle = palette.codeParagraph
+            textView.typingAttributes = palette.codeBase
+            textView.setWrapsLines(style.codeWrap)
+            textView.setShowsLineNumbers(style.codeLineNumbers, palette: palette)
+            if initial {
+                textView.font = palette.codeFont
+            } else {
+                needsFullRestyle = true
+                restyle(textView)
+            }
         }
 
         override func load(_ text: String, into textView: NSTextView) {
@@ -91,24 +109,26 @@ struct CodeEditor: NSViewRepresentable {
                     from: spans, to: new, editedRange: edit.range, changeInLength: edit.delta, length: storage.length)
             }
             spans = new
+            let edit = needsFullRestyle ? nil : pendingEdit
             pendingEdit = nil
             needsFullRestyle = false
 
             if target.length > 0 {
                 storage.beginEditing()
-                storage.setAttributes(CodeTheme.base, range: target)
+                storage.setAttributes(palette.codeBase, range: target)
                 // Markdown spans nest, so their ends are not sorted.
                 var k = language == .markdown ? 0 : Self.firstSpan(in: new, endingAfter: target.location)
                 while k < new.count && new[k].range.location < NSMaxRange(target) {
                     let range = NSIntersectionRange(new[k].range, target)
-                    if range.length > 0, let style = CodeTheme.styles[new[k].kind] {
+                    if range.length > 0, let style = palette.syntax[new[k].kind] {
                         storage.addAttributes(style, range: range)
                     }
                     k += 1
                 }
                 storage.endEditing()
             }
-            textView.typingAttributes = CodeTheme.base
+            textView.typingAttributes = palette.codeBase
+            (textView.enclosingScrollView?.verticalRulerView as? LineNumberRulerView)?.textDidChange(edit: edit)
         }
 
         private static func firstSpan(in spans: [CodeSpan], endingAfter location: Int) -> Int {
@@ -122,48 +142,57 @@ struct CodeEditor: NSViewRepresentable {
     }
 }
 
-// MARK: - Theme
-
-@MainActor
-enum CodeTheme {
-    static let fontSize: CGFloat = 13
-    static let font = NSFont.monospacedSystemFont(ofSize: fontSize, weight: .regular)
-
-    static let paragraphStyle: NSParagraphStyle = {
-        let style = NSMutableParagraphStyle()
-        style.lineHeightMultiple = 1.15
-        style.tabStops = []
-        style.defaultTabInterval = 4 * (" " as NSString).size(withAttributes: [.font: font]).width
-        return style
-    }()
-
-    static let base: [NSAttributedString.Key: Any] = [
-        .font: font,
-        .foregroundColor: NSColor.textColor,
-        .paragraphStyle: paragraphStyle,
-    ]
-
-    /// System colors, so both appearances work.
-    static let styles: [CodeSpan.Kind: [NSAttributedString.Key: Any]] = [
-        .keyword: [
-            .foregroundColor: NSColor.systemPink,
-            .font: NSFont.monospacedSystemFont(ofSize: fontSize, weight: .semibold),
-        ],
-        .literal: [.foregroundColor: NSColor.systemPink],
-        .string: [.foregroundColor: NSColor.systemRed],
-        .number: [.foregroundColor: NSColor.systemBlue],
-        .comment: [.foregroundColor: NSColor.secondaryLabelColor],
-        .type: [.foregroundColor: NSColor.systemTeal],
-        .property: [.foregroundColor: NSColor.systemPurple],
-        .tag: [.foregroundColor: NSColor.systemBlue],
-    ]
-}
-
 // MARK: - Text view
 
 final class CodeTextView: EditorTextView {
     /// What Tab inserts; set per file from its existing indentation.
     var indentUnit = "    "
+
+    /// Off: lines run as long as they are and the view scrolls horizontally.
+    func setWrapsLines(_ wraps: Bool) {
+        guard let container = textContainer else { return }
+        let scrollView = enclosingScrollView
+        let huge = CGFloat.greatestFiniteMagnitude
+        if wraps {
+            guard !container.widthTracksTextView else { return }
+            isHorizontallyResizable = false
+            minSize = .zero
+            autoresizingMask = [.width]
+            let width = scrollView?.contentSize.width ?? frame.width
+            setFrameSize(NSSize(width: width, height: frame.height))
+            container.containerSize = NSSize(width: max(width - 2 * textContainerInset.width, 0), height: huge)
+            container.widthTracksTextView = true
+            scrollView?.hasHorizontalScroller = false
+        } else {
+            guard container.widthTracksTextView else { return }
+            container.widthTracksTextView = false
+            container.containerSize = NSSize(width: huge, height: huge)
+            isHorizontallyResizable = true
+            autoresizingMask = [.width, .height]
+            minSize = NSSize(width: scrollView?.contentSize.width ?? 0, height: 0)
+            scrollView?.hasHorizontalScroller = true
+            scrollView?.autohidesScrollers = true
+        }
+        if let layoutManager, let container = textContainer {
+            layoutManager.textContainerChangedGeometry(container)
+        }
+        sizeToFit()
+        enclosingScrollView?.verticalRulerView?.needsDisplay = true
+    }
+
+    func setShowsLineNumbers(_ shows: Bool, palette: EditorPalette) {
+        guard let scrollView = enclosingScrollView else { return }
+        if shows {
+            let ruler = scrollView.verticalRulerView as? LineNumberRulerView ?? LineNumberRulerView(textView: self)
+            ruler.apply(palette)
+            if scrollView.verticalRulerView !== ruler { scrollView.verticalRulerView = ruler }
+            scrollView.hasVerticalRuler = true
+            scrollView.rulersVisible = true
+        } else {
+            scrollView.rulersVisible = false
+            scrollView.hasVerticalRuler = false
+        }
+    }
 
     override func insertTab(_ sender: Any?) {
         insertText(indentUnit, replacementRange: selectedRange())
@@ -178,5 +207,173 @@ final class CodeTextView: EditorTextView {
         while end < selection.location, [0x20, 0x09].contains(ns.character(at: end)) { end += 1 }
         insertText("\n" + ns.substring(with: NSRange(location: lineStart, length: end - lineStart)),
                    replacementRange: selection)
+    }
+}
+
+// MARK: - Line numbers
+
+/// Line numbers beside a code editor: one per logical line (wrapped continuations get none), drawn at the
+/// baseline of the line's first fragment, so they follow the font, line spacing and wrapping.
+final class LineNumberRulerView: NSRulerView {
+    private var numberFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
+    private var numberColor = NSColor.secondaryLabelColor
+    private var background = NSColor.textBackgroundColor
+    /// UTF-16 offsets where each line starts (after each LF); patched from each edit, rebuilt lazily when that is not possible.
+    private var lineStarts: [Int] = [0]
+    private var lineStartsValid = false
+    /// Length of the text `lineStarts` describes.
+    private var indexedLength = 0
+    private var digits = 0
+    private static let padding: CGFloat = 8
+
+    init(textView: NSTextView) {
+        super.init(scrollView: textView.enclosingScrollView, orientation: .verticalRuler)
+        clientView = textView
+        clipsToBounds = true
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(contentMoved), name: NSView.boundsDidChangeNotification,
+            object: textView.enclosingScrollView?.contentView)
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(contentMoved), name: NSView.frameDidChangeNotification, object: textView)
+    }
+
+    required init(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+
+    override var isFlipped: Bool { true }
+
+    func apply(_ palette: EditorPalette) {
+        numberFont = .monospacedDigitSystemFont(ofSize: max(palette.codeFont.pointSize * 0.85, 8), weight: .regular)
+        numberColor = palette.colors.secondaryText.nsColor
+        background = palette.colors.background.nsColor
+        updateThickness(force: true)
+        needsDisplay = true
+    }
+
+    /// `edit` is the single edit since the last call, in post-edit coordinates; nil when unknown.
+    func textDidChange(edit: (range: NSRange, delta: Int)?) {
+        if let edit, lineStartsValid, let string = textView?.string as NSString?,
+           LineIndex.update(&lineStarts, edit: edit, oldLength: indexedLength, in: string) {
+            indexedLength = string.length
+        } else {
+            lineStartsValid = false
+        }
+        updateThickness()
+        needsDisplay = true
+    }
+
+    @objc private func contentMoved() { needsDisplay = true }
+
+    private var textView: NSTextView? { clientView as? NSTextView }
+
+    private func ensureLineStarts() {
+        guard !lineStartsValid, let string = textView?.string as NSString? else { return }
+        lineStarts = LineIndex.build(string)
+        indexedLength = string.length
+        lineStartsValid = true
+    }
+
+    /// Recomputes the ruler width; only when the number of digits changed, unless `force` (new font).
+    private func updateThickness(force: Bool = false) {
+        ensureLineStarts()
+        let newDigits = max(3, String(lineStarts.count).count)
+        guard force || newDigits != digits else { return }
+        digits = newDigits
+        let digitWidth = ("8" as NSString).size(withAttributes: [.font: numberFont]).width
+        let thickness = (CGFloat(newDigits) * digitWidth + 2 * Self.padding).rounded(.up)
+        if ruleThickness != thickness { ruleThickness = thickness }
+    }
+
+    override func draw(_ dirtyRect: NSRect) {
+        background.setFill()
+        bounds.intersection(dirtyRect).fill()
+        drawHashMarksAndLabels(in: dirtyRect)
+    }
+
+    override func drawHashMarksAndLabels(in rect: NSRect) {
+        guard let textView, let layoutManager = textView.layoutManager, let container = textView.textContainer else { return }
+        ensureLineStarts()
+        let length = (textView.string as NSString).length
+        let attributes: [NSAttributedString.Key: Any] = [.font: numberFont, .foregroundColor: numberColor]
+        let origin = textView.textContainerOrigin
+        let visible = textView.visibleRect
+
+        func draw(_ number: Int, fragment: NSRect, baseline: CGFloat) {
+            let y = convert(NSPoint(x: 0, y: fragment.minY + origin.y + baseline), from: textView).y
+            let label = String(number) as NSString
+            let size = label.size(withAttributes: attributes)
+            label.draw(at: NSPoint(x: ruleThickness - Self.padding - size.width, y: y - numberFont.ascender), withAttributes: attributes)
+        }
+
+        let glyphs = layoutManager.glyphRange(forBoundingRect: visible.offsetBy(dx: -origin.x, dy: -origin.y), in: container)
+        let firstChar = layoutManager.characterIndexForGlyph(at: glyphs.location)
+        let lastChar = glyphs.length > 0 ? layoutManager.characterIndexForGlyph(at: NSMaxRange(glyphs) - 1) : firstChar
+        // Index of the last line starting at or before `firstChar`.
+        var lo = 0, hi = lineStarts.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if lineStarts[mid] <= firstChar { lo = mid + 1 } else { hi = mid }
+        }
+        var line = max(lo - 1, 0)
+        var baseline: CGFloat?
+        while line < lineStarts.count, lineStarts[line] <= lastChar, lineStarts[line] < length {
+            let glyph = layoutManager.glyphIndexForCharacter(at: lineStarts[line])
+            let fragment = layoutManager.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil, withoutAdditionalLayout: true)
+            let offset = layoutManager.location(forGlyphAt: glyph).y
+            draw(line + 1, fragment: fragment, baseline: offset)
+            baseline = offset
+            line += 1
+        }
+        // The empty last line after a final line break (or of an empty file): same baseline offset as the others.
+        if lineStarts.last == length {
+            let extra = layoutManager.extraLineFragmentRect
+            if !extra.isEmpty {
+                let font = (textView.typingAttributes[.font] as? NSFont) ?? numberFont
+                draw(lineStarts.count, fragment: extra, baseline: baseline ?? min(extra.height, font.ascender + (extra.height - font.ascender + font.descender) / 2))
+            }
+        }
+    }
+}
+
+/// Line start offsets of a text (UTF-16, after each LF), patched per edit instead of rescanned.
+enum LineIndex {
+    static func build(_ string: NSString) -> [Int] {
+        var starts = [0]
+        let length = string.length
+        var buffer = [unichar](repeating: 0, count: 4096)
+        var location = 0
+        while location < length {
+            let count = min(buffer.count, length - location)
+            string.getCharacters(&buffer, range: NSRange(location: location, length: count))
+            for k in 0..<count where buffer[k] == 0x0A { starts.append(location + k + 1) }
+            location += count
+        }
+        return starts
+    }
+
+    /// Patches `starts` for an edit (`range` is the new text, `delta` the change in length). False, leaving
+    /// `starts` alone, when the edit does not fit the indexed text.
+    static func update(_ starts: inout [Int], edit: (range: NSRange, delta: Int), oldLength: Int, in string: NSString) -> Bool {
+        let range = edit.range
+        let oldEnd = NSMaxRange(range) - edit.delta
+        guard oldLength + edit.delta == string.length, range.location >= 0, oldEnd >= range.location,
+              oldEnd <= oldLength, NSMaxRange(range) <= string.length else { return false }
+        // Starts at offsets in (location, oldEnd] belonged to line breaks that were replaced.
+        let first = firstIndex(in: starts, after: range.location)
+        let last = firstIndex(in: starts, after: oldEnd)
+        var inserted: [Int] = []
+        for i in range.location..<NSMaxRange(range) where string.character(at: i) == 0x0A { inserted.append(i + 1) }
+        if edit.delta != 0 { for i in last..<starts.count { starts[i] += edit.delta } }
+        starts.replaceSubrange(first..<last, with: inserted)
+        return true
+    }
+
+    /// Index of the first start greater than `offset`.
+    private static func firstIndex(in starts: [Int], after offset: Int) -> Int {
+        var lo = 0, hi = starts.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if starts[mid] <= offset { lo = mid + 1 } else { hi = mid }
+        }
+        return lo
     }
 }

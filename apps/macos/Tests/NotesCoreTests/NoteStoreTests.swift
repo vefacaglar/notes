@@ -61,6 +61,7 @@ struct NoteStoreTests {
     }
 
     @Test func createWriteReadRoundTrip() throws {
+        try store.createFolder(named: "Kişisel")
         let path = try store.createNote(named: "  Günlük  ", in: "Kişisel")
         #expect(path == "Kişisel/Günlük.md")
         #expect(try store.read(path) == "")
@@ -189,5 +190,88 @@ struct NoteStoreTests {
         #expect(store.search("toplanti").map(\.path) == ["config.json"])
         #expect(store.search(".txt").map(\.path) == ["notes.txt"])
         #expect(store.search("md").isEmpty)
+    }
+
+    @Test func creatingNeverRecreatesAMissingFolder() throws {
+        try store.createFolder(named: "Gone")
+        try FileManager.default.removeItem(at: root.appendingPathComponent("Gone"))
+        #expect(throws: NoteStoreError.missingFolder("Gone")) { try store.createNote(named: "x", in: "Gone") }
+        #expect(throws: NoteStoreError.missingFolder("Gone")) { try store.createFolder(named: "y", in: "Gone") }
+        #expect(!FileManager.default.fileExists(atPath: root.appendingPathComponent("Gone").path))
+        try FileManager.default.removeItem(at: root)
+        #expect(throws: NoteStoreError.missingFolder("")) { try store.createNote(named: "x") }
+        #expect(!FileManager.default.fileExists(atPath: root.path))
+    }
+
+    @Test func missingRootIsOnlyCreatedOnRequest() throws {
+        let missing = root.appendingPathComponent("yok")
+        #expect(throws: NoteStoreError.rootUnavailable(missing.standardizedFileURL.path)) {
+            try NoteStore(root: missing, createIfMissing: false)
+        }
+        #expect(!FileManager.default.fileExists(atPath: missing.path))
+        try put("dosya.md")
+        #expect(throws: NoteStoreError.self) { try NoteStore(root: root.appendingPathComponent("dosya.md"), createIfMissing: false) }
+        _ = try NoteStore(root: missing)
+        #expect(FileManager.default.fileExists(atPath: missing.path))
+    }
+
+    @Test func treeDepthCapAndCancellation() throws {
+        try put("a/b/c/d.md")
+        try put("a/x.md")
+        let capped = store.tree(ListingOptions(maxDepth: 2))
+        #expect(capped.map(\.path) == ["a"])
+        #expect(capped[0].children?.map(\.path) == ["a/b", "a/x.md"])
+        #expect(capped[0].children?[0].children == [])
+        #expect(store.tree(shouldContinue: { false }).isEmpty)
+    }
+}
+
+struct ListingOptionsTests {
+    let root: URL
+    let store: NoteStore
+
+    init() throws {
+        root = FileManager.default.temporaryDirectory.appendingPathComponent("ListingOptionsTests-\(UUID().uuidString)")
+        store = try NoteStore(root: root)
+    }
+
+    private func put(_ path: String, _ text: String = "", modified: TimeInterval) throws {
+        let url = root.appendingPathComponent(path)
+        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        try Data(text.utf8).write(to: url)
+        try FileManager.default.setAttributes([.modificationDate: Date(timeIntervalSince1970: modified)], ofItemAtPath: url.path)
+    }
+
+    @Test func modifiedOrderKeepsFoldersFirstByNameAndPutsNewestFilesFirst() throws {
+        try put("b.md", modified: 100)
+        try put("a.md", modified: 300)
+        try put("c.json", modified: 200)
+        try put("d.md", modified: 200)
+        try put("Zeta/x.md", modified: 1)
+        try put("Alfa/y.md", modified: 1)
+
+        let tree = store.tree(ListingOptions(order: .modified))
+        #expect(tree.map(\.path) == ["Alfa", "Zeta", "a.md", "c.json", "d.md", "b.md"])
+        #expect(store.tree().map(\.path) == ["Alfa", "Zeta", "a.md", "b.md", "c.json", "d.md"])
+    }
+
+    @Test func markdownOnlyHidesOtherFilesInTheTreeAndSearch() throws {
+        try put("a.md", "kahve", modified: 1)
+        try put("b.MARKDOWN", "kahve", modified: 1)
+        try put("c.mkd", "kahve", modified: 1)
+        try put("config.json", "kahve", modified: 1)
+        try put("Kod/app.swift", "kahve", modified: 1)
+
+        let options = ListingOptions(markdownOnly: true)
+        #expect(store.tree(options).map(\.path) == ["Kod", "a.md", "b.MARKDOWN", "c.mkd"])
+        #expect(store.tree(options)[0].children == [])
+        #expect(Set(store.search("kahve", listing: options).map(\.path)) == ["a.md", "b.MARKDOWN", "c.mkd"])
+        #expect(Set(store.search("kahve").map(\.path)).count == 5)
+    }
+
+    @Test(arguments: [("a.md", true), ("x.Markdown", true), ("x.mdown", true), ("x.mkd", true), ("x.txt", false),
+                      ("x.json", false), ("md", false), ("Work/n.md", true)])
+    func isMarkdown(path: String, expected: Bool) {
+        #expect(NoteStore.isMarkdown(path) == expected)
     }
 }

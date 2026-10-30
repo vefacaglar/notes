@@ -47,6 +47,24 @@ extension NSTextView {
 class EditorTextView: NSTextView {
     private var focusWhenInWindow = false
 
+    /// Pasted and dropped text enters in the document's normal form (no BOM, LF line breaks), so the text view and
+    /// the binding never differ. `insertText` keeps it one undo step.
+    override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
+        guard type == .string, let text = pboard.string(forType: .string), NoteFile.needsNormalizing(text) else {
+            return super.readSelection(from: pboard, type: type)
+        }
+        insertText(NoteFile.normalized(text), replacementRange: selectedRange())
+        return true
+    }
+
+    override func insertText(_ string: Any, replacementRange: NSRange) {
+        if let text = string as? String, NoteFile.needsNormalizing(text) {
+            super.insertText(NoteFile.normalized(text), replacementRange: replacementRange)
+        } else {
+            super.insertText(string, replacementRange: replacementRange)
+        }
+    }
+
     /// Becomes first responder once SwiftUI has put the view in a window (New Note).
     func requestFocus() {
         focusWhenInWindow = true
@@ -135,6 +153,14 @@ class TextEditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate
 
     func restyle(_ textView: NSTextView) {}
 
+    /// Selection moved; see `textViewDidChangeSelection(_:)`.
+    func selectionDidChange(in textView: NSTextView) {}
+
+    func textViewDidChangeSelection(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView else { return }
+        selectionDidChange(in: textView)
+    }
+
     func undoManager(for view: NSTextView) -> UndoManager? {
         undoManager ?? view.window?.undoManager
     }
@@ -167,7 +193,7 @@ class TextEditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate
 ///     CodeEditor(text: $text, language: language, proxy: editor)
 ///         .focusedSceneValue(\.textEditor, language.canFormat ? editor : nil)
 ///     // In Commands: @FocusedValue(\.textEditor) var editor
-///     Button("Biçimlendir") { editor?.format() }.disabled(editor == nil)
+///     Button("Format") { editor?.format() }.disabled(editor == nil)
 ///
 /// Writing to the binding instead counts as an outside change: the editor reloads and clears undo.
 @MainActor
@@ -195,12 +221,12 @@ final class TextEditorProxy {
         return true
     }
 
-    /// "Biçimlendir": reformats the text as one undoable step. On invalid input it puts the caret
+    /// Format: reformats the text as one undoable step. On invalid input it puts the caret
     /// at the error and shows the reason in a sheet.
     func format() {
         guard let textView else { return }
         do {
-            replaceAll(with: try language.format(textView.string), actionName: "Biçimlendir")
+            replaceAll(with: try language.format(textView.string), actionName: L("Format"))
         } catch {
             if let error = error as? JSONFormatError {
                 let caret = NSRange(location: min(error.offset, (textView.string as NSString).length), length: 0)
@@ -209,7 +235,7 @@ final class TextEditorProxy {
                 textView.window?.makeFirstResponder(textView)
             }
             let alert = NSAlert()
-            alert.messageText = "Biçimlendirilemedi"
+            alert.messageText = L("Couldn't format")
             alert.informativeText = error.localizedDescription
             if let window = textView.window {
                 alert.beginSheetModal(for: window)
