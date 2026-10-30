@@ -68,10 +68,10 @@ final class NotesModel {
 
     // MARK: Roots
 
-    /// `-notesFolder <path>` for a test run; else the saved list; else the folder of earlier versions; else
+    /// `-notesFolder <path>` (repeatable) for a test run; else the saved list; else the folder of earlier versions; else
     /// `~/Documents/Notes`, the only root that is created when missing and only on the very first run.
     private static func initialRoots() -> (paths: [String], createsDefault: Bool, isFirstRun: Bool) {
-        if let root = LaunchOptions.testRoot { return ([root], false, false) }
+        if !LaunchOptions.testRoots.isEmpty { return (LaunchOptions.testRoots, false, false) }
         let defaults = UserDefaults.standard
         if let roots = defaults.stringArray(forKey: rootsKey) { return (roots, false, false) }
         if let legacy = defaults.string(forKey: legacyRootKey) { return ([legacy], false, true) }
