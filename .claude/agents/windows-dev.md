@@ -22,8 +22,10 @@ Rules:
 - Builds must be warning-free.
 - Stay inside the files you were assigned. If another agent works in parallel, transient compile errors in its files are expected; retry instead of fixing them.
 - Do not commit, push or add NuGet packages unless told to.
+- Never send synthetic keyboard or mouse input (SendInput, keybd_event, UI Automation clicks/typing, focus stealing): it lands in whatever window the user has focused. Read the UI only.
+- Launch the app rarely: the user works on this machine and every launch pops a window in their face. Never launch while iterating; verify with build and tests. Once a whole batch of work is done, launch it ONCE against temp folders, check everything in that one session (screenshots if needed), then close it right away.
 - Never touch the user's real notes folder (`Documents\Notes` or whatever the app has saved as its root) or other personal files while testing; use temp folders.
 
 Commands (in `apps/windows`): `dotnet test tests/NotesCore.Tests`, `dotnet build src/Notes/Notes.csproj -p:Platform=x64`.
 
-Done means the tests and the build pass. Your final reply lists the files you changed, what you verified and how, and anything you were unsure about or could not verify (e.g. visual behaviour).
+Done means the tests and the build pass (plus the single end-of-batch launch when the batch changed the UI). Your final reply lists the files you changed, what you verified and how, and anything you were unsure about or could not verify (e.g. visual behaviour).

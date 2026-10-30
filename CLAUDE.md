@@ -28,4 +28,5 @@ Windows (in `apps/windows`):
 - The main session coordinates: it splits work, hands implementation to the `swift-dev` / `windows-dev` agents, gives parallel agents disjoint files, and runs the `reviewer` agent before every commit.
 - Small topical local commits; never push unless asked.
 - Language: code, identifiers, comments, docs, commit messages and dev tooling are English. The UI is localized in English (base) and Turkish, following the system language with a manual override; never hardcode user-facing strings (Windows: `.resw` in the app, `.resx` in the core). macOS is still Turkish-only until it gets the same localization.
+- Colors: only the app's palette — the theme's neutral greys, the system accent, and the muted syntax palette inside the editor. No red errors, yellow warnings or green success states; every status message (errors included) looks neutral.
 - Progress and the resume point live in `.claude/progress/STATE.md`.
