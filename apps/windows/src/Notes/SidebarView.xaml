@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<UserControl
+    x:Class="Notes.SidebarView"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Notes">
+    <Grid RowSpacing="8" Padding="8,4,8,0">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <StackPanel Orientation="Horizontal" Spacing="4">
+            <Button x:Name="NewNoteButton" Click="NewNote_Click">
+                <FontIcon Glyph="&#xE70B;" FontSize="16" />
+            </Button>
+            <Button x:Name="NewFolderButton" Click="NewFolder_Click">
+                <FontIcon Glyph="&#xE8F4;" FontSize="16" />
+            </Button>
+            <Button x:Name="AddFolderButton" Click="AddRoot_Click">
+                <FontIcon Glyph="&#xE838;" FontSize="16" />
+            </Button>
+            <Button x:Name="MoreButton">
+                <FontIcon Glyph="&#xE712;" FontSize="16" />
+                <Button.Flyout>
+                    <MenuFlyout>
+                        <MenuFlyoutSubItem x:Uid="MenuLanguage">
+                            <RadioMenuFlyoutItem x:Uid="LangSystemItem" x:Name="LangSystem" GroupName="Language" Tag="system" Click="Language_Click" />
+                            <RadioMenuFlyoutItem x:Uid="LangEnglishItem" x:Name="LangEnglish" GroupName="Language" Tag="en" Click="Language_Click" />
+                            <RadioMenuFlyoutItem x:Uid="LangTurkishItem" x:Name="LangTurkish" GroupName="Language" Tag="tr" Click="Language_Click" />
+                        </MenuFlyoutSubItem>
+                    </MenuFlyout>
+                </Button.Flyout>
+            </Button>
+        </StackPanel>
+
+        <TextBox x:Name="SearchBox" Grid.Row="1" x:Uid="SearchBox"  TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown" />
+
+        <TreeView x:Name="Tree" Grid.Row="2" SelectionMode="Single" CanDragItems="False" CanReorderItems="False" AllowDrop="False"
+                  SelectionChanged="Tree_SelectionChanged" KeyDown="Tree_KeyDown" Expanding="Tree_Expanding" Collapsed="Tree_Collapsed">
+            <TreeView.ItemTemplate>
+                <DataTemplate x:DataType="TreeViewNode">
+                    <Grid Background="Transparent" ColumnSpacing="8" ContextRequested="Item_ContextRequested"
+                          ToolTipService.ToolTip="{x:Bind ((local:SidebarItem)Content).ToolTip}">
+                        <Grid.ColumnDefinitions>
+                            <ColumnDefinition Width="Auto" />
+                            <ColumnDefinition Width="*" />
+                        </Grid.ColumnDefinitions>
+                        <FontIcon Glyph="{x:Bind ((local:SidebarItem)Content).Glyph}" FontSize="16" />
+                        <TextBlock Grid.Column="1" Text="{x:Bind ((local:SidebarItem)Content).Name}" FontWeight="{x:Bind ((local:SidebarItem)Content).Weight}"
+                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    </Grid>
+                </DataTemplate>
+            </TreeView.ItemTemplate>
+        </TreeView>
+
+        <ListView x:Name="Hits" Grid.Row="2" Visibility="Collapsed" SelectionMode="Single" SelectionChanged="Hits_SelectionChanged">
+            <ListView.ItemTemplate>
+                <DataTemplate x:DataType="local:HitItem">
+                    <StackPanel Padding="0,6" Spacing="2">
+                        <StackPanel Orientation="Horizontal" Spacing="8">
+                            <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" />
+                            <TextBlock Text="{x:Bind Name}" FontWeight="{x:Bind Weight}" TextTrimming="CharacterEllipsis" />
+                        </StackPanel>
+                        <TextBlock Text="{x:Bind Detail}" Visibility="{x:Bind DetailVisibility}" MaxLines="2" TextWrapping="Wrap"
+                                   TextTrimming="CharacterEllipsis" Style="{StaticResource CaptionTextBlockStyle}"
+                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                    </StackPanel>
+                </DataTemplate>
+            </ListView.ItemTemplate>
+        </ListView>
+
+        <TextBlock x:Name="NoResults" Grid.Row="2" Visibility="Collapsed" HorizontalAlignment="Center" Margin="0,24,0,0"
+                   TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+    </Grid>
+</UserControl>

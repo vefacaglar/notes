@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Window
+    x:Class="Notes.MainWindow"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:Notes">
+    <Window.SystemBackdrop>
+        <MicaBackdrop />
+    </Window.SystemBackdrop>
+    <Grid x:Name="Root" KeyboardAcceleratorPlacementMode="Hidden">
+        <Grid.RowDefinitions>
+            <RowDefinition Height="48" />
+            <RowDefinition Height="*" />
+        </Grid.RowDefinitions>
+
+        <!-- The title bar: drag region, except for the passthrough rectangles of the toggle and the tabs. -->
+        <Grid x:Name="TitleBar" Background="Transparent">
+            <Grid.ColumnDefinitions>
+                <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="*" />
+                <ColumnDefinition x:Name="CaptionColumn" Width="138" />
+            </Grid.ColumnDefinitions>
+            <Button x:Name="SidebarToggle" Margin="8,0,4,0" Width="36" Height="32" Padding="0" VerticalAlignment="Center"
+                    Background="Transparent" BorderThickness="0" Click="SidebarToggle_Click">
+                <FontIcon Glyph="&#xE90C;" FontSize="16" />
+            </Button>
+            <TabView x:Name="Tabs" Grid.Column="1" VerticalAlignment="Bottom" TabWidthMode="SizeToContent" CanReorderTabs="False"
+                     CanDragTabs="False" IsAddTabButtonVisible="True" AddTabButtonClick="Tabs_AddTabButtonClick"
+                     TabCloseRequested="Tabs_TabCloseRequested" SelectionChanged="Tabs_SelectionChanged" />
+        </Grid>
+
+        <SplitView x:Name="Split" Grid.Row="1" DisplayMode="Inline" IsPaneOpen="True" OpenPaneLength="260"
+                   PaneBackground="Transparent">
+            <SplitView.Pane>
+                <local:SidebarView x:Name="Sidebar" />
+            </SplitView.Pane>
+            <Grid Background="{ThemeResource LayerFillColorDefaultBrush}"
+                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,0" CornerRadius="8,0,0,0">
+                <Grid.RowDefinitions>
+                    <RowDefinition Height="Auto" />
+                    <RowDefinition Height="*" />
+                </Grid.RowDefinitions>
+                <InfoBar x:Name="ErrorBar" x:Uid="ErrorBar" Severity="Error" Margin="12,12,12,0" CloseButtonClick="ErrorBar_CloseButtonClick" />
+                <Border x:Name="EditorHost" Grid.Row="1" />
+                <StackPanel x:Name="Placeholder" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" MaxWidth="360">
+                    <FontIcon Glyph="&#xE8A5;" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+                    <TextBlock x:Uid="PlaceholderTitle" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" />
+                    <TextBlock x:Uid="PlaceholderHint" TextWrapping="Wrap"
+                               TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                </StackPanel>
+            </Grid>
+        </SplitView>
+    </Grid>
+</Window>

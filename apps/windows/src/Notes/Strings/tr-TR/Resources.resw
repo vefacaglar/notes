@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AppName" xml:space="preserve"><value>Notlar</value></data>
+  <data name="NewTab" xml:space="preserve"><value>Yeni Sekme</value></data>
+  <data name="Cancel" xml:space="preserve"><value>İptal</value></data>
+  <data name="CancelDialog" xml:space="preserve"><value>Vazgeç</value></data>
+  <data name="Save" xml:space="preserve"><value>Kaydet</value></data>
+  <data name="DontSave" xml:space="preserve"><value>Kaydetme</value></data>
+  <data name="Close" xml:space="preserve"><value>Kapat</value></data>
+  <data name="OK" xml:space="preserve"><value>Tamam</value></data>
+  <data name="Add" xml:space="preserve"><value>Ekle</value></data>
+  <data name="Create" xml:space="preserve"><value>Oluştur</value></data>
+  <data name="Name" xml:space="preserve"><value>Ad</value></data>
+  <data name="Rename" xml:space="preserve"><value>Yeniden Adlandır</value></data>
+  <data name="NewNote" xml:space="preserve"><value>Yeni Not</value></data>
+  <data name="NewFolder" xml:space="preserve"><value>Yeni Klasör</value></data>
+  <data name="OpenInNewTab" xml:space="preserve"><value>Yeni Sekmede Aç</value></data>
+  <data name="ShowInExplorer" xml:space="preserve"><value>Explorer'da Göster</value></data>
+  <data name="RemoveFromWorkspace" xml:space="preserve"><value>Çalışma Alanından Kaldır</value></data>
+  <data name="MoveToRecycleBin" xml:space="preserve"><value>Geri Dönüşüm Kutusuna Taşı</value></data>
+  <data name="CopyToClipboard" xml:space="preserve"><value>Panoya Kopyala</value></data>
+  <data name="HideSidebar" xml:space="preserve"><value>Kenar Çubuğunu Gizle</value></data>
+  <data name="ShowSidebar" xml:space="preserve"><value>Kenar Çubuğunu Göster</value></data>
+  <data name="NewNoteTip" xml:space="preserve"><value>Yeni Not (Ctrl+N)</value></data>
+  <data name="NewFolderTip" xml:space="preserve"><value>Yeni Klasör (Ctrl+Shift+N)</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>Klasör Ekle</value></data>
+  <data name="AddFolderTip" xml:space="preserve"><value>Klasör Ekle… (Ctrl+Shift+O)</value></data>
+  <data name="MoreOptions" xml:space="preserve"><value>Diğer seçenekler</value></data>
+  <data name="NoResults" xml:space="preserve"><value>“{0}” için sonuç yok</value></data>
+  <data name="Error" xml:space="preserve"><value>Hata</value></data>
+  <data name="SettingSaveFailed" xml:space="preserve"><value>Ayar kaydedilemedi: {0}</value></data>
+  <data name="FileChangedTitle" xml:space="preserve"><value>Dosya başka yerde değişti</value></data>
+  <data name="SaveFailedTitle" xml:space="preserve"><value>“{0}” kaydedilemedi</value></data>
+  <data name="TrashConfirmTitle" xml:space="preserve"><value>“{0}” Geri Dönüşüm Kutusuna taşınsın mı?</value></data>
+  <data name="TrashedTitle" xml:space="preserve"><value>“{0}” Geri Dönüşüm Kutusuna taşındı</value></data>
+  <data name="TrashedBody" xml:space="preserve"><value>Taşınırken yaptığınız son değişiklikler kaydedilmedi. Dosyayı Geri Dönüşüm Kutusundan geri yükleyebilir ya da bu değişiklikleri panoya kopyalayabilirsiniz.</value></data>
+  <data name="UnfaithfulBar" xml:space="preserve"><value>Bu dosya düzenleyicide değişmeden gösterilemiyor; salt okunur açıldı.</value></data>
+  <data name="Format" xml:space="preserve"><value>Biçimlendir</value></data>
+  <data name="FormatTip" xml:space="preserve"><value>Biçimlendir (Shift+Alt+F)</value></data>
+  <data name="FormatFailed" xml:space="preserve"><value>Biçimlendirilemedi</value></data>
+  <data name="Undo" xml:space="preserve"><value>Geri Al</value></data>
+  <data name="Redo" xml:space="preserve"><value>Yinele</value></data>
+  <data name="Cut" xml:space="preserve"><value>Kes</value></data>
+  <data name="Copy" xml:space="preserve"><value>Kopyala</value></data>
+  <data name="Paste" xml:space="preserve"><value>Yapıştır</value></data>
+  <data name="SelectAll" xml:space="preserve"><value>Tümünü Seç</value></data>
+  <data name="OpenFailed" xml:space="preserve"><value>“{0}” açılamadı: {1}</value></data>
+  <data name="AddFailed" xml:space="preserve"><value>“{0}” eklenemedi: {1}</value></data>
+  <data name="AlreadyInWorkspace" xml:space="preserve"><value>“{0}” zaten çalışma alanında.</value></data>
+  <data name="InsideWorkspaceFolder" xml:space="preserve"><value>“{0}”, çalışma alanındaki “{1}” klasörünün içinde.</value></data>
+  <data name="ContainsWorkspaceFolder" xml:space="preserve"><value>“{0}”, çalışma alanındaki “{1}” klasörünü içeriyor.</value></data>
+  <data name="WorkspaceSaveFailed" xml:space="preserve"><value>Çalışma alanı kaydedilemedi: {0}</value></data>
+  <data name="NotFound" xml:space="preserve"><value>“{0}” bulunamadı.</value></data>
+  <data name="RenameCanceled" xml:space="preserve"><value>Yeniden adlandırma iptal edildi.</value></data>
+  <data name="TrashCanceled" xml:space="preserve"><value>Geri Dönüşüm Kutusuna taşıma iptal edildi.</value></data>
+  <data name="DecodeFailed" xml:space="preserve"><value>Dosya UTF-8 metin olarak okunamadı.</value></data>
+  <data name="ItemNotFound" xml:space="preserve"><value>Öğe bulunamadı.</value></data>
+  <data name="AccessDenied" xml:space="preserve"><value>Bu öğeye erişim izni yok.</value></data>
+  <data name="PathTooLong" xml:space="preserve"><value>Yol çok uzun.</value></data>
+  <data name="ShutdownBlock" xml:space="preserve"><value>Kaydedilemeyen değişiklikler var.</value></data>
+  <data name="ReadOnlyTitle" xml:space="preserve"><value>{0} (salt okunur)</value></data>
+  <data name="SaveFailed" xml:space="preserve"><value>“{0}” kaydedilemedi: {1}</value></data>
+  <data name="ChangedElsewhere" xml:space="preserve"><value>“{0}” başka bir uygulamada değiştirildi.</value></data>
+  <data name="ChangedUnreadable" xml:space="preserve"><value>“{0}” başka bir uygulamada değiştirildi ve okunamıyor; üzerine yazılmadı.</value></data>
+  <data name="CopyAlsoFailed" xml:space="preserve"><value>Değişiklikleriniz ayrı bir dosyaya da kaydedilemedi: {0}</value></data>
+  <data name="DiskVersionOpened" xml:space="preserve"><value>Diskteki sürüm açıldı; sizin değişiklikleriniz “{0}” olarak kaydedildi.</value></data>
+  <data name="MovedToCopy" xml:space="preserve"><value>Değişiklikleriniz “{0}” olarak kaydedildi; düzenlemeye orada devam ediyorsunuz.</value></data>
+  <data name="AbandonedUnsaved" xml:space="preserve"><value>“{0}” Geri Dönüşüm Kutusuna taşındı; son değişiklikleriniz kaydedilemiyor.</value></data>
+  <data name="RestartTitle" xml:space="preserve"><value>Yeniden başlatma gerekli</value></data>
+  <data name="RestartBody" xml:space="preserve"><value>Dil değişikliği Notlar yeniden başlatıldıktan sonra uygulanır.</value></data>
+  <data name="ErrorBar.Title" xml:space="preserve"><value>Hata</value></data>
+  <data name="PlaceholderTitle.Text" xml:space="preserve"><value>Not seçilmedi</value></data>
+  <data name="PlaceholderHint.Text" xml:space="preserve"><value>Kenar çubuğundan bir not seçin ya da Ctrl+N ile yeni bir not oluşturun.</value></data>
+  <data name="SearchBox.PlaceholderText" xml:space="preserve"><value>Ara</value></data>
+  <data name="MenuLanguage.Text" xml:space="preserve"><value>Dil</value></data>
+  <data name="LangSystemItem.Text" xml:space="preserve"><value>Sistem</value></data>
+  <data name="LangEnglishItem.Text" xml:space="preserve"><value>English</value></data>
+  <data name="LangTurkishItem.Text" xml:space="preserve"><value>Türkçe</value></data>
+</root>

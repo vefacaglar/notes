@@ -1,0 +1,83 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="AppName" xml:space="preserve"><value>Notes</value></data>
+  <data name="NewTab" xml:space="preserve"><value>New Tab</value></data>
+  <data name="Cancel" xml:space="preserve"><value>Cancel</value></data>
+  <data name="CancelDialog" xml:space="preserve"><value>Cancel</value></data>
+  <data name="Save" xml:space="preserve"><value>Save</value></data>
+  <data name="DontSave" xml:space="preserve"><value>Don't Save</value></data>
+  <data name="Close" xml:space="preserve"><value>Close</value></data>
+  <data name="OK" xml:space="preserve"><value>OK</value></data>
+  <data name="Add" xml:space="preserve"><value>Add</value></data>
+  <data name="Create" xml:space="preserve"><value>Create</value></data>
+  <data name="Name" xml:space="preserve"><value>Name</value></data>
+  <data name="Rename" xml:space="preserve"><value>Rename</value></data>
+  <data name="NewNote" xml:space="preserve"><value>New Note</value></data>
+  <data name="NewFolder" xml:space="preserve"><value>New Folder</value></data>
+  <data name="OpenInNewTab" xml:space="preserve"><value>Open in New Tab</value></data>
+  <data name="ShowInExplorer" xml:space="preserve"><value>Show in Explorer</value></data>
+  <data name="RemoveFromWorkspace" xml:space="preserve"><value>Remove Folder from Workspace</value></data>
+  <data name="MoveToRecycleBin" xml:space="preserve"><value>Move to Recycle Bin</value></data>
+  <data name="CopyToClipboard" xml:space="preserve"><value>Copy to Clipboard</value></data>
+  <data name="HideSidebar" xml:space="preserve"><value>Hide Sidebar</value></data>
+  <data name="ShowSidebar" xml:space="preserve"><value>Show Sidebar</value></data>
+  <data name="NewNoteTip" xml:space="preserve"><value>New Note (Ctrl+N)</value></data>
+  <data name="NewFolderTip" xml:space="preserve"><value>New Folder (Ctrl+Shift+N)</value></data>
+  <data name="AddFolder" xml:space="preserve"><value>Add Folder</value></data>
+  <data name="AddFolderTip" xml:space="preserve"><value>Add Folder… (Ctrl+Shift+O)</value></data>
+  <data name="MoreOptions" xml:space="preserve"><value>More options</value></data>
+  <data name="NoResults" xml:space="preserve"><value>No results for “{0}”</value></data>
+  <data name="Error" xml:space="preserve"><value>Error</value></data>
+  <data name="SettingSaveFailed" xml:space="preserve"><value>Couldn't save the setting: {0}</value></data>
+  <data name="FileChangedTitle" xml:space="preserve"><value>File changed elsewhere</value></data>
+  <data name="SaveFailedTitle" xml:space="preserve"><value>Couldn't save “{0}”</value></data>
+  <data name="TrashConfirmTitle" xml:space="preserve"><value>Move “{0}” to the Recycle Bin?</value></data>
+  <data name="TrashedTitle" xml:space="preserve"><value>“{0}” was moved to the Recycle Bin</value></data>
+  <data name="TrashedBody" xml:space="preserve"><value>Your latest changes, made while it was being moved, were not saved. You can restore the file from the Recycle Bin or copy those changes to the clipboard.</value></data>
+  <data name="UnfaithfulBar" xml:space="preserve"><value>This file can't be shown unchanged in the editor, so it was opened read-only.</value></data>
+  <data name="Format" xml:space="preserve"><value>Format</value></data>
+  <data name="FormatTip" xml:space="preserve"><value>Format (Shift+Alt+F)</value></data>
+  <data name="FormatFailed" xml:space="preserve"><value>Couldn't format</value></data>
+  <data name="Undo" xml:space="preserve"><value>Undo</value></data>
+  <data name="Redo" xml:space="preserve"><value>Redo</value></data>
+  <data name="Cut" xml:space="preserve"><value>Cut</value></data>
+  <data name="Copy" xml:space="preserve"><value>Copy</value></data>
+  <data name="Paste" xml:space="preserve"><value>Paste</value></data>
+  <data name="SelectAll" xml:space="preserve"><value>Select All</value></data>
+  <data name="OpenFailed" xml:space="preserve"><value>Couldn't open “{0}”: {1}</value></data>
+  <data name="AddFailed" xml:space="preserve"><value>Couldn't add “{0}”: {1}</value></data>
+  <data name="AlreadyInWorkspace" xml:space="preserve"><value>“{0}” is already in the workspace.</value></data>
+  <data name="InsideWorkspaceFolder" xml:space="preserve"><value>“{0}” is inside the workspace folder “{1}”.</value></data>
+  <data name="ContainsWorkspaceFolder" xml:space="preserve"><value>“{0}” contains the workspace folder “{1}”.</value></data>
+  <data name="WorkspaceSaveFailed" xml:space="preserve"><value>Couldn't save the workspace: {0}</value></data>
+  <data name="NotFound" xml:space="preserve"><value>“{0}” was not found.</value></data>
+  <data name="RenameCanceled" xml:space="preserve"><value>Renaming was canceled.</value></data>
+  <data name="TrashCanceled" xml:space="preserve"><value>Moving to the Recycle Bin was canceled.</value></data>
+  <data name="DecodeFailed" xml:space="preserve"><value>The file could not be read as UTF-8 text.</value></data>
+  <data name="ItemNotFound" xml:space="preserve"><value>Item not found.</value></data>
+  <data name="AccessDenied" xml:space="preserve"><value>Access to this item is denied.</value></data>
+  <data name="PathTooLong" xml:space="preserve"><value>The path is too long.</value></data>
+  <data name="ShutdownBlock" xml:space="preserve"><value>There are changes that could not be saved.</value></data>
+  <data name="ReadOnlyTitle" xml:space="preserve"><value>{0} (read-only)</value></data>
+  <data name="SaveFailed" xml:space="preserve"><value>Couldn't save “{0}”: {1}</value></data>
+  <data name="ChangedElsewhere" xml:space="preserve"><value>“{0}” was changed in another app.</value></data>
+  <data name="ChangedUnreadable" xml:space="preserve"><value>“{0}” was changed in another app and can't be read; it was not overwritten.</value></data>
+  <data name="CopyAlsoFailed" xml:space="preserve"><value>Your changes couldn't be saved to a separate file either: {0}</value></data>
+  <data name="DiskVersionOpened" xml:space="preserve"><value>The version on disk was opened; your changes were saved as “{0}”.</value></data>
+  <data name="MovedToCopy" xml:space="preserve"><value>Your changes were saved as “{0}”; you're now editing that file.</value></data>
+  <data name="AbandonedUnsaved" xml:space="preserve"><value>“{0}” was moved to the Recycle Bin, so your latest changes can't be saved.</value></data>
+  <data name="RestartTitle" xml:space="preserve"><value>Restart required</value></data>
+  <data name="RestartBody" xml:space="preserve"><value>The language change takes effect after you restart Notes.</value></data>
+  <data name="ErrorBar.Title" xml:space="preserve"><value>Error</value></data>
+  <data name="PlaceholderTitle.Text" xml:space="preserve"><value>No note selected</value></data>
+  <data name="PlaceholderHint.Text" xml:space="preserve"><value>Select a note in the sidebar or press Ctrl+N to create one.</value></data>
+  <data name="SearchBox.PlaceholderText" xml:space="preserve"><value>Search</value></data>
+  <data name="MenuLanguage.Text" xml:space="preserve"><value>Language</value></data>
+  <data name="LangSystemItem.Text" xml:space="preserve"><value>System</value></data>
+  <data name="LangEnglishItem.Text" xml:space="preserve"><value>English</value></data>
+  <data name="LangTurkishItem.Text" xml:space="preserve"><value>Türkçe</value></data>
+</root>
