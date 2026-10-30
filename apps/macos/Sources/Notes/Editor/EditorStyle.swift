@@ -88,8 +88,9 @@ final class EditorPalette {
 
         let s = style.theme.syntax
         let keywordFont = Self.withTraits(.boldFontMask, codeFont, systemMonoWeight: style.codeFont.family == nil ? .semibold : nil)
+        let keywordExtra = style.codeFont.family == nil ? [:] : Self.syntheticAttributes(for: .boldFontMask, in: keywordFont)
         syntax = [
-            .keyword: [.foregroundColor: s.keyword.nsColor, .font: keywordFont],
+            .keyword: [.foregroundColor: s.keyword.nsColor, .font: keywordFont].merging(keywordExtra) { $1 },
             .literal: [.foregroundColor: s.literal.nsColor],
             .string: [.foregroundColor: s.string.nsColor],
             .number: [.foregroundColor: s.number.nsColor],
@@ -109,9 +110,11 @@ final class EditorPalette {
         return codeFont.withSize(scaled.rounded(.toNearestOrEven))
     }
 
-    func headingFont(size: CGFloat) -> NSFont {
-        let font = textFont.withSize(size)
-        return style.textFont.family == nil ? NSFont.systemFont(ofSize: size, weight: .bold) : Self.withTraits(.boldFontMask, font)
+    /// Font (and, for families without a bold face, a synthetic stroke) of a heading of `size`.
+    func headingAttributes(size: CGFloat) -> [NSAttributedString.Key: Any] {
+        if style.textFont.family == nil { return [.font: NSFont.systemFont(ofSize: size, weight: .bold)] }
+        let font = Self.withTraits(.boldFontMask, textFont.withSize(size))
+        return [.font: font].merging(Self.syntheticAttributes(for: .boldFontMask, in: font)) { $1 }
     }
 
     // MARK: Fonts
@@ -130,6 +133,16 @@ final class EditorPalette {
     static func withTraits(_ traits: NSFontTraitMask, _ font: NSFont, systemMonoWeight: NSFont.Weight? = nil) -> NSFont {
         if let systemMonoWeight { return .monospacedSystemFont(ofSize: font.pointSize, weight: systemMonoWeight) }
         return NSFontManager.shared.convert(font, toHaveTrait: traits)
+    }
+
+    /// Attributes that fake the requested traits `font` still lacks after `withTraits`, for families without
+    /// bold/italic faces: a slant for italic, a fill-and-stroke (in the text colour) for bold.
+    static func syntheticAttributes(for traits: NSFontTraitMask, in font: NSFont) -> [NSAttributedString.Key: Any] {
+        let have = NSFontManager.shared.traits(of: font)
+        var attributes: [NSAttributedString.Key: Any] = [:]
+        if traits.contains(.italicFontMask), !have.contains(.italicFontMask) { attributes[.obliqueness] = 0.2 }
+        if traits.contains(.boldFontMask), !have.contains(.boldFontMask) { attributes[.strokeWidth] = -3.0 }
+        return attributes
     }
 }
 

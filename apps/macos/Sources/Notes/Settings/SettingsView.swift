@@ -111,15 +111,21 @@ private struct AppearanceSettingsView: View {
             let issues = settings.themeLibrary.issues
             if !issues.isEmpty {
                 Section {
-                    ForEach(issues, id: \.self) { issue in
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text(verbatim: issue.file.lastPathComponent)
-                            Text(verbatim: issue.error.localizedDescription)
-                                .font(.caption)
-                                .foregroundStyle(.secondary)
-                                .textSelection(.enabled)
+                    ScrollView {
+                        VStack(alignment: .leading, spacing: 8) {
+                            ForEach(issues, id: \.self) { issue in
+                                VStack(alignment: .leading, spacing: 2) {
+                                    Text(verbatim: issue.file.lastPathComponent)
+                                    Text(verbatim: issue.error.localizedDescription)
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .textSelection(.enabled)
+                                }
+                            }
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
                     }
+                    .frame(maxHeight: 140)
                 } header: {
                     Text("Theme files that could not be loaded")
                 }

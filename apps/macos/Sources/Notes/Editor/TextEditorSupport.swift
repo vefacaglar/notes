@@ -47,6 +47,24 @@ extension NSTextView {
 class EditorTextView: NSTextView {
     private var focusWhenInWindow = false
 
+    /// Pasted and dropped text enters in the document's normal form (no BOM, LF line breaks), so the text view and
+    /// the binding never differ. `insertText` keeps it one undo step.
+    override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
+        guard type == .string, let text = pboard.string(forType: .string), NoteFile.needsNormalizing(text) else {
+            return super.readSelection(from: pboard, type: type)
+        }
+        insertText(NoteFile.normalized(text), replacementRange: selectedRange())
+        return true
+    }
+
+    override func insertText(_ string: Any, replacementRange: NSRange) {
+        if let text = string as? String, NoteFile.needsNormalizing(text) {
+            super.insertText(NoteFile.normalized(text), replacementRange: replacementRange)
+        } else {
+            super.insertText(string, replacementRange: replacementRange)
+        }
+    }
+
     /// Becomes first responder once SwiftUI has put the view in a window (New Note).
     func requestFocus() {
         focusWhenInWindow = true

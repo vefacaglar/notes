@@ -109,6 +109,7 @@ struct CodeEditor: NSViewRepresentable {
                     from: spans, to: new, editedRange: edit.range, changeInLength: edit.delta, length: storage.length)
             }
             spans = new
+            let edit = needsFullRestyle ? nil : pendingEdit
             pendingEdit = nil
             needsFullRestyle = false
 
@@ -127,7 +128,7 @@ struct CodeEditor: NSViewRepresentable {
                 storage.endEditing()
             }
             textView.typingAttributes = palette.codeBase
-            (textView.enclosingScrollView?.verticalRulerView as? LineNumberRulerView)?.textDidChange()
+            (textView.enclosingScrollView?.verticalRulerView as? LineNumberRulerView)?.textDidChange(edit: edit)
         }
 
         private static func firstSpan(in spans: [CodeSpan], endingAfter location: Int) -> Int {
@@ -217,9 +218,12 @@ final class LineNumberRulerView: NSRulerView {
     private var numberFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
     private var numberColor = NSColor.secondaryLabelColor
     private var background = NSColor.textBackgroundColor
-    /// UTF-16 offsets where each line starts (after each LF); rebuilt lazily after edits.
+    /// UTF-16 offsets where each line starts (after each LF); patched from each edit, rebuilt lazily when that is not possible.
     private var lineStarts: [Int] = [0]
     private var lineStartsValid = false
+    /// Length of the text `lineStarts` describes.
+    private var indexedLength = 0
+    private var digits = 0
     private static let padding: CGFloat = 8
 
     init(textView: NSTextView) {
@@ -241,12 +245,18 @@ final class LineNumberRulerView: NSRulerView {
         numberFont = .monospacedDigitSystemFont(ofSize: max(palette.codeFont.pointSize * 0.85, 8), weight: .regular)
         numberColor = palette.colors.secondaryText.nsColor
         background = palette.colors.background.nsColor
-        updateThickness()
+        updateThickness(force: true)
         needsDisplay = true
     }
 
-    func textDidChange() {
-        lineStartsValid = false
+    /// `edit` is the single edit since the last call, in post-edit coordinates; nil when unknown.
+    func textDidChange(edit: (range: NSRange, delta: Int)?) {
+        if let edit, lineStartsValid, let string = textView?.string as NSString?,
+           LineIndex.update(&lineStarts, edit: edit, oldLength: indexedLength, in: string) {
+            indexedLength = string.length
+        } else {
+            lineStartsValid = false
+        }
         updateThickness()
         needsDisplay = true
     }
@@ -257,25 +267,19 @@ final class LineNumberRulerView: NSRulerView {
 
     private func ensureLineStarts() {
         guard !lineStartsValid, let string = textView?.string as NSString? else { return }
-        var starts = [0]
-        let length = string.length
-        var buffer = [unichar](repeating: 0, count: 4096)
-        var location = 0
-        while location < length {
-            let count = min(buffer.count, length - location)
-            string.getCharacters(&buffer, range: NSRange(location: location, length: count))
-            for k in 0..<count where buffer[k] == 0x0A { starts.append(location + k + 1) }
-            location += count
-        }
-        lineStarts = starts
+        lineStarts = LineIndex.build(string)
+        indexedLength = string.length
         lineStartsValid = true
     }
 
-    private func updateThickness() {
+    /// Recomputes the ruler width; only when the number of digits changed, unless `force` (new font).
+    private func updateThickness(force: Bool = false) {
         ensureLineStarts()
-        let digits = max(3, String(lineStarts.count).count)
+        let newDigits = max(3, String(lineStarts.count).count)
+        guard force || newDigits != digits else { return }
+        digits = newDigits
         let digitWidth = ("8" as NSString).size(withAttributes: [.font: numberFont]).width
-        let thickness = (CGFloat(digits) * digitWidth + 2 * Self.padding).rounded(.up)
+        let thickness = (CGFloat(newDigits) * digitWidth + 2 * Self.padding).rounded(.up)
         if ruleThickness != thickness { ruleThickness = thickness }
     }
 
@@ -327,5 +331,49 @@ final class LineNumberRulerView: NSRulerView {
                 draw(lineStarts.count, fragment: extra, baseline: baseline ?? min(extra.height, font.ascender + (extra.height - font.ascender + font.descender) / 2))
             }
         }
+    }
+}
+
+/// Line start offsets of a text (UTF-16, after each LF), patched per edit instead of rescanned.
+enum LineIndex {
+    static func build(_ string: NSString) -> [Int] {
+        var starts = [0]
+        let length = string.length
+        var buffer = [unichar](repeating: 0, count: 4096)
+        var location = 0
+        while location < length {
+            let count = min(buffer.count, length - location)
+            string.getCharacters(&buffer, range: NSRange(location: location, length: count))
+            for k in 0..<count where buffer[k] == 0x0A { starts.append(location + k + 1) }
+            location += count
+        }
+        return starts
+    }
+
+    /// Patches `starts` for an edit (`range` is the new text, `delta` the change in length). False, leaving
+    /// `starts` alone, when the edit does not fit the indexed text.
+    static func update(_ starts: inout [Int], edit: (range: NSRange, delta: Int), oldLength: Int, in string: NSString) -> Bool {
+        let range = edit.range
+        let oldEnd = NSMaxRange(range) - edit.delta
+        guard oldLength + edit.delta == string.length, range.location >= 0, oldEnd >= range.location,
+              oldEnd <= oldLength, NSMaxRange(range) <= string.length else { return false }
+        // Starts at offsets in (location, oldEnd] belonged to line breaks that were replaced.
+        let first = firstIndex(in: starts, after: range.location)
+        let last = firstIndex(in: starts, after: oldEnd)
+        var inserted: [Int] = []
+        for i in range.location..<NSMaxRange(range) where string.character(at: i) == 0x0A { inserted.append(i + 1) }
+        if edit.delta != 0 { for i in last..<starts.count { starts[i] += edit.delta } }
+        starts.replaceSubrange(first..<last, with: inserted)
+        return true
+    }
+
+    /// Index of the first start greater than `offset`.
+    private static func firstIndex(in starts: [Int], after offset: Int) -> Int {
+        var lo = 0, hi = starts.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if starts[mid] <= offset { lo = mid + 1 } else { hi = mid }
+        }
+        return lo
     }
 }
