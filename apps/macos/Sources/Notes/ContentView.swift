@@ -70,6 +70,8 @@ struct WorkspaceView: View {
             } description: {
                 Text(loc: "Select a note in the sidebar or press ⌘N to create one.")
             }
+            // Fills the column so the tab bar stays at the top instead of centring with the placeholder.
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
     }
 
@@ -83,9 +85,10 @@ struct WorkspaceView: View {
                 set: { workspace.isSidebarVisible = $0 != .detailOnly })
     }
 
+    /// The open note's name; with no tab the main window shows no title (the app's name adds nothing there).
     private var title: String {
         if let document = workspace.activeDocument { return document.title }
-        return workspace.isMain ? L("Notes") : workspace.roots.first?.name ?? L("Notes")
+        return workspace.isMain ? "" : workspace.roots.first?.name ?? ""
     }
 
     private var representedURL: URL? {
