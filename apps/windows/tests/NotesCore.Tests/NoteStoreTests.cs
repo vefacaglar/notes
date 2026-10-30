@@ -471,4 +471,22 @@ public sealed class NoteStoreTests : IDisposable
         foreach (var path in new[] { "bar ", "bar /in.md", "baz.md " })
             Assert.Throws<NoteStoreException>(() => store.FullPath(path));
     }
+
+    [Fact]
+    public void JunctionBackToAnAncestorIsListedButNotFollowed()
+    {
+        Put("Üst/Alt/not.md");
+        var link = Path.Combine(root, "Üst", "Alt", "döngü");
+        var mklink = System.Diagnostics.Process.Start(new System.Diagnostics.ProcessStartInfo("cmd.exe", $"/c mklink /J \"{link}\" \"{Path.Combine(root, "Üst")}\"")
+        {
+            CreateNoWindow = true,
+            UseShellExecute = false,
+        })!;
+        mklink.WaitForExit();
+        Assert.True(Directory.Exists(link));
+        var loop = store.Tree().Single().Children!.Single().Children!.Single(n => n.IsFolder);
+        Assert.Equal("Üst/Alt/döngü", loop.Path);
+        Assert.Empty(loop.Children!);
+        Assert.Equal(["Üst/Alt/not.md"], store.NotePaths());
+    }
 }

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Untitled" xml:space="preserve"><value>Adsız</value></data>
+  <data name="Conflict" xml:space="preserve"><value>çakışma</value></data>
+  <data name="PlainText" xml:space="preserve"><value>Düz metin</value></data>
+  <data name="FileTooLarge" xml:space="preserve"><value>Dosya çok büyük ({0} MB); en fazla {1} MB açılabilir.</value></data>
+  <data name="LinkTargetMissing" xml:space="preserve"><value>Bağlantının hedefi bulunamadı: {0}</value></data>
+  <data name="LinkTargetUnresolved" xml:space="preserve"><value>Bağlantının hedefi çözülemedi: {0}</value></data>
+  <data name="SaveRecovery" xml:space="preserve"><value>Kayıt başarısız oldu; özgün dosya "{0}" konumunda duruyor ve "{1}" yerine elle taşınmalı.</value></data>
+  <data name="InvalidName" xml:space="preserve"><value>Geçersiz ad: "{0}"</value></data>
+  <data name="AlreadyExists" xml:space="preserve"><value>Bu adda bir öğe zaten var: "{0}"</value></data>
+  <data name="ItemNotFound" xml:space="preserve"><value>Öğe bulunamadı.</value></data>
+  <data name="RenameRollbackFailed" xml:space="preserve"><value>Yeniden adlandırma geri alınamadı; öğe geçici adıyla duruyor: {0}</value></data>
+  <data name="TrashFailed" xml:space="preserve"><value>Geri dönüşüm kutusuna taşınamadı (kod 0x{0:X}): {1}</value></data>
+  <data name="TrashCanceled" xml:space="preserve"><value>Geri dönüşüm kutusuna taşıma iptal edildi: {0}</value></data>
+  <data name="JsonInvalid" xml:space="preserve"><value>Geçersiz JSON ({0}:{1}): {2}</value></data>
+  <data name="CannotFormat" xml:space="preserve"><value>{0} biçimlendirilemiyor</value></data>
+  <data name="JsonEmpty" xml:space="preserve"><value>boş belge</value></data>
+  <data name="JsonUnexpectedEnd" xml:space="preserve"><value>belge beklenmedik şekilde bitti</value></data>
+  <data name="JsonTrailingComma" xml:space="preserve"><value>sondaki virgüle izin verilmez</value></data>
+  <data name="JsonExpectedCommaBrace" xml:space="preserve"><value>',' veya '}' bekleniyordu</value></data>
+  <data name="JsonExpectedCommaBracket" xml:space="preserve"><value>',' veya ']' bekleniyordu</value></data>
+  <data name="JsonExtraContent" xml:space="preserve"><value>değerden sonra fazladan içerik</value></data>
+  <data name="JsonKeyQuotes" xml:space="preserve"><value>anahtar çift tırnak içinde olmalı</value></data>
+  <data name="JsonExpectedKey" xml:space="preserve"><value>anahtar bekleniyordu</value></data>
+  <data name="JsonExpectedColon" xml:space="preserve"><value>':' bekleniyordu</value></data>
+  <data name="JsonTooDeep" xml:space="preserve"><value>iç içe geçme çok derin (en fazla {0} düzey)</value></data>
+  <data name="JsonStringQuotes" xml:space="preserve"><value>dizgeler çift tırnak kullanmalı</value></data>
+  <data name="JsonControlChar" xml:space="preserve"><value>dizgede kaçışsız kontrol karakteri</value></data>
+  <data name="JsonBadUnicodeEscape" xml:space="preserve"><value>geçersiz \u kaçışı</value></data>
+  <data name="JsonBadEscape" xml:space="preserve"><value>geçersiz kaçış dizisi</value></data>
+  <data name="JsonUnterminated" xml:space="preserve"><value>kapanmamış dizge</value></data>
+  <data name="JsonBadNumber" xml:space="preserve"><value>geçersiz sayı</value></data>
+  <data name="JsonUnexpectedChar" xml:space="preserve"><value>beklenmeyen karakter "{0}"</value></data>
+</root>

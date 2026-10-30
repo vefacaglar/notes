@@ -3,10 +3,13 @@ using System.Text;
 
 namespace NotesCore;
 
-/// <summary>Automatic naming: new notes start as "Adsız" and follow their first line. See docs/format.md.</summary>
+/// <summary>Automatic naming: new notes start as "Untitled" (or "Adsız" in Turkish) and follow their first line. See docs/format.md.</summary>
 public sealed partial class NoteStore
 {
-    public const string UntitledName = "Adsız";
+    /// <summary>The name new notes get: follows the UI language ("Untitled" or "Adsız").</summary>
+    public static string UntitledName => Strings.Get("Untitled");
+    /// <summary>Both names count as untitled whatever the UI language is, so notes made in the other language (or by older versions) keep following their first line.</summary>
+    private static readonly string[] UntitledNames = ["Untitled", "Adsız"];
     internal const int MaxTitleLength = 60;
     internal const int MaxTitleBytes = 200;
 
@@ -147,13 +150,13 @@ public sealed partial class NoteStore
 
     /// <summary>
     /// Whether a note called `name` follows its first line: its name, ignoring a " 2", " 3"… suffix,
-    /// is "Adsız" or the title of `content`.
+    /// is "Untitled" or "Adsız" or the title of `content`.
     /// </summary>
     public static bool IsAutoNamed(string name, string content)
     {
         name = name.Normalize(NormalizationForm.FormC);
         var baseName = BaseName(name);
-        if (baseName == UntitledName) return true;
+        if (UntitledNames.Contains(baseName, StringComparer.Ordinal)) return true;
         var title = Title(content);
         return title is not null && (name == title || baseName == title);
     }
@@ -214,8 +217,8 @@ public sealed partial class NoteStore
     }
 
     /// <summary>
-    /// Where to keep local edits that would overwrite a file changed by another program: "&lt;name&gt; (çakışma).&lt;ext&gt;",
-    /// then "&lt;name&gt; (çakışma 2).&lt;ext&gt;"…, the first name for which `isTaken` is false.
+    /// Where to keep local edits that would overwrite a file changed by another program: "&lt;name&gt; (conflict).&lt;ext&gt;" ("çakışma" in Turkish),
+    /// then "&lt;name&gt; (conflict 2).&lt;ext&gt;"…, the first name for which `isTaken` is false.
     /// </summary>
     public static string ConflictCopyName(string fileName, Func<string, bool> isTaken)
     {
@@ -223,7 +226,8 @@ public sealed partial class NoteStore
         var baseName = DeletingPathExtension(fileName);
         for (var number = 1; ; number++)
         {
-            var suffix = number == 1 ? "çakışma" : $"çakışma {number}";
+            var word = Strings.Get("Conflict");
+            var suffix = number == 1 ? word : $"{word} {number}";
             var candidate = $"{baseName} ({suffix})" + (extension.Length == 0 ? "" : "." + extension);
             if (!isTaken(candidate)) return candidate;
         }

@@ -75,7 +75,7 @@ internal static class Native
     private static string UnresolvedPath(string path, bool followLinks)
     {
         if (!followLinks) return path;
-        return IsLink(path) ? throw new IOException($"Bağlantının hedefi çözülemedi: {path}") : path;
+        return IsLink(path) ? throw new IOException(Strings.Format("LinkTargetUnresolved", path)) : path;
     }
 
     /// <summary>Whether `path` itself is a symbolic link or junction (not a cloud-file or dedup reparse point).</summary>
@@ -142,18 +142,19 @@ internal static class Native
     /// Moves a file or folder to the Recycle Bin. If the volume can't recycle it, the shell asks before deleting
     /// permanently (FOF_WANTNUKEWARNING); declining, or any failure, throws. Never deletes silently.
     /// </summary>
-    internal static void Recycle(string path)
+    internal static void Recycle(string path, IntPtr owner)
     {
         const uint delete = 3; // FO_DELETE
         const ushort allowUndo = 0x40, noErrorUi = 0x400, wantNukeWarning = 0x4000;
         var operation = new ShFileOpStruct
         {
+            Window = owner,
             Function = delete,
             From = Path.GetFullPath(path) + "\0", // the marshaller adds the second terminator
             Flags = allowUndo | noErrorUi | wantNukeWarning,
         };
         var code = SHFileOperationW(ref operation);
-        if (code != 0) throw new IOException($"Geri dönüşüm kutusuna taşınamadı (kod 0x{code:X}): {path}");
-        if (operation.AnyOperationsAborted) throw new OperationCanceledException($"Geri dönüşüm kutusuna taşıma iptal edildi: {path}");
+        if (code != 0) throw new IOException(Strings.Format("TrashFailed", code, path));
+        if (operation.AnyOperationsAborted) throw new OperationCanceledException(Strings.Format("TrashCanceled", path));
     }
 }

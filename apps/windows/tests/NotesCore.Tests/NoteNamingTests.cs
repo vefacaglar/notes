@@ -139,7 +139,8 @@ public class NoteNamingTests
             System.Globalization.CultureInfo.CurrentCulture = new System.Globalization.CultureInfo("tr-TR");
             Assert.False(NoteStore.IsValidName("con.md"));
             Assert.False(NoteStore.IsValidName("LPT1"));
-            Assert.Equal("Adsız", NoteStore.UntitledName);
+            Assert.Equal("Untitled", NoteStore.UntitledName);
+            using (TestCulture.Use("tr")) Assert.Equal("Adsız", NoteStore.UntitledName);
         }
         finally { System.Globalization.CultureInfo.CurrentCulture = previous; }
     }
@@ -197,6 +198,58 @@ public class NoteNamingTests
         Assert.False(NoteStore.IsAutoNamed("Elle verilmiş", "# Alışveriş"));
         Assert.False(NoteStore.IsAutoNamed("alışveriş", "Alışveriş"));
         Assert.False(NoteStore.IsAutoNamed("Toplantı", ""));
+    }
+
+    [Theory]
+    [InlineData("Untitled")]
+    [InlineData("Untitled 2")]
+    [InlineData("Adsız")]
+    [InlineData("Adsız 2")]
+    [InlineData("Adsız 17")]
+    public void BothUntitledNamesAreAutoNamedInEveryLanguage(string name)
+    {
+        Assert.True(NoteStore.IsAutoNamed(name, "# Başka bir başlık"));
+        using var _ = TestCulture.Use("tr");
+        Assert.True(NoteStore.IsAutoNamed(name, ""));
+    }
+
+    [Theory]
+    [InlineData("Untitled 1")]
+    [InlineData("Untitled 02")]
+    [InlineData("Adsız 1")]
+    [InlineData("untitled")]
+    [InlineData("adsız")]
+    public void OtherSpellingsAreNot(string name) => Assert.False(NoteStore.IsAutoNamed(name, "# Başlık"));
+
+    [Fact]
+    public void LegacyUntitledFilesKeepFollowingTheirTitle()
+    {
+        using var temp = new NotesTempFolder();
+        var store = new NoteStore(temp.Path);
+        File.WriteAllText(Path.Combine(temp.Path, "Adsız.md"), "# Yeni başlık\n");
+        File.WriteAllText(Path.Combine(temp.Path, "Adsız 2.md"), "# Yeni başlık\n");
+        foreach (var name in new[] { "Adsız", "Adsız 2" })
+        {
+            Assert.True(NoteStore.IsAutoNamed(name, "# Yeni başlık\n"));
+            Assert.Equal("Yeni başlık", NoteStore.AutoName(name, "# Yeni başlık\n"));
+        }
+        Assert.Equal("Adsız 3", store.UniqueNoteName("Adsız", null));
+    }
+
+    [Fact]
+    public void NewNotesAreNamedInTheUiLanguage()
+    {
+        using var temp = new NotesTempFolder();
+        var store = new NoteStore(temp.Path);
+        Assert.Equal("Untitled", store.UniqueNoteName(NoteStore.UntitledName, null));
+        store.CreateNote(NoteStore.UntitledName);
+        Assert.Equal("Untitled 2", store.UniqueNoteName(NoteStore.UntitledName, null));
+        using var _ = TestCulture.Use("tr");
+        Assert.Equal("Adsız", store.UniqueNoteName(NoteStore.UntitledName, null));
+        store.CreateNote(NoteStore.UntitledName);
+        Assert.Equal("Adsız 2", store.UniqueNoteName(NoteStore.UntitledName, null));
+        Assert.True(File.Exists(Path.Combine(temp.Path, "Untitled.md")));
+        Assert.True(File.Exists(Path.Combine(temp.Path, "Adsız.md")));
     }
 
     /// <summary>
@@ -298,17 +351,26 @@ public class ConflictCopyNameTests
     [Fact]
     public void AppendsTheMarkerBeforeTheExtension()
     {
+        Assert.Equal("Toplantı (conflict).md", NoteStore.ConflictCopyName("Toplantı.md", _ => false));
+        Assert.Equal("config (conflict).json", NoteStore.ConflictCopyName("config.json", _ => false));
+        Assert.Equal("Makefile (conflict)", NoteStore.ConflictCopyName("Makefile", _ => false));
+        Assert.Equal("e\u0301 (conflict).md", NoteStore.ConflictCopyName("e\u0301.md", _ => false));
+    }
+
+    [Fact]
+    public void TurkishUiUsesTheTurkishMarker()
+    {
+        using var _ = TestCulture.Use("tr");
         Assert.Equal("Toplantı (çakışma).md", NoteStore.ConflictCopyName("Toplantı.md", _ => false));
-        Assert.Equal("config (çakışma).json", NoteStore.ConflictCopyName("config.json", _ => false));
-        Assert.Equal("Makefile (çakışma)", NoteStore.ConflictCopyName("Makefile", _ => false));
-        Assert.Equal("e\u0301 (çakışma).md", NoteStore.ConflictCopyName("e\u0301.md", _ => false));
+        var existing = new HashSet<string> { "Not (çakışma).md", "Not (çakışma 2).md" };
+        Assert.Equal("Not (çakışma 3).md", NoteStore.ConflictCopyName("Not.md", existing.Contains));
     }
 
     [Fact]
     public void PicksTheFirstFreeNumber()
     {
-        var existing = new HashSet<string> { "Not (çakışma).md", "Not (çakışma 2).md" };
-        Assert.Equal("Not (çakışma 3).md", NoteStore.ConflictCopyName("Not.md", existing.Contains));
+        var existing = new HashSet<string> { "Not (conflict).md", "Not (conflict 2).md" };
+        Assert.Equal("Not (conflict 3).md", NoteStore.ConflictCopyName("Not.md", existing.Contains));
     }
 
     [Fact]
@@ -317,8 +379,8 @@ public class ConflictCopyNameTests
         using var temp = new NotesTempFolder();
         var file = Path.Combine(temp.Path, "a.md");
         File.WriteAllBytes(file, []);
-        File.WriteAllBytes(Path.Combine(temp.Path, "a (çakışma).md"), []);
-        Assert.Equal(Path.Combine(temp.Path, "a (çakışma 2).md"), NoteStore.ConflictCopyPath(file));
+        File.WriteAllBytes(Path.Combine(temp.Path, "a (conflict).md"), []);
+        Assert.Equal(Path.Combine(temp.Path, "a (conflict 2).md"), NoteStore.ConflictCopyPath(file));
     }
 
     [Fact]

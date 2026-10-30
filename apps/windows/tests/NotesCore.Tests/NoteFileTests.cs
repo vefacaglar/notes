@@ -124,7 +124,9 @@ public sealed class NoteFileTests : IDisposable
     [Fact]
     public void TooLargeMessageNamesTheLimit()
     {
-        Assert.Contains("200 MB", new NoteFileTooLargeException(300L * 1_048_576).Message);
+        Assert.Equal("The file is too large (300 MB); files up to 200 MB can be opened.", new NoteFileTooLargeException(300L * 1_048_576).Message);
+        using var _ = TestCulture.Use("tr");
+        Assert.Equal("Dosya çok büyük (300 MB); en fazla 200 MB açılabilir.", new NoteFileTooLargeException(300L * 1_048_576).Message);
     }
 
     [Fact]
@@ -167,5 +169,14 @@ public sealed class NoteFileTests : IDisposable
         Assert.Throws<IOException>(() => NoteFile.Write("x", link));
         Assert.NotNull(new FileInfo(link).LinkTarget);
         Assert.Null(NoteFile.GetStamp(link));
+    }
+
+    [Fact]
+    public void ReadWorksWhileAnotherProgramHasTheFileOpenForWriting()
+    {
+        var file = Path.Combine(Folder, "open.md");
+        File.WriteAllText(file, "açık");
+        using var writer = new FileStream(file, FileMode.Open, FileAccess.ReadWrite, FileShare.ReadWrite | FileShare.Delete);
+        Assert.Equal("açık", NoteFile.Read(file));
     }
 }

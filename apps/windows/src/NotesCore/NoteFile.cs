@@ -7,7 +7,7 @@ public sealed class NoteFileTooLargeException(long bytes) : Exception
     public long Bytes { get; } = bytes;
 
     public override string Message =>
-        $"Dosya çok büyük ({Bytes / 1_048_576} MB); en fazla {NoteFile.MaxOpenSize / 1_048_576} MB açılabilir.";
+        Strings.Format("FileTooLarge", Bytes / 1_048_576, NoteFile.MaxOpenSize / 1_048_576);
 }
 
 /// <summary>
@@ -39,9 +39,21 @@ public static class NoteFile
     /// <summary>UTF-8 text with a leading BOM dropped and CRLF turned into LF.</summary>
     public static string Read(string path)
     {
-        var text = StrictUtf8.GetString(File.ReadAllBytes(path));
+        var text = StrictUtf8.GetString(ReadBytes(path));
         if (text.StartsWith('\uFEFF')) text = text[1..];
         return text.Replace("\r\n", "\n", StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// The file's bytes, read without blocking other programs: they may keep it open for writing, or rename or delete it
+    /// (an editor saving it atomically) while it is read.
+    /// </summary>
+    internal static byte[] ReadBytes(string path)
+    {
+        using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
+        var buffer = new MemoryStream(stream.CanSeek ? (int)Math.Min(stream.Length, int.MaxValue) : 0);
+        stream.CopyTo(buffer);
+        return buffer.ToArray();
     }
 
     /// <summary>
@@ -52,7 +64,7 @@ public static class NoteFile
     {
         var bytes = StrictUtf8.GetBytes(text); // lone surrogates throw instead of becoming U+FFFD
         var query = Native.Query(path);
-        if (query is null && Native.IsLink(path)) throw new IOException($"Bağlantının hedefi bulunamadı: {path}");
+        if (query is null && Native.IsLink(path)) throw new IOException(Strings.Format("LinkTargetMissing", path));
         var target = query is { IsDirectory: false } existing ? existing.FinalPath : Path.GetFullPath(path);
         var folder = Path.GetDirectoryName(target)!;
         var id = Guid.NewGuid().ToString("N");
@@ -94,7 +106,7 @@ public static class NoteFile
             try { File.Move(backup, target); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException)
             {
-                throw new IOException($"Kayıt başarısız oldu; özgün dosya \"{backup}\" konumunda duruyor ve \"{target}\" yerine elle taşınmalı.", e);
+                throw new IOException(Strings.Format("SaveRecovery", backup, target), e);
             }
         }
         if (File.Exists(target)) TryDelete(backup);

@@ -282,7 +282,8 @@ public class CodeHighlighterTests
     {
         Assert.Equal("JSON", CodeLanguage.Json.DisplayName());
         Assert.Equal("C", CodeLanguage.CFamily.DisplayName());
-        Assert.Equal("Düz metin", CodeLanguage.PlainText.DisplayName());
+        Assert.Equal("Plain text", CodeLanguage.PlainText.DisplayName());
+        using (TestCulture.Use("tr")) Assert.Equal("Düz metin", CodeLanguage.PlainText.DisplayName());
     }
 
     [Fact]

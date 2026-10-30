@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<root>
+  <resheader name="resmimetype"><value>text/microsoft-resx</value></resheader>
+  <resheader name="version"><value>2.0</value></resheader>
+  <resheader name="reader"><value>System.Resources.ResXResourceReader, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <resheader name="writer"><value>System.Resources.ResXResourceWriter, System.Windows.Forms, Version=4.0.0.0, Culture=neutral, PublicKeyToken=b77a5c561934e089</value></resheader>
+  <data name="Untitled" xml:space="preserve"><value>Untitled</value></data>
+  <data name="Conflict" xml:space="preserve"><value>conflict</value></data>
+  <data name="PlainText" xml:space="preserve"><value>Plain text</value></data>
+  <data name="FileTooLarge" xml:space="preserve"><value>The file is too large ({0} MB); files up to {1} MB can be opened.</value></data>
+  <data name="LinkTargetMissing" xml:space="preserve"><value>The link target was not found: {0}</value></data>
+  <data name="LinkTargetUnresolved" xml:space="preserve"><value>The link target could not be resolved: {0}</value></data>
+  <data name="SaveRecovery" xml:space="preserve"><value>The save failed; the original file is kept at "{0}" and must be moved to "{1}" by hand.</value></data>
+  <data name="InvalidName" xml:space="preserve"><value>Invalid name: "{0}"</value></data>
+  <data name="AlreadyExists" xml:space="preserve"><value>An item with this name already exists: "{0}"</value></data>
+  <data name="ItemNotFound" xml:space="preserve"><value>Item not found.</value></data>
+  <data name="RenameRollbackFailed" xml:space="preserve"><value>The rename could not be undone; the item is kept under its temporary name: {0}</value></data>
+  <data name="TrashFailed" xml:space="preserve"><value>Couldn't move to the Recycle Bin (code 0x{0:X}): {1}</value></data>
+  <data name="TrashCanceled" xml:space="preserve"><value>Moving to the Recycle Bin was canceled: {0}</value></data>
+  <data name="JsonInvalid" xml:space="preserve"><value>Invalid JSON ({0}:{1}): {2}</value></data>
+  <data name="CannotFormat" xml:space="preserve"><value>{0} can't be formatted</value></data>
+  <data name="JsonEmpty" xml:space="preserve"><value>empty document</value></data>
+  <data name="JsonUnexpectedEnd" xml:space="preserve"><value>unexpected end of document</value></data>
+  <data name="JsonTrailingComma" xml:space="preserve"><value>trailing commas are not allowed</value></data>
+  <data name="JsonExpectedCommaBrace" xml:space="preserve"><value>expected ',' or '}'</value></data>
+  <data name="JsonExpectedCommaBracket" xml:space="preserve"><value>expected ',' or ']'</value></data>
+  <data name="JsonExtraContent" xml:space="preserve"><value>extra content after the value</value></data>
+  <data name="JsonKeyQuotes" xml:space="preserve"><value>keys must be in double quotes</value></data>
+  <data name="JsonExpectedKey" xml:space="preserve"><value>expected a key</value></data>
+  <data name="JsonExpectedColon" xml:space="preserve"><value>expected ':'</value></data>
+  <data name="JsonTooDeep" xml:space="preserve"><value>nesting is too deep (at most {0} levels)</value></data>
+  <data name="JsonStringQuotes" xml:space="preserve"><value>strings must use double quotes</value></data>
+  <data name="JsonControlChar" xml:space="preserve"><value>unescaped control character in string</value></data>
+  <data name="JsonBadUnicodeEscape" xml:space="preserve"><value>invalid \u escape</value></data>
+  <data name="JsonBadEscape" xml:space="preserve"><value>invalid escape sequence</value></data>
+  <data name="JsonUnterminated" xml:space="preserve"><value>unterminated string</value></data>
+  <data name="JsonBadNumber" xml:space="preserve"><value>invalid number</value></data>
+  <data name="JsonUnexpectedChar" xml:space="preserve"><value>unexpected character "{0}"</value></data>
+</root>

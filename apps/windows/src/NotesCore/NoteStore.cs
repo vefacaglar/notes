@@ -19,8 +19,8 @@ public sealed class NoteStoreException(NoteStoreError error, string name) : Exce
 
     public override string Message => Error switch
     {
-        NoteStoreError.InvalidName => $"Geçersiz ad: \"{Name}\"",
-        _ => $"Bu adda bir öğe zaten var: \"{Name}\"",
+        NoteStoreError.InvalidName => Strings.Format("InvalidName", Name),
+        _ => Strings.Format("AlreadyExists", Name),
     };
 }
 
@@ -169,7 +169,8 @@ public sealed partial class NoteStore
 
     // MARK: Listing
 
-    public IReadOnlyList<NoteNode> Tree() => Children(Root, "", 0);
+    public IReadOnlyList<NoteNode> Tree() =>
+        Children(Root, "", 0, [Native.Query(Root)?.FinalPath ?? Root]);
 
     /// <summary>Paths of all listed files (notes and other text files), in display order.</summary>
     public IReadOnlyList<string> NotePaths()
@@ -189,7 +190,9 @@ public sealed partial class NoteStore
 
     private static readonly Comparer<string> DisplayOrder = Comparer<string>.Create(Native.CompareLogical);
 
-    private List<NoteNode> Children(string dir, string prefix, int depth)
+    /// <summary>`ancestors` are the final paths of `dir` and the folders above it: a directory link back to one of them
+    /// is listed as an empty folder instead of being followed in a cycle.</summary>
+    private List<NoteNode> Children(string dir, string prefix, int depth, List<string> ancestors)
     {
         if (depth > MaxDepth) return [];
         List<FileSystemInfo> entries;
@@ -203,7 +206,14 @@ public sealed partial class NoteStore
             if (name.StartsWith('.') || name.EndsWith('.') || name.EndsWith(' ') || entry.Attributes.HasFlag(FileAttributes.Hidden)) continue;
             var path = prefix + name;
             if (entry.Attributes.HasFlag(FileAttributes.Directory))
-                nodes.Add(new NoteNode(path, name, true, Children(entry.FullName, path + "/", depth + 1)));
+            {
+                var final = entry.Attributes.HasFlag(FileAttributes.ReparsePoint)
+                    ? Native.Query(entry.FullName)?.FinalPath
+                    : System.IO.Path.Join(ancestors[^1], name);
+                var cycle = final is null || ancestors.Any(a => string.Equals(
+                    System.IO.Path.TrimEndingDirectorySeparator(a), System.IO.Path.TrimEndingDirectorySeparator(final), StringComparison.OrdinalIgnoreCase));
+                nodes.Add(new NoteNode(path, name, true, cycle ? [] : Children(entry.FullName, path + "/", depth + 1, [.. ancestors, final!])));
+            }
             else if (IsListed(name))
                 nodes.Add(new NoteNode(path, DisplayName(name), false, null));
         }
@@ -215,7 +225,7 @@ public sealed partial class NoteStore
     /// <summary>The file's text (UTF-8, a leading BOM dropped, line endings as stored).</summary>
     public string Read(string path)
     {
-        var text = new UTF8Encoding(false, true).GetString(File.ReadAllBytes(FullPath(path)));
+        var text = new UTF8Encoding(false, true).GetString(NoteFile.ReadBytes(FullPath(path)));
         return text.StartsWith('\uFEFF') ? text[1..] : text;
     }
 
@@ -255,7 +265,7 @@ public sealed partial class NoteStore
 
     /// <summary>
     /// Renames an item in place. Notes keep their <c>.md</c> extension; other files keep theirs unless the new name ends in
-    /// a listed extension (so "Toplantı 3.5" for <c>a.txt</c> gives <c>Toplantı 3.5.txt</c>). Returns the new path.
+    /// a listed extension (so "Meeting 3.5" for <c>a.txt</c> gives <c>Meeting 3.5.txt</c>). Returns the new path.
     /// </summary>
     public string Rename(string path, string newName)
     {
@@ -263,7 +273,7 @@ public sealed partial class NoteStore
         newName = newName.Trim();
         if (newName.Length == 0 || newName.Contains('/')) throw new NoteStoreException(NoteStoreError.InvalidName, newName);
         var isFolder = Directory.Exists(source);
-        if (!isFolder && !File.Exists(source)) throw new FileNotFoundException("Öğe bulunamadı.", source);
+        if (!isFolder && !File.Exists(source)) throw new FileNotFoundException(Strings.Get("ItemNotFound"), source);
 
         var oldExtension = PathExtension(LastComponent(path));
         if (!isFolder && IsNote(path))
@@ -299,7 +309,7 @@ public sealed partial class NoteStore
                 try { Move(temp, source); }
                 catch (Exception rollback)
                 {
-                    throw new IOException($"Yeniden adlandırma geri alınamadı; öğe geçici adıyla duruyor: {temp}", rollback);
+                    throw new IOException(Strings.Format("RenameRollbackFailed", temp), rollback);
                 }
                 throw;
             }
@@ -315,7 +325,10 @@ public sealed partial class NoteStore
     internal static bool IsSameFile(string a, string b) => Native.IsSameItem(a, b);
 
     /// <summary>Moves a note or folder to the Recycle Bin so it can be restored.</summary>
-    public void Trash(string path) => Native.Recycle(FullPath(path));
+    public void Trash(string path) => Native.Recycle(FullPath(path), IntPtr.Zero);
+
+    /// <summary><see cref="Trash(string)"/> with `owner` as the parent window of any shell prompt (e.g. "delete permanently?").</summary>
+    public void Trash(string path, IntPtr owner) => Native.Recycle(FullPath(path), owner);
 
     // MARK: Search
 

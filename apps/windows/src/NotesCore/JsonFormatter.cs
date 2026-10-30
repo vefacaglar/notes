@@ -13,8 +13,8 @@ public sealed class JsonFormatException(int line, int column, int offset, string
     /// <summary>The bare reason, without the position.</summary>
     public string Detail { get; } = detail;
 
-    /// <summary>"Geçersiz JSON (line:column): detail".</summary>
-    public override string Message => $"Geçersiz JSON ({Line}:{Column}): {Detail}";
+    /// <summary>"Invalid JSON (line:column): detail".</summary>
+    public override string Message => Strings.Format("JsonInvalid", Line, Column, Detail);
 }
 
 /// <summary>Re-indents JSON without parsing values: keys keep their order, strings and numbers keep their exact spelling.</summary>
@@ -39,14 +39,14 @@ public static class JsonFormatter
 
 public static class CodeLanguageFormatting
 {
-    /// <summary>Whether "Biçimlendir" is available for this language.</summary>
+    /// <summary>Whether "Format" is available for this language.</summary>
     public static bool CanFormat(this CodeLanguage language) => language == CodeLanguage.Json;
 
     /// <summary>The formatted text; throws when the text is invalid or the language has no formatter.</summary>
     public static string Format(this CodeLanguage language, string text) => language switch
     {
         CodeLanguage.Json => JsonFormatter.Format(text),
-        _ => throw new JsonFormatException(1, 1, 0, $"{language.DisplayName()} biçimlendirilemiyor"),
+        _ => throw new JsonFormatException(1, 1, 0, Strings.Format("CannotFormat", language.DisplayName())),
     };
 }
 
@@ -78,13 +78,13 @@ internal sealed class Writer
     public void Run()
     {
         SkipWhitespace();
-        if (i >= n) throw Error("boş belge");
+        if (i >= n) throw Error(Strings.Get("JsonEmpty"));
         Value();
         // A loop rather than recursion, so deep nesting cannot overflow the stack.
         while (isObject.Count > 0)
         {
             SkipWhitespace();
-            if (i >= n) throw Error("belge beklenmedik şekilde bitti");
+            if (i >= n) throw Error(Strings.Get("JsonUnexpectedEnd"));
             if (expectsItem)
             {
                 expectsItem = false;
@@ -102,17 +102,17 @@ internal sealed class Writer
                 i++;
                 Put((byte)',');
                 SkipWhitespace();
-                if (i >= n) throw Error("belge beklenmedik şekilde bitti");
-                if (s[i] == close) throw Error("sondaki virgüle izin verilmez");
+                if (i >= n) throw Error(Strings.Get("JsonUnexpectedEnd"));
+                if (s[i] == close) throw Error(Strings.Get("JsonTrailingComma"));
                 expectsItem = true;
             }
             else
             {
-                throw Error(top ? "',' veya '}' bekleniyordu" : "',' veya ']' bekleniyordu");
+                throw Error(Strings.Get(top ? "JsonExpectedCommaBrace" : "JsonExpectedCommaBracket"));
             }
         }
         SkipWhitespace();
-        if (i != n) throw Error("değerden sonra fazladan içerik");
+        if (i != n) throw Error(Strings.Get("JsonExtraContent"));
         if (indent != null) Put(10);
     }
 
@@ -136,16 +136,16 @@ internal sealed class Writer
         if (isObject[^1])
         {
             if (s[i] != 34)
-                throw Error(s[i] == 39 || IsLetter(s[i]) ? "anahtar çift tırnak içinde olmalı" : "anahtar bekleniyordu");
+                throw Error(s[i] == 39 || IsLetter(s[i]) ? Strings.Get("JsonKeyQuotes") : Strings.Get("JsonExpectedKey"));
             String();
             SkipWhitespace();
-            if (i >= n) throw Error("belge beklenmedik şekilde bitti");
-            if (s[i] != 58) throw Error("':' bekleniyordu");
+            if (i >= n) throw Error(Strings.Get("JsonUnexpectedEnd"));
+            if (s[i] != 58) throw Error(Strings.Get("JsonExpectedColon"));
             i++;
             Put(58);
             if (indent != null) Put(32);
             SkipWhitespace();
-            if (i >= n) throw Error("belge beklenmedik şekilde bitti");
+            if (i >= n) throw Error(Strings.Get("JsonUnexpectedEnd"));
         }
         Value();
     }
@@ -160,13 +160,13 @@ internal sealed class Writer
                 var obj = b == 123;
                 // Indented output grows with the square of the depth; real files never come close. Minifying is linear.
                 if (indent != null && isObject.Count >= JsonFormatter.MaxDepth)
-                    throw Error($"iç içe geçme çok derin (en fazla {JsonFormatter.MaxDepth} düzey)");
+                    throw Error(Strings.Format("JsonTooDeep", JsonFormatter.MaxDepth));
                 Put(b);
                 i++;
                 isObject.Add(obj);
                 items.Add(0);
                 SkipWhitespace();
-                if (i >= n) throw Error("belge beklenmedik şekilde bitti");
+                if (i >= n) throw Error(Strings.Get("JsonUnexpectedEnd"));
                 if (s[i] == (obj ? 125 : 93)) CloseContainer(); else expectsItem = true;
                 break;
             }
@@ -180,7 +180,7 @@ internal sealed class Writer
             case 102: Literal("false"u8); break;
             case 110: Literal("null"u8); break;
             case 39:
-                throw Error("dizgeler çift tırnak kullanmalı");
+                throw Error(Strings.Get("JsonStringQuotes"));
             default:
                 throw Unexpected();
         }
@@ -210,7 +210,7 @@ internal sealed class Writer
                 Output.Write(s, start, i - start);
                 return;
             }
-            if (b < 0x20) throw Error("dizgede kaçışsız kontrol karakteri");
+            if (b < 0x20) throw Error(Strings.Get("JsonControlChar"));
             if (b == 92)
             {
                 if (i + 1 >= n) break;
@@ -221,41 +221,41 @@ internal sealed class Writer
                         break;
                     case 117:
                         if (!(i + 5 < n && IsHexDigit(s[i + 2]) && IsHexDigit(s[i + 3]) && IsHexDigit(s[i + 4]) && IsHexDigit(s[i + 5])))
-                            throw Error("geçersiz \\u kaçışı");
+                            throw Error(Strings.Get("JsonBadUnicodeEscape"));
                         i += 6;
                         break;
                     default:
-                        throw Error("geçersiz kaçış dizisi");
+                        throw Error(Strings.Get("JsonBadEscape"));
                 }
                 continue;
             }
             i++;
         }
         i = start;
-        throw Error("kapanmamış dizge");
+        throw Error(Strings.Get("JsonUnterminated"));
     }
 
     private void Number()
     {
         var start = i;
         if (s[i] == 45) i++;
-        if (i >= n || !IsDigit(s[i])) { i = start; throw Error("geçersiz sayı"); }
+        if (i >= n || !IsDigit(s[i])) { i = start; throw Error(Strings.Get("JsonBadNumber")); }
         if (s[i] == 48) i++;
         else while (i < n && IsDigit(s[i])) i++;
         if (i < n && s[i] == 46)
         {
             i++;
-            if (i >= n || !IsDigit(s[i])) { i = start; throw Error("geçersiz sayı"); }
+            if (i >= n || !IsDigit(s[i])) { i = start; throw Error(Strings.Get("JsonBadNumber")); }
             while (i < n && IsDigit(s[i])) i++;
         }
         if (i < n && (s[i] == 101 || s[i] == 69))
         {
             i++;
             if (i < n && (s[i] == 43 || s[i] == 45)) i++;
-            if (i >= n || !IsDigit(s[i])) { i = start; throw Error("geçersiz sayı"); }
+            if (i >= n || !IsDigit(s[i])) { i = start; throw Error(Strings.Get("JsonBadNumber")); }
             while (i < n && IsDigit(s[i])) i++;
         }
-        if (i < n && (IsLetter(s[i]) || IsDigit(s[i]) || s[i] == 46)) { i = start; throw Error("geçersiz sayı"); }
+        if (i < n && (IsLetter(s[i]) || IsDigit(s[i]) || s[i] == 46)) { i = start; throw Error(Strings.Get("JsonBadNumber")); }
         Output.Write(s, start, i - start);
     }
 
@@ -275,7 +275,7 @@ internal sealed class Writer
         // Show the whole character, not one byte of it.
         var end = i + 1;
         while (end < n && (s[end] & 0xC0) == 0x80) end++;
-        return Error($"beklenmeyen karakter \"{Encoding.UTF8.GetString(s, i, end - i)}\"");
+        return Error(Strings.Format("JsonUnexpectedChar", Encoding.UTF8.GetString(s, i, end - i)));
     }
 
     private JsonFormatException Error(string message)

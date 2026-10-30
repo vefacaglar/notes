@@ -66,7 +66,7 @@ public static class CodeLanguages
         CodeLanguage.Sql => "SQL",
         CodeLanguage.Toml => "TOML",
         CodeLanguage.Markdown => "Markdown",
-        _ => "Düz metin",
+        _ => Strings.Get("PlainText"),
     };
 
     /// <summary>What Tab inserts: a tab when the file already indents with tabs, otherwise its most common indent step.</summary>
