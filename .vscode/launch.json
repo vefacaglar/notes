@@ -1,0 +1,32 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Windows: Debug (temp notes)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "Windows: Build",
+      "program": "${workspaceFolder}/apps/windows/src/Notes/bin/x64/Debug/net10.0-windows10.0.19041.0/Notes.exe",
+      "args": ["--root", "${env:TEMP}\\NotesTemp"],
+      "cwd": "${workspaceFolder}/apps/windows/src/Notes",
+      "console": "internalConsole",
+      "justMyCode": true
+    },
+    {
+      "name": "Windows: Debug (real notes)",
+      "type": "coreclr",
+      "request": "launch",
+      "preLaunchTask": "Windows: Build",
+      "program": "${workspaceFolder}/apps/windows/src/Notes/bin/x64/Debug/net10.0-windows10.0.19041.0/Notes.exe",
+      "cwd": "${workspaceFolder}/apps/windows/src/Notes",
+      "console": "internalConsole",
+      "justMyCode": true
+    },
+    {
+      "name": "Windows: Attach to running app",
+      "type": "coreclr",
+      "request": "attach",
+      "processName": "Notes.exe"
+    }
+  ]
+}

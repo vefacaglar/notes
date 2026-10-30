@@ -1,0 +1,55 @@
+{
+  "version": "2.0.0",
+  "options": {
+    "cwd": "${workspaceFolder}/apps/windows"
+  },
+  "tasks": [
+    {
+      "label": "Windows: Build",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["build", "src/Notes/Notes.csproj", "-p:Platform=x64", "-nologo", "-v", "q", "/property:GenerateFullPaths=true", "/consoleloggerparameters:NoSummary"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "build", "isDefault": true },
+      "presentation": { "reveal": "silent", "clear": true }
+    },
+    {
+      "label": "Windows: Test",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["test", "tests/NotesCore.Tests", "-nologo", "/property:GenerateFullPaths=true"],
+      "problemMatcher": "$msCompile",
+      "group": { "kind": "test", "isDefault": true },
+      "presentation": { "reveal": "always", "clear": true }
+    },
+    {
+      "label": "Windows: Build and Test",
+      "dependsOrder": "sequence",
+      "dependsOn": ["Windows: Build", "Windows: Test"],
+      "problemMatcher": []
+    },
+    {
+      "label": "Windows: Run (temp notes)",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["run", "--project", "src/Notes/Notes.csproj", "-p:Platform=x64", "--", "--root", "${env:TEMP}\\NotesTemp"],
+      "problemMatcher": "$msCompile",
+      "presentation": { "reveal": "silent", "clear": true }
+    },
+    {
+      "label": "Windows: Run (real notes)",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["run", "--project", "src/Notes/Notes.csproj", "-p:Platform=x64"],
+      "problemMatcher": "$msCompile",
+      "presentation": { "reveal": "silent", "clear": true }
+    },
+    {
+      "label": "Windows: Clean",
+      "type": "process",
+      "command": "dotnet",
+      "args": ["clean", "Notes.slnx", "-p:Platform=x64", "-nologo", "-v", "q"],
+      "problemMatcher": []
+    }
+  ]
+}

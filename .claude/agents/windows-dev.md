@@ -11,7 +11,7 @@ Layout:
 - `tests/NotesCore.Tests` — xUnit tests, ported from `apps/macos/Tests/NotesCoreTests` case by case.
 - `src/Notes` — WinUI 3 app: XAML views plus small view-model classes; `RichEditBox` editors.
 
-Before writing code, read the files you will touch, the Swift files you are porting, `docs/format.md` and `CLAUDE.md`. Match the surrounding style: concise code, few comments, Turkish user-facing strings, English identifiers and comments.
+Before writing code, read the files you will touch, the Swift files you are porting, `docs/format.md` and `CLAUDE.md`. Match the surrounding style: concise code, few comments, English identifiers and comments. User-facing strings are never hardcoded: English base + Turkish translation in `.resw` (app) / `.resx` (core).
 
 Rules:
 - Behaviour must match the macOS app and `docs/format.md` exactly: same names, titles, spans, search results, formatting. Port the Swift tests along with the code; every Swift test case gets a C# equivalent. If the Swift code and the spec disagree, follow the spec and report the disagreement.
