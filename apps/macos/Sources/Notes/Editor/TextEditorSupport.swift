@@ -135,6 +135,14 @@ class TextEditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate
 
     func restyle(_ textView: NSTextView) {}
 
+    /// Selection moved; see `textViewDidChangeSelection(_:)`.
+    func selectionDidChange(in textView: NSTextView) {}
+
+    func textViewDidChangeSelection(_ notification: Notification) {
+        guard let textView = notification.object as? NSTextView else { return }
+        selectionDidChange(in: textView)
+    }
+
     func undoManager(for view: NSTextView) -> UndoManager? {
         undoManager ?? view.window?.undoManager
     }
