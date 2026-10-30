@@ -15,6 +15,9 @@ public struct JSONFormatError: LocalizedError, Equatable, Sendable {
 
 /// Re-indents JSON without parsing values: keys keep their order, strings and numbers keep their exact spelling.
 public enum JSONFormatter {
+    /// Deepest nesting of objects and arrays that is formatted.
+    public static let maxDepth = 1_000
+
     public static func format(_ text: String, indent: Int = 2) throws -> String {
         try rewrite(text, indent: max(0, indent))
     }
@@ -135,6 +138,10 @@ private struct Writer {
         switch s[i] {
         case 123, 91: // { [
             let isObject = s[i] == 123
+            // Indented output grows with the square of the depth; real files never come close. Minifying is linear.
+            guard indent == nil || stack.count < JSONFormatter.maxDepth else {
+                throw error("iç içe geçme çok derin (en fazla \(JSONFormatter.maxDepth) düzey)")
+            }
             out.append(s[i])
             i += 1
             stack.append((isObject, 0))

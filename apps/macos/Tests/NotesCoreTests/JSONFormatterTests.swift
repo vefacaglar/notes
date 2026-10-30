@@ -109,4 +109,13 @@ struct JSONFormatterTests {
         #expect(output.count > input.count)
         #expect(elapsed < .seconds(2))
     }
+
+    @Test func refusesExtremeNesting() throws {
+        let ok = String(repeating: "[", count: JSONFormatter.maxDepth) + String(repeating: "]", count: JSONFormatter.maxDepth)
+        #expect(throws: Never.self) { try JSONFormatter.format(ok) }
+        let deep = "[" + ok + "]"
+        let error = try #require(throws: JSONFormatError.self) { try JSONFormatter.format(deep) }
+        #expect(error.offset == JSONFormatter.maxDepth)
+        #expect(error.message.contains("çok derin"))
+    }
 }
