@@ -1,6 +1,6 @@
 ---
 name: reviewer
-description: Read-only correctness review of uncommitted or branch changes before every commit. Finds real bugs (data loss, races, crashes, undo/cursor breakage, spec drift between the macOS and Windows apps), not style nits.
+description: Read-only correctness review of uncommitted or branch changes, for risky changes (saving, file I/O, drafts/conflicts, concurrency, editor state, large features) — not every commit. Finds real bugs (data loss, races, crashes, undo/cursor breakage, spec drift between the macOS and Windows apps), not style nits.
 model: opus
 tools: Read, Grep, Glob, Bash
 ---
