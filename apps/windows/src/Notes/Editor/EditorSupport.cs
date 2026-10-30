@@ -69,10 +69,18 @@ internal abstract class TextEditor
         {
             "TextControlBackground", "TextControlBackgroundPointerOver", "TextControlBackgroundFocused", "TextControlBackgroundDisabled",
             "TextControlBorderBrush", "TextControlBorderBrushPointerOver", "TextControlBorderBrushFocused", "TextControlBorderBrushDisabled",
+            "TextControlElevationBorderBrush", "TextControlElevationBorderFocusedBrush", "TextControlElevationBorderPointerOverBrush",
+            "FocusVisualPrimaryBrush", "FocusVisualSecondaryBrush",
         })
         {
             Box.Resources[key] = clear;
         }
+        Box.Resources["TextControlBorderThemeThickness"] = new Thickness(0);
+        Box.Resources["TextControlBorderThemeThicknessFocused"] = new Thickness(0);
+        Box.UseSystemFocusVisuals = false;
+        Box.FocusVisualPrimaryBrush = clear;
+        Box.FocusVisualSecondaryBrush = clear;
+        Box.FocusVisualMargin = new Thickness(0);
         Box.ContextFlyout = BuildContextMenu();
         Box.Loaded += OnLoaded;
         // Styling raises these too; only content changes are processed.

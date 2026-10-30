@@ -30,6 +30,8 @@ public sealed partial class MainWindow : Window
     {
         this.model = model;
         InitializeComponent();
+        if (AppSettings.ThemeOverride is { } theme) Root.RequestedTheme = theme;
+        Root.LayoutUpdated += (_, _) => UpdateStrokeGap();
         WindowSupport.Resize(this, 1100, 720);
         WindowSupport.ExtendIntoTitleBar(this, TitleBar);
         WindowSupport.GuardClose(this, () => model.PrepareToCloseAsync(ConfirmDropAsync));
@@ -39,6 +41,7 @@ public sealed partial class MainWindow : Window
         SessionGuard.Install(this);
         model.OwnerWindow = WinRT.Interop.WindowNative.GetWindowHandle(this);
 
+        ((ThemeShadow)EditorLayer.Shadow).Receivers.Add(ShadowReceiver);
         SetSidebarOpen(!AppSettings.SidebarCollapsed, save: false);
         Sidebar.Attach(model, this);
         model.TabsChanged += SyncTabs;
@@ -65,7 +68,8 @@ public sealed partial class MainWindow : Window
             SetSidebarOpen(true, save: true);
             Sidebar.FocusSearch();
         });
-        Accelerator(VirtualKey.S, ctrl, () => _ = NoteDocument.FlushAllAsync());
+        Accelerator(VirtualKey.S, ctrl, () => _ = model.SaveActiveAsync());
+        Accelerator(VirtualKey.S, ctrl | shift, () => _ = SaveAsAsync());
         Accelerator(VirtualKey.F, shift | VirtualKeyModifiers.Menu, () => ActiveEditor?.Format());
         Accelerator(VirtualKey.F2, VirtualKeyModifiers.None, () =>
         {
@@ -74,7 +78,7 @@ public sealed partial class MainWindow : Window
         Accelerator(VirtualKey.T, ctrl, () => model.NewTab());
         Accelerator(VirtualKey.W, ctrl, () =>
         {
-            if (model.ActiveTab is { } tab) _ = model.CloseTabAsync(tab, ConfirmDropAsync);
+            if (model.ActiveTab is { } tab) _ = CloseTabAsync(tab);
         });
         Accelerator(VirtualKey.Tab, ctrl, () => model.CycleTab(1));
         Accelerator(VirtualKey.Tab, ctrl | shift, () => model.CycleTab(-1));
@@ -220,16 +224,17 @@ public sealed partial class MainWindow : Window
     {
         if (!tabItems.TryGetValue(tab, out var item)) return;
         var document = tab.Document;
-        var state = (document?.Title, document?.HasUnsavedChanges == true, document?.Path);
+        var state = (document?.Title, document?.ShowsUnsavedDot == true, document?.Path);
         if (headers.TryGetValue(tab, out var shown) && shown == state && item.Header is not null) return;
         headers[tab] = state;
-        var dot = new Ellipse
+        // Inherits the tab's text colour, so it follows the theme.
+        var dot = new TextBlock
         {
-            Width = 6,
-            Height = 6,
+            Text = "\u25CF",
+            FontSize = 8,
+            Opacity = 0.6,
             VerticalAlignment = VerticalAlignment.Center,
-            Fill = (Brush)Application.Current.Resources["TextFillColorSecondaryBrush"],
-            Visibility = document?.HasUnsavedChanges == true ? Visibility.Visible : Visibility.Collapsed,
+            Visibility = document?.ShowsUnsavedDot == true ? Visibility.Visible : Visibility.Collapsed,
         };
         item.Header = new StackPanel
         {
@@ -238,7 +243,7 @@ public sealed partial class MainWindow : Window
             Children = { new TextBlock { Text = document?.Title ?? Loc.Get("NewTab"), MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis }, dot },
         };
         item.IconSource = new FontIconSource { Glyph = document is null ? "" : SidebarView.Glyph(document.FileName) };
-        ToolTipService.SetToolTip(item, document?.Path);
+        ToolTipService.SetToolTip(item, document is { IsDraft: false } ? document.Path : null);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(item, document?.Title ?? Loc.Get("NewTab"));
         if (tab == model.ActiveTab) UpdateTitle();
     }
@@ -268,6 +273,27 @@ public sealed partial class MainWindow : Window
 
     private void UpdateTitle() => Title = model.ActiveDocument?.Title ?? Loc.Get("AppName");
 
+    private (double Start, double End, double Width, double Height) strokeGeometry;
+
+    /// <summary>Opens the layer's top stroke under the selected tab, so the tab and the layer read as one surface.</summary>
+    private void UpdateStrokeGap()
+    {
+        const double band = 2;
+        double width = EditorLayer.ActualWidth, height = EditorLayer.ActualHeight, start = 0, end = 0;
+        if (Tabs.SelectedItem is TabViewItem { ActualWidth: > 0 } item && item.XamlRoot is not null)
+        {
+            var left = item.TransformToVisual(EditorLayer).TransformPoint(new Point(0, 0)).X;
+            start = Math.Clamp(left, 0, width);
+            end = Math.Clamp(left + item.ActualWidth, 0, width);
+            if (end <= start) start = end = 0;
+        }
+        if (strokeGeometry == (start, end, width, height)) return;
+        strokeGeometry = (start, end, width, height);
+        StrokeBody.Clip = new RectangleGeometry { Rect = new Rect(0, start < end ? band : 0, width, Math.Max(0, height - (start < end ? band : 0))) };
+        StrokeBefore.Clip = new RectangleGeometry { Rect = start < end ? new Rect(0, 0, start, band) : new Rect(0, 0, 0, 0) };
+        StrokeAfter.Clip = new RectangleGeometry { Rect = start < end ? new Rect(end, 0, width - end, band) : new Rect(0, 0, 0, 0) };
+    }
+
     private void Tabs_SelectionChanged(object sender, SelectionChangedEventArgs e)
     {
         if (syncingTabs || Tabs.SelectedItem is not TabViewItem { Tag: NoteTab tab }) return;
@@ -278,7 +304,64 @@ public sealed partial class MainWindow : Window
 
     private void Tabs_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
     {
-        if (args.Tab.Tag is NoteTab tab) _ = model.CloseTabAsync(tab, ConfirmDropAsync);
+        if (args.Tab.Tag is NoteTab tab) _ = CloseTabAsync(tab);
+    }
+
+    /// <summary>Closes a tab. A draft needs no saving to close the window, but closing its tab asks when it has text.</summary>
+    private async Task CloseTabAsync(NoteTab tab)
+    {
+        if (tab.Document is { IsDraft: true } draft)
+        {
+            draft.Sync();
+            if (draft.Text.Length > 0)
+            {
+                if (Content.XamlRoot is not { } root) return;
+                var dialog = new ContentDialog
+                {
+                    Title = Loc.Format("SaveDraftTitle", draft.Name),
+                    Content = new TextBlock { Text = Loc.Get("SaveDraftBody"), TextWrapping = TextWrapping.Wrap },
+                    PrimaryButtonText = Loc.Get("Save"),
+                    SecondaryButtonText = Loc.Get("DontSave"),
+                    CloseButtonText = Loc.Get("Cancel"),
+                    DefaultButton = ContentDialogButton.Primary,
+                };
+                switch (await Dialogs.ShowAsync(root, dialog))
+                {
+                    case ContentDialogResult.Primary:
+                        if (!await model.SaveDraftAsync(draft)) return;
+                        break;
+                    case ContentDialogResult.Secondary:
+                        await model.DiscardDraftAsync(tab);
+                        return;
+                    default:
+                        return;
+                }
+            }
+            else
+            {
+                await model.DiscardDraftAsync(tab);
+                return;
+            }
+        }
+        await model.CloseTabAsync(tab, ConfirmDropAsync);
+    }
+
+    /// <summary>Ctrl+Shift+S: the active note (a draft or a file) to a file the user picks, which the tab then shows.</summary>
+    private async Task SaveAsAsync()
+    {
+        if (model.ActiveDocument is not { } document) return;
+        document.Sync();
+        var folder = await model.TargetFolderAsync();
+        var title = document.IsDraft ? NoteStore.Title(document.Text) ?? NoteStore.UntitledName : document.Name;
+        var picker = new Microsoft.Windows.Storage.Pickers.FileSavePicker(AppWindow.Id)
+        {
+            SuggestedFileName = document.IsDraft || document.IsNote ? title + ".md" : document.FileName,
+        };
+        if (document.IsDraft || document.IsNote) picker.FileTypeChoices.Add(Loc.Get("MarkdownFiles"), [".md"]);
+        picker.FileTypeChoices.Add(Loc.Get("AllFiles"), ["*"]);
+        var start = !document.IsDraft ? System.IO.Path.GetDirectoryName(document.Path) : folder?.FullPath;
+        if (start is not null && Directory.Exists(start)) picker.SuggestedFolder = start;
+        if (await picker.PickSaveFileAsync() is { } result) await model.SaveAsAsync(document, result.Path);
     }
 
     /// <summary>
@@ -290,6 +373,13 @@ public sealed partial class MainWindow : Window
         if (Content.XamlRoot is not { } root) return false;
         while (true)
         {
+            if (document.TrashDialog is { IsCompleted: false } pending)
+            {
+                // The dialog about the same lost edits is already open: its outcome settles this too.
+                await pending;
+                document.Error = null;
+                continue;
+            }
             var message = document.Error ?? "";
             document.Error = null;
             if (!document.HasUnsavedChanges)
@@ -297,11 +387,12 @@ public sealed partial class MainWindow : Window
                 if (message.Length > 0) await Dialogs.MessageAsync(root, Loc.Get("FileChangedTitle"), message);
                 return true;
             }
+            var abandoned = document.IsAbandoned;
             var dialog = new ContentDialog
             {
-                Title = Loc.Format("SaveFailedTitle", document.Name),
+                Title = Loc.Format(abandoned ? "TrashedTitle" : "SaveFailedTitle", document.Name),
                 Content = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap, IsTextSelectionEnabled = true },
-                PrimaryButtonText = Loc.Get("Save"),
+                PrimaryButtonText = Loc.Get(abandoned ? "CopyToClipboard" : "Save"),
                 SecondaryButtonText = Loc.Get("DontSave"),
                 CloseButtonText = Loc.Get("Cancel"),
                 DefaultButton = ContentDialogButton.Primary,
@@ -309,6 +400,12 @@ public sealed partial class MainWindow : Window
             switch (await Dialogs.ShowAsync(root, dialog))
             {
                 case ContentDialogResult.Primary:
+                    if (abandoned)
+                    {
+                        CopyToClipboard(document.Text);
+                        document.Revert();
+                        return true;
+                    }
                     if (await document.FlushAsync()) return true;
                     break;
                 case ContentDialogResult.Secondary:
@@ -390,8 +487,13 @@ public sealed partial class MainWindow : Window
             DefaultButton = ContentDialogButton.Primary,
         };
         if (await Dialogs.ShowAsync(root, dialog) != ContentDialogResult.Primary) return;
+        CopyToClipboard(document.Text);
+    }
+
+    private static void CopyToClipboard(string text)
+    {
         var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
-        package.SetText(document.Text);
+        package.SetText(text);
         Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
     }
 

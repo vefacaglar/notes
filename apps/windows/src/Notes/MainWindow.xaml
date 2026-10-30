@@ -26,16 +26,39 @@
             </Button>
             <TabView x:Name="Tabs" Grid.Column="1" VerticalAlignment="Bottom" TabWidthMode="SizeToContent" CanReorderTabs="False"
                      CanDragTabs="False" IsAddTabButtonVisible="True" AddTabButtonClick="Tabs_AddTabButtonClick"
-                     TabCloseRequested="Tabs_TabCloseRequested" SelectionChanged="Tabs_SelectionChanged" />
+                     TabCloseRequested="Tabs_TabCloseRequested" SelectionChanged="Tabs_SelectionChanged">
+                <TabView.Resources>
+                  <ResourceDictionary>
+                    <SolidColorBrush x:Key="TabViewBackground" Color="Transparent" />
+                    <SolidColorBrush x:Key="TabViewItemHeaderBackground" Color="Transparent" />
+                    <SolidColorBrush x:Key="TabViewButtonBackground" Color="Transparent" />
+                    <ResourceDictionary.ThemeDictionaries>
+                        <ResourceDictionary x:Key="Light">
+                            <StaticResource x:Key="TabViewItemHeaderBackgroundSelected" ResourceKey="LayerFillColorDefaultBrush" />
+                        </ResourceDictionary>
+                        <ResourceDictionary x:Key="Dark">
+                            <StaticResource x:Key="TabViewItemHeaderBackgroundSelected" ResourceKey="LayerFillColorDefaultBrush" />
+                        </ResourceDictionary>
+                    </ResourceDictionary.ThemeDictionaries>
+                </ResourceDictionary>
+                </TabView.Resources>
+            </TabView>
         </Grid>
+
+        <!-- Behind the editor layer: the surface its shadow falls on. -->
+        <Grid x:Name="ShadowReceiver" Grid.Row="1" IsHitTestVisible="False" />
 
         <SplitView x:Name="Split" Grid.Row="1" DisplayMode="Inline" IsPaneOpen="True" OpenPaneLength="260"
                    PaneBackground="Transparent">
             <SplitView.Pane>
                 <local:SidebarView x:Name="Sidebar" />
             </SplitView.Pane>
-            <Grid Background="{ThemeResource LayerFillColorDefaultBrush}"
-                  BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,0" CornerRadius="8,0,0,0">
+            <Grid x:Name="EditorLayer" Background="{ThemeResource LayerFillColorDefaultBrush}"
+                  CornerRadius="8,0,0,0"
+                  Translation="0,0,24">
+                <Grid.Shadow>
+                    <ThemeShadow />
+                </Grid.Shadow>
                 <Grid.RowDefinitions>
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
@@ -48,6 +71,16 @@
                     <TextBlock x:Uid="PlaceholderHint" TextWrapping="Wrap"
                                TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
                 </StackPanel>
+                <!-- The layer's stroke in three clipped copies: the top edge stays open under the selected tab. -->
+                <Grid x:Name="StrokeBody" Grid.RowSpan="2" IsHitTestVisible="False">
+                    <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,0" CornerRadius="8,0,0,0" />
+                </Grid>
+                <Grid x:Name="StrokeBefore" Grid.RowSpan="2" IsHitTestVisible="False">
+                    <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,0" CornerRadius="8,0,0,0" />
+                </Grid>
+                <Grid x:Name="StrokeAfter" Grid.RowSpan="2" IsHitTestVisible="False">
+                    <Border BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}" BorderThickness="1,1,0,0" CornerRadius="8,0,0,0" />
+                </Grid>
             </Grid>
         </SplitView>
     </Grid>

@@ -16,6 +16,9 @@ internal static class AppSettings
     /// <summary>False for a <c>--root</c> test run.</summary>
     public static bool IsPersistent { get; set; } = true;
 
+    /// <summary>The hidden <c>--theme light|dark</c> override for this run; never saved.</summary>
+    public static Microsoft.UI.Xaml.ElementTheme? ThemeOverride { get; set; }
+
     private static string FilePath =>
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), "Notes", "settings.json");
 

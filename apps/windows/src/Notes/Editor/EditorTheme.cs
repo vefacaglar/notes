@@ -10,14 +10,15 @@ internal sealed record EditorPalette(
     Color Text, Color Secondary, Color Tertiary, Color Link, Color CodeBackground,
     Color Pink, Color Red, Color Blue, Color Teal, Color Purple)
 {
-    // The macOS system colours the Mac app uses, in their light and dark variants.
+    // Muted, low-saturation tokens that sit close to the text in lightness. Contrast against the editor layer
+    // (light about #FAFAFA, dark about #272727): tokens 5.0-6.9:1, secondary 6.1/8.7:1, comments and markers 4.4/4.3:1.
     public static readonly EditorPalette Light = new(
-        Hex(0x1B1B1B), Hex(0x5F5F5F), Hex(0x8B8B8B), Hex(0x005FB8), Hex(0xEBEBEB),
-        Hex(0xFF2D55), Hex(0xFF3B30), Hex(0x007AFF), Hex(0x30B0C7), Hex(0xAF52DE));
+        Hex(0x1B1B1B), Hex(0x5F5F5F), Hex(0x767676), Hex(0x2F6396), Hex(0xF1F1F1),
+        Hex(0x8C4A6B), Hex(0x8A5A3C), Hex(0x3F6A95), Hex(0x2F7771), Hex(0x6E5A94));
 
     public static readonly EditorPalette Dark = new(
-        Hex(0xFFFFFF), Hex(0xC5C5C5), Hex(0x8F8F8F), Hex(0x60CDFF), Hex(0x3A3A3A),
-        Hex(0xFF375F), Hex(0xFF453A), Hex(0x0A84FF), Hex(0x40C8E0), Hex(0xBF5AF2));
+        Hex(0xFFFFFF), Hex(0xC5C5C5), Hex(0x8A8A8A), Hex(0x8DB4DE), Hex(0x313131),
+        Hex(0xD18AA8), Hex(0xC9A27F), Hex(0x86A9D1), Hex(0x7FBAB3), Hex(0xA99BD0));
 
     public static EditorPalette For(ElementTheme theme) => theme == ElementTheme.Dark ? Dark : Light;
 
@@ -30,7 +31,7 @@ internal sealed record EditorPalette(
         CodeSpanKind.Literal => (Pink, false),
         CodeSpanKind.String => (Red, false),
         CodeSpanKind.Number => (Blue, false),
-        CodeSpanKind.Comment => (Secondary, false),
+        CodeSpanKind.Comment => (Tertiary, false),
         CodeSpanKind.Type => (Teal, false),
         CodeSpanKind.Property => (Purple, false),
         _ => (Blue, false),

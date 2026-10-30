@@ -35,7 +35,11 @@ public partial class App : Application
                 NoteDocument.ReloadAll();
             }
         };
-        window.Closed += (_, _) => Exit();
+        window.Closed += (_, _) =>
+        {
+            Drafts.CleanUpThrowaway();
+            Exit();
+        };
         window.Activate();
         _ = StartAsync(model);
     }
@@ -43,7 +47,8 @@ public partial class App : Application
     private async Task StartAsync(NotesModel model)
     {
         await model.StartAsync(options.Roots.Count > 0 ? options.Roots : AppSettings.Roots);
-        if (options.Files.Count > 0) _ = model.OpenFilesAsync(options.Files);
+        if (options.Files.Count > 0) await model.OpenFilesAsync(options.Files);
+        await model.RestoreDraftsAsync();
         List<string> early;
         lock (Pending)
         {

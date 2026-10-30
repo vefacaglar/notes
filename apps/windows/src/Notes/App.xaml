@@ -8,6 +8,33 @@
             <ResourceDictionary.MergedDictionaries>
                 <XamlControlsResources xmlns="using:Microsoft.UI.Xaml.Controls" />
             </ResourceDictionary.MergedDictionaries>
+            <!-- The app uses neutral greys and the accent colour only: every InfoBar severity looks the same. -->
+            <ResourceDictionary.ThemeDictionaries>
+                <ResourceDictionary x:Key="Light">
+                        <StaticResource x:Key="InfoBarInformationalSeverityBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush" />
+                        <SolidColorBrush x:Key="InfoBarInformationalSeverityIconBackground" Color="Transparent" />
+                        <StaticResource x:Key="InfoBarSuccessSeverityBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush" />
+                        <SolidColorBrush x:Key="InfoBarSuccessSeverityIconBackground" Color="Transparent" />
+                        <StaticResource x:Key="InfoBarWarningSeverityBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush" />
+                        <SolidColorBrush x:Key="InfoBarWarningSeverityIconBackground" Color="Transparent" />
+                        <StaticResource x:Key="InfoBarErrorSeverityBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush" />
+                        <SolidColorBrush x:Key="InfoBarErrorSeverityIconBackground" Color="Transparent" />
+                        <StaticResource x:Key="InfoBarBorderBrush" ResourceKey="CardStrokeColorDefaultBrush" />
+                        <StaticResource x:Key="InfoBarIconForeground" ResourceKey="TextFillColorSecondaryBrush" />
+                </ResourceDictionary>
+                <ResourceDictionary x:Key="Dark">
+                        <StaticResource x:Key="InfoBarInformationalSeverityBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush" />
+                        <SolidColorBrush x:Key="InfoBarInformationalSeverityIconBackground" Color="Transparent" />
+                        <StaticResource x:Key="InfoBarSuccessSeverityBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush" />
+                        <SolidColorBrush x:Key="InfoBarSuccessSeverityIconBackground" Color="Transparent" />
+                        <StaticResource x:Key="InfoBarWarningSeverityBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush" />
+                        <SolidColorBrush x:Key="InfoBarWarningSeverityIconBackground" Color="Transparent" />
+                        <StaticResource x:Key="InfoBarErrorSeverityBackgroundBrush" ResourceKey="LayerFillColorDefaultBrush" />
+                        <SolidColorBrush x:Key="InfoBarErrorSeverityIconBackground" Color="Transparent" />
+                        <StaticResource x:Key="InfoBarBorderBrush" ResourceKey="CardStrokeColorDefaultBrush" />
+                        <StaticResource x:Key="InfoBarIconForeground" ResourceKey="TextFillColorSecondaryBrush" />
+                </ResourceDictionary>
+            </ResourceDictionary.ThemeDictionaries>
         </ResourceDictionary>
     </Application.Resources>
 </Application>

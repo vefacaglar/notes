@@ -68,6 +68,31 @@ internal sealed class NoteDocument
         return created;
     }
 
+    /// <summary>A draft: a note with no file in the notes folders. Its text lives in a file of the draft store, written by
+    /// the usual autosave and read back when the app starts. A missing file is an empty draft.</summary>
+    public static async Task<NoteDocument> OpenDraftAsync(string path)
+    {
+        path = System.IO.Path.GetFullPath(path);
+        var document = Open.FirstOrDefault(d => Paths.Same(d.Path, path));
+        if (document is not null)
+        {
+            document.users++;
+            return document;
+        }
+        var loaded = await Task.Run(() => File.Exists(path) ? Load(path) : new Loaded("", null, false));
+        document = new NoteDocument(path, loaded) { IsDraft = true };
+        Open.Add(document);
+        return document;
+    }
+
+    /// <summary>A new empty draft in the draft store. Balance with <see cref="Release"/>.</summary>
+    public static NoteDocument NewDraft(string path)
+    {
+        var document = new NoteDocument(path, new Loaded("", null, false)) { IsDraft = true };
+        Open.Add(document);
+        return document;
+    }
+
     private static Loaded Load(string path)
     {
         var size = NoteFile.GetSize(path) ?? 0;
@@ -150,12 +175,33 @@ internal sealed class NoteDocument
         };
     }
 
+    /// <summary>A note that was never saved into a folder (see <see cref="Drafts"/>).</summary>
+    public bool IsDraft { get; private set; }
+    /// <summary>The tab header's dot: unsaved edits, or a draft that has text.</summary>
+    public bool ShowsUnsavedDot => IsDraft ? Text.Length > 0 : HasUnsavedChanges;
+
     public string FileName => System.IO.Path.GetFileName(Path);
     /// <summary>Only <c>.md</c> files are notes: automatic names. Other files keep their names.</summary>
     public bool IsNote => NoteStore.IsNote(FileName);
     public CodeLanguage Language => CodeLanguages.FromPath(FileName);
     /// <summary>File name without <c>.md</c> for notes; the full file name for other files.</summary>
-    public string Name => NoteStore.DisplayName(FileName);
+    public string Name => IsDraft ? DraftTitle() : NoteStore.DisplayName(FileName);
+    /// <summary>What an error message calls the file: a draft's title, not its store file name.</summary>
+    private string DisplayFileName => IsDraft ? Name : FileName;
+
+    private string? titleHead, draftTitle;
+
+    /// <summary>The first line's title; only the start of the text is looked at, and it is recomputed only when that changes.</summary>
+    private string DraftTitle()
+    {
+        var head = Text.Length > 2048 ? Text[..2048] : Text;
+        if (!string.Equals(head, titleHead, StringComparison.Ordinal))
+        {
+            titleHead = head;
+            draftTitle = NoteStore.Title(head) ?? NoteStore.UntitledName;
+        }
+        return draftTitle!;
+    }
     /// <summary>Compares lengths first, so it is cheap while typing changes the length.</summary>
     public bool HasUnsavedChanges => !string.Equals(Text, savedText, StringComparison.Ordinal);
     public string Title => IsReadOnly ? Loc.Format("ReadOnlyTitle", Name) : Name;
@@ -184,6 +230,12 @@ internal sealed class NoteDocument
         saveTimer.Stop();
         Open.Remove(this);
     }
+
+    /// <summary>The file went to the Recycle Bin; its edits can only be copied or discarded.</summary>
+    public bool IsAbandoned => abandoned;
+
+    /// <summary>The dialog about edits lost to the Recycle Bin, while it is open (it ends by discarding them).</summary>
+    public Task? TrashDialog { get; set; }
 
     /// <summary>After the file went to the Recycle Bin: no later save may recreate it.</summary>
     public void Abandon()
@@ -243,7 +295,8 @@ internal sealed class NoteDocument
         var recordedStamp = savedStamp;
         var root = RootOf?.Invoke(this);
         var generation = saveGeneration;
-        var task = Task.Run(() => Save(path, snapshot, recordedText, recordedStamp, root));
+        var isDraft = IsDraft;
+        var task = Task.Run(() => Save(path, snapshot, recordedText, recordedStamp, root, isDraft));
         inflight = (task, snapshot);
         var outcome = await task;
         if (inflight?.Task == task) inflight = null;
@@ -276,7 +329,7 @@ internal sealed class NoteDocument
             }
         }
         if (generation != saveGeneration) return !HasUnsavedChanges;
-        if (!Apply(outcome, snapshot, System.IO.Path.GetFileName(path))) return false;
+        if (!Apply(outcome, snapshot, IsDraft ? Name : System.IO.Path.GetFileName(path))) return false;
         if (isAutoNamed && AutoRename is { } rename && NoteStore.AutoName(Name, snapshot) is { } title)
         {
             await rename(this, title);
@@ -302,7 +355,7 @@ internal sealed class NoteDocument
             saveGeneration++;
             try
             {
-                if (task.Result is Saved saved) Apply(saved, snapshotInFlight, FileName);
+                if (task.Result is Saved saved) Apply(saved, snapshotInFlight, DisplayFileName);
             }
             catch (AggregateException)
             {
@@ -313,7 +366,7 @@ internal sealed class NoteDocument
         if (abandoned || MovesInProgress > 0) return false;
         saveGeneration++;
         var snapshot = Text;
-        Apply(Save(Path, snapshot, savedText, savedStamp, RootOf?.Invoke(this)), snapshot, FileName);
+        Apply(Save(Path, snapshot, savedText, savedStamp, RootOf?.Invoke(this), IsDraft), snapshot, DisplayFileName);
         // A conflict copy or a move to it keeps the text safe; only edits that are still unsaved block the shutdown.
         return !HasUnsavedChanges;
     }
@@ -382,9 +435,10 @@ internal sealed class NoteDocument
     private static bool IsUnreadable(Exception e) =>
         e is DecoderFallbackException or UnauthorizedAccessException or NoteFileTooLargeException;
 
-    private static SaveOutcome Save(string path, string snapshot, string recordedText, NoteFile.Stamp? recordedStamp, string? root)
+    private static SaveOutcome Save(string path, string snapshot, string recordedText, NoteFile.Stamp? recordedStamp, string? root, bool draft = false)
     {
-        if (NoteFile.GetStamp(path) is { } stamp && stamp != recordedStamp)
+        // A draft's store is the app's own: nothing else writes there, so a save just overwrites.
+        if (!draft && NoteFile.GetStamp(path) is { } stamp && stamp != recordedStamp)
         {
             // Changed on disk since it was loaded or saved here; only a touch without a content change may be overwritten.
             string disk;
@@ -438,7 +492,7 @@ internal sealed class NoteDocument
             return new Failed(Paths.Describe(e));
         }
         var written = NoteFile.GetStamp(path);
-        if (written?.Size == Encoding.UTF8.GetByteCount(snapshot)) return new Saved(written);
+        if (draft || written?.Size == Encoding.UTF8.GetByteCount(snapshot)) return new Saved(written);
         // Another program wrote the file right after this save: an outside change like any other.
         try
         {
@@ -471,6 +525,23 @@ internal sealed class NoteDocument
         {
             return (null, Paths.Describe(e));
         }
+    }
+
+    /// <summary>A draft whose text was just written to `path` (a file in a notes folder): from now on it is that file's note.</summary>
+    public void BecomeFile(string path, string writtenText, NoteFile.Stamp? stamp)
+    {
+        if (!IsDraft) return;
+        var draftPath = Path;
+        IsDraft = false;
+        Error = null;
+        Path = path;
+        savedText = writtenText;
+        savedStamp = stamp;
+        isAutoNamed = IsNote && NoteStore.IsAutoNamed(Name, writtenText);
+        if (Paths.IsInside(draftPath, Drafts.Folder)) Drafts.TryDelete(draftPath);
+        PathChanged?.Invoke();
+        StateChanged?.Invoke();
+        if (HasUnsavedChanges && !IsReadOnly && !released) saveTimer.Start();
     }
 
     /// <summary>Points the document at its file's new location after a rename, keeping the text and edit state.
@@ -510,17 +581,34 @@ internal sealed class NoteDocument
         if (abandoned || HasUnsavedChanges || ComposingCount > 0) return;
         var path = Path;
         var recorded = savedStamp;
+        NoteFileTooLargeException? tooLarge = null;
+        NoteFile.Stamp? seen = null;
         var result = await Task.Run(() =>
         {
             if (NoteFile.GetStamp(path) is not { } stamp || stamp == recorded) return null;
+            seen = stamp;
             try { return (Stamp: stamp, Text: NoteFile.Read(path)) as (NoteFile.Stamp Stamp, string Text)?; }
+            catch (NoteFileTooLargeException e) { tooLarge = e; return null; }
             catch (Exception) { return null; }
         });
         SyncRequested?.Invoke();
+        if (tooLarge is not null && !HasUnsavedChanges && Path == path)
+        {
+            // The tab keeps the old text; the next save sees the changed file and keeps a conflict copy.
+            // Reported once per version of the file, not on every activation.
+            if (seen != tooLargeReported)
+            {
+                tooLargeReported = seen;
+                Error = tooLarge.Message;
+            }
+            return;
+        }
         if (result is not { } disk || HasUnsavedChanges || ComposingCount > 0 || Path != path) return;
         if (string.Equals(disk.Text, savedText, StringComparison.Ordinal)) savedStamp = disk.Stamp;
         else Replace(disk.Text, disk.Stamp);
     });
+
+    private NoteFile.Stamp? tooLargeReported;
 
     private void Replace(string content, NoteFile.Stamp stamp)
     {

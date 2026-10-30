@@ -130,7 +130,10 @@ internal sealed class MarkdownEditor : TextEditor
                 format.Size = size * 0.9f;
                 format.BackgroundColor = Palette.CodeBackground;
                 break;
-            case MarkdownKind.Blockquote or MarkdownKind.ListMarker:
+            case MarkdownKind.ListMarker:
+                format.ForegroundColor = Palette.Tertiary;
+                break;
+            case MarkdownKind.Blockquote:
                 format.ForegroundColor = Palette.Secondary;
                 break;
             case MarkdownKind.TaskMarker:

@@ -19,7 +19,7 @@ internal sealed class CodeEditor : TextEditor
     public CodeEditor(NoteDocument note) : base(note, spellCheck: false)
     {
         language = note.Language;
-        Box.Padding = new Thickness(12, 10, 12, 10);
+        Box.Padding = new Thickness(24, 16, 24, 16);
         // Four spaces of the monospaced font (about 0.55–0.6 em per character).
         Box.Document.DefaultTabStop = EditorFonts.Points(FontSize) * 4 * 0.58f;
     }

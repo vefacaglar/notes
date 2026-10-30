@@ -15,7 +15,7 @@ public static partial class Program
         WinRT.ComWrappersSupport.InitializeComWrappers();
         var options = LaunchOptions.Parse(args);
         // `--root` is for this run only: the settings are neither read nor written.
-        AppSettings.IsPersistent = options.Roots.Count == 0;
+        AppSettings.IsPersistent = options.Roots.Count == 0 && options.Drafts is null;
         var instance = AppInstance.FindOrRegisterForKey(options.InstanceKey);
         if (!instance.IsCurrent)
         {
@@ -23,6 +23,8 @@ public static partial class Program
             Task.Run(async () => await instance.RedirectActivationToAsync(AppInstance.GetCurrent().GetActivatedEventArgs())).Wait();
             return 0;
         }
+        AppSettings.ThemeOverride = options.Theme;
+        Notes.Drafts.Override = options.Drafts;
         Loc.Initialize(options.Language ?? AppSettings.Language);
         instance.Activated += (_, e) => App.Redirected(e);
         Application.Start(callback =>
@@ -42,13 +44,15 @@ public static partial class Program
 /// Command line: file paths to open, plus <c>--root &lt;path&gt;</c> (repeatable) to use other root folders for this run
 /// only; such a run never writes the settings. <c>--lang en|tr</c> overrides the UI language for this run.
 /// </summary>
-public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<string> Files, string? Language = null)
+public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<string> Files, string? Language = null, ElementTheme? Theme = null, string? Drafts = null)
 {
     public static LaunchOptions Parse(IEnumerable<string> args)
     {
         var roots = new List<string>();
         var files = new List<string>();
         string? language = null;
+        ElementTheme? theme = null;
+        string? drafts = null;
         using var e = args.GetEnumerator();
         while (e.MoveNext())
         {
@@ -60,19 +64,27 @@ public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<st
             {
                 if (e.MoveNext() && e.Current is "en" or "tr" or "system") language = e.Current;
             }
+            else if (e.Current == "--drafts")
+            {
+                if (e.MoveNext()) drafts = Path.GetFullPath(e.Current);
+            }
+            else if (e.Current == "--theme")
+            {
+                if (e.MoveNext()) theme = e.Current switch { "light" => ElementTheme.Light, "dark" => ElementTheme.Dark, _ => null };
+            }
             else if (e.Current.Length > 0)
             {
                 files.Add(Path.GetFullPath(e.Current));
             }
         }
-        return new LaunchOptions(roots, files, language);
+        return new LaunchOptions(roots, files, language, theme, drafts);
     }
 
     /// <summary>Launches share one window only with the same roots, so a test run never reaches the real workspace.</summary>
-    public string InstanceKey => Roots.Count == 0
+    public string InstanceKey => Roots.Count == 0 && Drafts is null
         ? "main"
         : "main-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(string.Join('|', Roots).ToUpperInvariant())))[..16];
+            System.Text.Encoding.UTF8.GetBytes(string.Join('|', Roots).ToUpperInvariant() + "||" + Drafts?.ToUpperInvariant())))[..16];
 
     /// <summary>Splits a command line as Windows does; a leading path to this executable is dropped.</summary>
     public static LaunchOptions FromCommandLine(string commandLine)

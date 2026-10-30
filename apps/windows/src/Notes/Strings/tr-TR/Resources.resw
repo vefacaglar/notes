@@ -80,4 +80,9 @@
   <data name="LangSystemItem.Text" xml:space="preserve"><value>Sistem</value></data>
   <data name="LangEnglishItem.Text" xml:space="preserve"><value>English</value></data>
   <data name="LangTurkishItem.Text" xml:space="preserve"><value>Türkçe</value></data>
+  <data name="SaveDraftTitle" xml:space="preserve"><value>“{0}” kaydedilsin mi?</value></data>
+  <data name="SaveDraftBody" xml:space="preserve"><value>Bu not henüz bir klasöre kaydedilmedi.</value></data>
+  <data name="NoFolderToSave" xml:space="preserve"><value>Önce çalışma alanına bir klasör ekleyin; notun kaydedileceği bir klasör gerekir.</value></data>
+  <data name="MarkdownFiles" xml:space="preserve"><value>Markdown dosyaları</value></data>
+  <data name="AllFiles" xml:space="preserve"><value>Tüm dosyalar</value></data>
 </root>

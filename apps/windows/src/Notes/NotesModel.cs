@@ -77,6 +77,19 @@ internal sealed class NotesModel
         ErrorChanged?.Invoke();
     }
 
+    public NotesModel()
+    {
+        // Only once the saved drafts are back: earlier tab changes must not overwrite their remembered order.
+        TabsChanged += () =>
+        {
+            if (!draftsRestored) return;
+            var order = OpenDocuments.Where(d => d.IsDraft).Select(d => d.Path).ToList();
+            if (order.SequenceEqual(savedOrder)) return;
+            savedOrder = order;
+            _ = Task.Run(() => Drafts.SaveOrder(order));
+        };
+    }
+
     private IEnumerable<NoteDocument> OpenDocuments => tabs.Select(t => t.Document).OfType<NoteDocument>();
 
     // MARK: Roots
@@ -234,7 +247,7 @@ internal sealed class NotesModel
 
     private async void CheckOpenDocuments()
     {
-        var documents = OpenDocuments.Select(d => (Document: d, d.Path)).ToList();
+        var documents = OpenDocuments.Where(d => !d.IsDraft).Select(d => (Document: d, d.Path)).ToList();
         var missing = await Task.Run(() => documents.Where(d => !File.Exists(d.Path)).Select(d => d.Document).ToHashSet());
         foreach (var (document, path) in documents)
         {
@@ -282,10 +295,14 @@ internal sealed class NotesModel
         ActivateTab(tabs[((index + delta) % tabs.Count + tabs.Count) % tabs.Count]);
     }
 
-    /// <summary>Ctrl+T: an empty tab after the active one.</summary>
-    public NoteTab NewTab()
+    /// <summary>Ctrl+T: a blank draft note in a tab after the active one; nothing is written to a notes folder.</summary>
+    public NoteTab NewTab() => NewEmptyTab(NoteDocument.NewDraft(Drafts.NewPath()));
+
+    /// <summary>A tab after the active one, empty or showing `document`.</summary>
+    private NoteTab NewEmptyTab(NoteDocument? document = null)
     {
-        var tab = new NoteTab();
+        var tab = new NoteTab { Document = document };
+        if (document is not null) document.FocusOnOpen = true;
         tabs.Insert(ActiveTab is null ? tabs.Count : tabs.IndexOf(ActiveTab) + 1, tab);
         TabsChanged?.Invoke();
         ActivateTab(tab);
@@ -309,9 +326,149 @@ internal sealed class NotesModel
         while (true)
         {
             if (!await document.FlushAsync() && !await confirm(document)) return false;
-            if (!document.HasUnsavedChanges) return true;
+            if (!Synced(document).HasUnsavedChanges) return true;
             // Typing during a save: go round again, but never spin without yielding to the dispatcher.
             await Task.Yield();
+        }
+    }
+
+    /// <summary>Opens the saved drafts as tabs after the others, in their previous order.</summary>
+    public async Task RestoreDraftsAsync()
+    {
+        var saved = await Task.Run(Drafts.Saved);
+        foreach (var path in saved)
+        {
+            try
+            {
+                var document = await NoteDocument.OpenDraftAsync(path);
+                if (tabs.Any(t => t.Document == document))
+                {
+                    document.Release();
+                    continue;
+                }
+                tabs.Add(new NoteTab { Document = document });
+            }
+            catch (Exception e)
+            {
+                ShowError(Loc.Format("OpenFailed", Path.GetFileName(path), Paths.Describe(e)));
+            }
+        }
+        draftsRestored = true;
+        TabsChanged?.Invoke();
+        if (ActiveTab is null && tabs.Count > 0) ActivateTab(tabs[0]);
+    }
+
+    private bool draftsRestored;
+    private List<string> savedOrder = [];
+
+    /// <summary>Closes a draft's tab and deletes its text.</summary>
+    public async Task DiscardDraftAsync(NoteTab tab)
+    {
+        if (tab.Document is not { IsDraft: true } document) return;
+        var path = document.Path;
+        RemoveTab(tab);
+        await FileGate.Run(() => Task.Run(() => Drafts.TryDelete(path)));
+    }
+
+    /// <summary>Ctrl+S: a draft goes to a file in the selected folder; other files are written now.</summary>
+    public async Task SaveActiveAsync()
+    {
+        if (ActiveDocument is { IsDraft: true } draft)
+        {
+            if (Synced(draft).Text.Length > 0) await SaveDraftAsync(draft);
+        }
+        else await NoteDocument.FlushAllAsync();
+    }
+
+    /// <summary>
+    /// Saves a draft as a note, named by its first line, in the selected folder (the selected file's folder, else the first
+    /// root). The tab then shows that note like any other: automatic naming and autosave. False when nothing was saved.
+    /// </summary>
+    public async Task<bool> SaveDraftAsync(NoteDocument document)
+    {
+        var folder = await TargetFolderAsync();
+        if (folder is null)
+        {
+            ShowError(Loc.Get("NoFolderToSave"));
+            return false;
+        }
+        var (root, parent) = (folder.Root, folder.Path.Length == 0 ? null : folder.Path);
+        try
+        {
+            string? relative = null;
+            await FileGate.Run(async () =>
+            {
+                // A second save queued behind the first finds the draft already saved.
+                if (!document.IsDraft) return;
+                document.Sync();
+                var text = document.Text;
+                NoteFile.Stamp? stamp = null;
+                relative = await Task.Run(() =>
+                {
+                    var name = root.Store.UniqueNoteName(NoteStore.Title(text) ?? NoteStore.UntitledName, parent);
+                    var created = root.Store.CreateNote(name, parent);
+                    var full = root.Store.FullPath(created);
+                    try
+                    {
+                        NoteFile.Write(text, full);
+                    }
+                    catch
+                    {
+                        File.Delete(full);
+                        throw;
+                    }
+                    stamp = NoteFile.GetStamp(full);
+                    return created;
+                });
+                document.AutoRename = AutoRenameLockedAsync;
+                document.Relocated = Follow;
+                document.RootOf = d => Locate(d.Path)?.Root.Root;
+                document.BecomeFile(root.Store.FullPath(relative), text, stamp);
+            });
+            if (relative is null) return true;
+            SetQuery("");
+            Refresh(root);
+            SetSelection(new ItemRef(root, relative));
+            TabsChanged?.Invoke();
+            return true;
+        }
+        catch (Exception e)
+        {
+            ShowError(Loc.Format("SaveFailed", document.Name, Paths.Describe(e)));
+            return false;
+        }
+    }
+
+    /// <summary>Save As: writes the note's text to `path`, then shows that file (a draft's tab is replaced by it).</summary>
+    public async Task SaveAsAsync(NoteDocument document, string path)
+    {
+        path = Path.GetFullPath(path);
+        var snapshot = "";
+        try
+        {
+            document.Sync();
+            var text = snapshot = document.Text;
+            var same = !document.IsDraft && await Task.Run(() => Paths.Same(Paths.Canonical(path), Paths.Canonical(document.Path)));
+            if (same)
+            {
+                await document.FlushAsync();
+                return;
+            }
+            await FileGate.Run(() => Task.Run(() => NoteFile.Write(text, path)));
+        }
+        catch (Exception e)
+        {
+            ShowError(Loc.Format("SaveFailed", Path.GetFileName(path), Paths.Describe(e)));
+            return;
+        }
+        var draftTab = document.IsDraft ? tabs.FirstOrDefault(t => t.Document == document) : null;
+        Refresh();
+        var item = Locate(path);
+        await OpenFileAsync(path, newTab: draftTab is not null, focus: true, item: item, cancellable: false);
+        // Typing since the snapshot keeps the draft; only an unchanged one is replaced by the file.
+        if (draftTab is not null && tabs.Contains(draftTab) && draftTab.Document is { } still && Synced(still).Text == snapshot)
+        {
+            await DiscardDraftAsync(draftTab);
         }
     }
 
@@ -382,6 +539,8 @@ internal sealed class NotesModel
             return;
         }
         var target = newTab ? null : ActiveTab;
+        // A draft with text stays; an empty one is replaced like an empty tab.
+        if (target?.Document is { IsDraft: true } draft && Synced(draft).Text.Length > 0) target = null;
         if (target?.Document is { } current && !await current.FlushAsync())
         {
             if (Current() && Locate(current.Path) is { } open) SetSelection(open);
@@ -412,13 +571,15 @@ internal sealed class NotesModel
             opened.RootOf = d => Locate(d.Path)?.Root.Root;
             opened.FocusOnOpen = focus;
             // Edits typed into the old file while this one loaded keep it in its tab.
-            if (target is null || !tabs.Contains(target) || target.Document is { } previous && Synced(previous).HasUnsavedChanges)
+            if (target is null || !tabs.Contains(target)
+                || target.Document is { } previous && (Synced(previous).HasUnsavedChanges || previous is { IsDraft: true, Text.Length: > 0 }))
             {
-                target = NewTab();
+                target = NewEmptyTab();
             }
             else if (target.Document is { } old)
             {
                 Close(old);
+                if (old.IsDraft && old.Text.Length == 0) Drafts.TryDelete(old.Path);
             }
             target.Document = opened;
             TabsChanged?.Invoke();
@@ -454,12 +615,15 @@ internal sealed class NotesModel
                 var item = Locate(canonical) ?? Locate(path);
                 if (item is not null && await Task.Run(() => IsHidden(item.Root, item.Path))) item = null;
                 SetQuery("");
-                await OpenFileAsync(item?.FullPath ?? canonical, newTab: ActiveDocument is not null, item: item, cancellable: false);
+                await OpenFileAsync(item?.FullPath ?? canonical, newTab: !IsEmptyTab, item: item, cancellable: false);
             }
         }
     }
 
     private Task openQueue = Task.CompletedTask;
+
+    /// <summary>The active tab has no document or an empty draft: a file opens in it instead of a new tab.</summary>
+    private bool IsEmptyTab => ActiveDocument is null || ActiveDocument is { IsDraft: true } draft && Synced(draft).Text.Length == 0;
 
     /// <summary>Renames an auto-named note after its first line (docs/format.md) while it stays open. Only notes inside
     /// a root are named automatically. Called from a save, with <see cref="FileGate"/> held.</summary>
@@ -571,7 +735,7 @@ internal sealed class NotesModel
             Refresh(root);
             WindowRequested?.Invoke();
             var item = new ItemRef(root, path);
-            await OpenFileAsync(item.FullPath, newTab: ActiveDocument is not null, focus: true, item: item);
+            await OpenFileAsync(item.FullPath, newTab: !IsEmptyTab, focus: true, item: item);
         }
         catch (Exception e)
         {
@@ -671,10 +835,28 @@ internal sealed class NotesModel
         // Outside the gate: the dialog waits for the user.
         foreach (var (tab, document) in closed)
         {
-            if (Synced(document).HasUnsavedChanges) await trashedWithEdits(document);
+            if (Synced(document).HasUnsavedChanges)
+            {
+                // Closing the window meanwhile waits for this dialog instead of asking again.
+                var dialog = document.TrashDialog = AskAndDiscardAsync(document, trashedWithEdits);
+                try
+                {
+                    await dialog;
+                }
+                finally
+                {
+                    if (document.TrashDialog == dialog) document.TrashDialog = null;
+                }
+            }
             // Only if the tab still shows the trashed file.
             if (tab.Document == document) RemoveTab(tab);
         }
+    }
+
+    private static async Task AskAndDiscardAsync(NoteDocument document, Func<NoteDocument, Task> ask)
+    {
+        await ask(document);
+        document.Revert();
     }
 
     /// <summary>`document` after its editors handed over unreported typing.</summary>

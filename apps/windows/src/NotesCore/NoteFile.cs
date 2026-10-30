@@ -51,8 +51,18 @@ public static class NoteFile
     internal static byte[] ReadBytes(string path)
     {
         using var stream = new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete);
-        var buffer = new MemoryStream(stream.CanSeek ? (int)Math.Min(stream.Length, int.MaxValue) : 0);
-        stream.CopyTo(buffer);
+        if (stream.CanSeek && stream.Length > MaxOpenSize) throw new NoteFileTooLargeException(stream.Length);
+        var buffer = new MemoryStream(stream.CanSeek ? (int)stream.Length : 0);
+        // Bounded, so a file that grows while it is read is rejected without buffering all of it.
+        var chunk = new byte[81920];
+        long total = 0;
+        int count;
+        while ((count = stream.Read(chunk, 0, chunk.Length)) > 0)
+        {
+            total += count;
+            if (total > MaxOpenSize) throw new NoteFileTooLargeException(total);
+            buffer.Write(chunk, 0, count);
+        }
         return buffer.ToArray();
     }
 

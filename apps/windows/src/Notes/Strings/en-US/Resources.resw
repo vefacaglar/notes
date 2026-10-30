@@ -80,4 +80,9 @@
   <data name="LangSystemItem.Text" xml:space="preserve"><value>System</value></data>
   <data name="LangEnglishItem.Text" xml:space="preserve"><value>English</value></data>
   <data name="LangTurkishItem.Text" xml:space="preserve"><value>Türkçe</value></data>
+  <data name="SaveDraftTitle" xml:space="preserve"><value>Save “{0}”?</value></data>
+  <data name="SaveDraftBody" xml:space="preserve"><value>This note has not been saved to a folder yet.</value></data>
+  <data name="NoFolderToSave" xml:space="preserve"><value>Add a folder to the workspace first; the note needs a folder to be saved in.</value></data>
+  <data name="MarkdownFiles" xml:space="preserve"><value>Markdown files</value></data>
+  <data name="AllFiles" xml:space="preserve"><value>All files</value></data>
 </root>

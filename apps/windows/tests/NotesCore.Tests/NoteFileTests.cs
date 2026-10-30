@@ -130,6 +130,15 @@ public sealed class NoteFileTests : IDisposable
     }
 
     [Fact]
+    public void ReadRejectsAFileOverTheLimitBeforeReadingIt()
+    {
+        var file = Path.Combine(Folder, "huge.md");
+        using (var stream = new FileStream(file, FileMode.Create)) stream.SetLength(NoteFile.MaxOpenSize + 1);
+        var error = Assert.Throws<NoteFileTooLargeException>(() => NoteFile.Read(file));
+        Assert.Equal(NoteFile.MaxOpenSize + 1, error.Bytes);
+    }
+
+    [Fact]
     public void LoneSurrogateFailsAndKeepsTheOriginal()
     {
         var file = Path.Combine(Folder, "a.md");
