@@ -85,4 +85,6 @@
   <data name="NoFolderToSave" xml:space="preserve"><value>Önce çalışma alanına bir klasör ekleyin; notun kaydedileceği bir klasör gerekir.</value></data>
   <data name="MarkdownFiles" xml:space="preserve"><value>Markdown dosyaları</value></data>
   <data name="AllFiles" xml:space="preserve"><value>Tüm dosyalar</value></data>
+  <data name="DraftsInOtherWindow" xml:space="preserve"><value>Taslaklar başka bir Notes penceresinde açık; burada açılan yeni taslaklar saklanmaz.</value></data>
+  <data name="DraftsUnavailable" xml:space="preserve"><value>Bu oturumda taslaklar saklanamıyor; burada açılan yeni taslaklar Notes kapanınca kaybolur.</value></data>
 </root>

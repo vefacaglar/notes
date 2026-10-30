@@ -86,7 +86,7 @@ internal sealed class NotesModel
             var order = OpenDocuments.Where(d => d.IsDraft).Select(d => d.Path).ToList();
             if (order.SequenceEqual(savedOrder)) return;
             savedOrder = order;
-            _ = Task.Run(() => Drafts.SaveOrder(order));
+            Drafts.QueueOrder(order);
         };
     }
 
@@ -296,7 +296,14 @@ internal sealed class NotesModel
     }
 
     /// <summary>Ctrl+T: a blank draft note in a tab after the active one; nothing is written to a notes folder.</summary>
-    public NoteTab NewTab() => NewEmptyTab(NoteDocument.NewDraft(Drafts.NewPath()));
+    public NoteTab NewTab() => NewEmptyTab(Track(NoteDocument.NewDraft(Drafts.NewPath())));
+
+    /// <summary>A draft that moved to a new store file (the old one changed under it) is a new item in the saved order.</summary>
+    private NoteDocument Track(NoteDocument draft)
+    {
+        draft.Relocated = _ => TabsChanged?.Invoke();
+        return draft;
+    }
 
     /// <summary>A tab after the active one, empty or showing `document`.</summary>
     private NoteTab NewEmptyTab(NoteDocument? document = null)
@@ -346,7 +353,7 @@ internal sealed class NotesModel
                     document.Release();
                     continue;
                 }
-                tabs.Add(new NoteTab { Document = document });
+                tabs.Add(new NoteTab { Document = Track(document) });
             }
             catch (Exception e)
             {
@@ -399,7 +406,7 @@ internal sealed class NotesModel
             await FileGate.Run(async () =>
             {
                 // A second save queued behind the first finds the draft already saved.
-                if (!document.IsDraft) return;
+                if (!document.IsDraft || !tabs.Any(t => t.Document == document)) return;
                 document.Sync();
                 var text = document.Text;
                 NoteFile.Stamp? stamp = null;

@@ -25,6 +25,7 @@ public static partial class Program
         }
         AppSettings.ThemeOverride = options.Theme;
         Notes.Drafts.Override = options.Drafts;
+        Notes.Drafts.Acquire();
         Loc.Initialize(options.Language ?? AppSettings.Language);
         instance.Activated += (_, e) => App.Redirected(e);
         Application.Start(callback =>
@@ -58,7 +59,7 @@ public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<st
         {
             if (e.Current == "--root")
             {
-                if (e.MoveNext()) roots.Add(Path.GetFullPath(e.Current));
+                if (e.MoveNext() && e.Current.Length > 0) roots.Add(Path.GetFullPath(e.Current));
             }
             else if (e.Current == "--lang")
             {
@@ -66,7 +67,7 @@ public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<st
             }
             else if (e.Current == "--drafts")
             {
-                if (e.MoveNext()) drafts = Path.GetFullPath(e.Current);
+                if (e.MoveNext() && e.Current.Length > 0) drafts = Path.GetFullPath(e.Current);
             }
             else if (e.Current == "--theme")
             {

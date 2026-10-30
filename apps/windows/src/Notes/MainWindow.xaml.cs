@@ -34,7 +34,7 @@ public sealed partial class MainWindow : Window
         Root.LayoutUpdated += (_, _) => UpdateStrokeGap();
         WindowSupport.Resize(this, 1100, 720);
         WindowSupport.ExtendIntoTitleBar(this, TitleBar);
-        WindowSupport.GuardClose(this, () => model.PrepareToCloseAsync(ConfirmDropAsync));
+        WindowSupport.GuardClose(this, PrepareToCloseAsync);
         // The tabs and the strip's buttons move when the window or a tab changes size, and after tabs are added.
         TitleBar.SizeChanged += (_, _) => UpdatePassthrough();
         Tabs.SizeChanged += (_, _) => UpdatePassthrough();
@@ -305,6 +305,28 @@ public sealed partial class MainWindow : Window
     private void Tabs_TabCloseRequested(TabView sender, TabViewTabCloseRequestedEventArgs args)
     {
         if (args.Tab.Tag is NoteTab tab) _ = CloseTabAsync(tab);
+    }
+
+    /// <summary>Before the window closes. Drafts are kept by the store, unless this run could only use a throwaway one: then
+    /// they are asked about like unsaved files.</summary>
+    private async Task<bool> PrepareToCloseAsync()
+    {
+        if (Drafts.IsFallback)
+        {
+            foreach (var tab in model.Tabs.ToList())
+            {
+                if (tab.Document is not { IsDraft: true } draft || Synced(draft).Length == 0) continue;
+                await CloseTabAsync(tab);
+                if (model.Tabs.Contains(tab)) return false;
+            }
+        }
+        return await model.PrepareToCloseAsync(ConfirmDropAsync);
+    }
+
+    private static string Synced(NoteDocument draft)
+    {
+        draft.Sync();
+        return draft.Text;
     }
 
     /// <summary>Closes a tab. A draft needs no saving to close the window, but closing its tab asks when it has text.</summary>

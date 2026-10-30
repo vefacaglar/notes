@@ -9,23 +9,105 @@ namespace Notes;
 internal static class Drafts
 {
     private const string OrderFile = "order.txt";
+    private const string LockFile = ".lock";
+
+    /// <summary>Taken for writing the order file and for cleanup; never on the UI thread.</summary>
     private static readonly object OrderLock = new();
+    /// <summary>Guards the latest order and its version only; held for an instant.</summary>
+    private static readonly object OrderState = new();
 
     /// <summary>Set by <c>--drafts &lt;dir&gt;</c> for this run.</summary>
     public static string? Override { get; set; }
 
     // A test run (--root or --drafts) never touches the real store: its drafts are throwaway, kept in a per-process temp
     // folder that is deleted on exit (a --drafts folder is the caller's and stays).
-    private static readonly Lazy<string> Default = new(() => AppSettings.IsPersistent
-        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Notes", "Drafts")
+    private static readonly Lazy<string> Default = new(() => AppSettings.IsPersistent && !IsFallback
+        ? RealFolder
         : Path.Combine(Path.GetTempPath(), $"NotesDrafts-{Environment.ProcessId}"));
 
-    /// <summary>Deletes the per-process temp store of a non-persistent run.</summary>
-    public static void CleanUpThrowaway()
+    private static string RealFolder =>
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Notes", "Drafts");
+
+    private static FileStream? storeLock;
+
+    /// <summary>Another Notes process holds the persistent store; this run keeps its drafts in a throwaway folder.</summary>
+    public static bool SharedWithOtherWindow { get; private set; }
+    /// <summary>The persistent store can't be used for another reason (permissions, disk); same fallback.</summary>
+    public static bool Unavailable { get; private set; }
+    /// <summary>A persistent run whose drafts are in a throwaway folder: they need handing over (or asking about) on exit.</summary>
+    public static bool IsFallback => SharedWithOtherWindow || Unavailable;
+
+    private static bool TryLock()
     {
-        if (Override is not null || AppSettings.IsPersistent || !Default.IsValueCreated) return;
-        try { Directory.Delete(Default.Value, recursive: true); }
+        try
+        {
+            Directory.CreateDirectory(RealFolder);
+            storeLock = new FileStream(Path.Combine(RealFolder, LockFile), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+            return true;
+        }
+        catch (IOException e) when ((e.HResult & 0xFFFF) is 32 or 33)
+        {
+            SharedWithOtherWindow = true;
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+            Unavailable = true;
+        }
+        return false;
+    }
+
+    /// <summary>Takes the persistent store exclusively for the life of the process (persistent runs only).</summary>
+    public static void Acquire()
+    {
+        if (Override is not null || !AppSettings.IsPersistent) return;
+        TryLock();
+    }
+
+    private static volatile bool cleanedUp;
+
+    /// <summary>
+    /// On exit: a test run's throwaway store is deleted. A persistent run that had to use a throwaway store moves its drafts
+    /// into the real store if that is free now (and deletes the folder only after that worked); otherwise the folder stays,
+    /// so nothing is destroyed.
+    /// </summary>
+    public static void FinishRun()
+    {
+        if (Override is not null || !Default.IsValueCreated || Default.Value == RealFolder || cleanedUp) return;
+        cleanedUp = true;
+        var folder = Default.Value;
+        // Waits for a pending order write; later ones are skipped.
+        Task.Run(() =>
+        {
+            lock (OrderLock)
+            {
+                try
+                {
+                    if (!AppSettings.IsPersistent || HandOver(folder)) Directory.Delete(folder, recursive: true);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                }
+            }
+        }).Wait();
+    }
+
+    /// <summary>Moves the throwaway drafts into the real store under new names. False when that wasn't possible.</summary>
+    private static bool HandOver(string folder)
+    {
+        var drafts = SavedIn(folder);
+        if (drafts.Count == 0) return true;
+        if (storeLock is null && !TryLock()) return false;
+        var names = new List<string>();
+        foreach (var draft in drafts)
+        {
+            var name = Guid.NewGuid().ToString("N") + ".md";
+            try { File.Move(draft, Path.Combine(RealFolder, name)); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+            names.Add(name);
+        }
+        try { NoteFile.Write(string.Join('\n', ReadOrder(RealFolder).Concat(names)), Path.Combine(RealFolder, OrderFile)); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
+        return true;
     }
 
     private static readonly System.Text.RegularExpressions.Regex DraftName = new("^[0-9a-f]{32}\\.md$");
@@ -40,20 +122,22 @@ internal static class Drafts
     }
 
     /// <summary>The draft files with text, in their last tab order (others after them, oldest first). Empty ones are deleted.</summary>
-    public static List<string> Saved()
+    public static List<string> Saved() => SavedIn(Folder);
+
+    private static List<string> SavedIn(string folder)
     {
         var found = new List<string>();
         try
         {
-            if (!Directory.Exists(Folder)) return found;
-            var files = new DirectoryInfo(Folder).GetFiles("*.md").Where(f => DraftName.IsMatch(f.Name)).OrderBy(f => f.CreationTimeUtc).ToList();
+            if (!Directory.Exists(folder)) return found;
+            var files = new DirectoryInfo(folder).GetFiles("*.md").Where(f => DraftName.IsMatch(f.Name)).OrderBy(f => f.CreationTimeUtc).ToList();
             foreach (var file in files.ToList())
             {
                 if (file.Length > 0) continue;
                 TryDelete(file.FullName);
                 files.Remove(file);
             }
-            var order = ReadOrder();
+            var order = ReadOrder(folder);
             found.AddRange(order.Select(name => files.FirstOrDefault(f => f.Name == name)).OfType<FileInfo>().Select(f => f.FullName));
             found.AddRange(files.Select(f => f.FullName).Where(f => !found.Contains(f)));
         }
@@ -63,23 +147,47 @@ internal static class Drafts
         return found;
     }
 
-    private static List<string> ReadOrder()
+    private static List<string> ReadOrder(string folder)
     {
-        try { return [.. File.ReadAllLines(Path.Combine(Folder, OrderFile))]; }
+        try { return [.. File.ReadAllLines(Path.Combine(folder, OrderFile))]; }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return []; }
     }
 
-    /// <summary>Remembers the tab order of the open drafts.</summary>
-    public static void SaveOrder(IEnumerable<string> paths)
+    private static List<string> latestOrder = [];
+    private static int orderVersion, writtenVersion;
+
+    /// <summary>Remembers the tab order of the open drafts: only the newest order is ever written, off the UI thread.</summary>
+    public static void QueueOrder(IReadOnlyList<string> paths)
+    {
+        lock (OrderState)
+        {
+            latestOrder = [.. paths.Select(p => Path.GetFileName(p))];
+            orderVersion++;
+        }
+        _ = Task.Run(WriteOrder);
+    }
+
+    private static void WriteOrder()
     {
         lock (OrderLock)
-        try
         {
-            Directory.CreateDirectory(Folder);
-            NoteFile.Write(string.Join('\n', paths.Select(Path.GetFileName)), Path.Combine(Folder, OrderFile));
-        }
-        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
-        {
+            if (cleanedUp) return;
+            List<string> order;
+            int version;
+            lock (OrderState)
+            {
+                if (writtenVersion == orderVersion) return;
+                (order, version) = (latestOrder, orderVersion);
+            }
+            try
+            {
+                Directory.CreateDirectory(Folder);
+                NoteFile.Write(string.Join('\n', order), Path.Combine(Folder, OrderFile));
+                writtenVersion = version;
+            }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+            {
+            }
         }
     }
 

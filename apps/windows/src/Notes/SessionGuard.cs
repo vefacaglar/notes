@@ -51,6 +51,7 @@ internal static partial class SessionGuard
                 ShutdownBlockReasonCreate(window, Loc.Get("ShutdownBlock"));
                 return 0;
             case EndSession:
+                if (wParam != IntPtr.Zero) Drafts.FinishRun();
                 ShutdownBlockReasonDestroy(window);
                 return 0;
             default:

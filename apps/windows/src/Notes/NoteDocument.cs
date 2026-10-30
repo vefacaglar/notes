@@ -73,13 +73,22 @@ internal sealed class NoteDocument
     public static async Task<NoteDocument> OpenDraftAsync(string path)
     {
         path = System.IO.Path.GetFullPath(path);
-        var document = Open.FirstOrDefault(d => Paths.Same(d.Path, path));
+        var candidates = Open.Select(d => (Document: d, d.Path)).ToList();
+        var (existing, loaded) = await Task.Run(() =>
+        {
+            var key = Paths.Canonical(path);
+            foreach (var (open, other) in candidates)
+                if (Paths.Same(Paths.Canonical(other), key)) return (open, (Loaded?)null);
+            return ((NoteDocument?)null, File.Exists(path) ? Load(path) : new Loaded("", null, false));
+        });
+        var document = existing is not null && Open.Contains(existing) ? existing : Open.FirstOrDefault(d => Paths.Same(d.Path, path));
         if (document is not null)
         {
             document.users++;
             return document;
         }
-        var loaded = await Task.Run(() => File.Exists(path) ? Load(path) : new Loaded("", null, false));
+        // The match left Open while this ran: read the file after all.
+        loaded ??= await Task.Run(() => File.Exists(path) ? Load(path) : new Loaded("", null, false));
         document = new NoteDocument(path, loaded) { IsDraft = true };
         Open.Add(document);
         return document;
@@ -269,6 +278,8 @@ internal sealed class NoteDocument
     private sealed record Failed(string Message) : SaveOutcome;
     private sealed record Conflict(string Disk, NoteFile.Stamp Stamp, string Copy) : SaveOutcome;
     private sealed record MovedToCopy(string Copy, NoteFile.Stamp? Stamp) : SaveOutcome;
+    /// <summary>A draft's store file changed under it: its text went to a new draft file.</summary>
+    private sealed record DraftMoved(string Path, NoteFile.Stamp? Stamp) : SaveOutcome;
     private sealed record CopyFailed(string Message, bool Unreadable) : SaveOutcome;
 
     /// <summary>
@@ -355,7 +366,7 @@ internal sealed class NoteDocument
             saveGeneration++;
             try
             {
-                if (task.Result is Saved saved) Apply(saved, snapshotInFlight, DisplayFileName);
+                if (task.Result is Saved or DraftMoved or MovedToCopy) Apply(task.Result, snapshotInFlight, DisplayFileName);
             }
             catch (AggregateException)
             {
@@ -415,6 +426,15 @@ internal sealed class NoteDocument
                 Replace(conflict.Disk, conflict.Stamp);
                 Error = $"{changed} {Loc.Format("DiskVersionOpened", System.IO.Path.GetFileName(conflict.Copy))}";
                 return false;
+            case DraftMoved draftMoved:
+                if (errorIsFailedSave) Error = null;
+                Path = draftMoved.Path;
+                savedText = snapshot;
+                savedStamp = draftMoved.Stamp;
+                PathChanged?.Invoke();
+                StateChanged?.Invoke();
+                Relocated?.Invoke(this);
+                return true;
             case MovedToCopy moved:
                 Path = moved.Copy;
                 savedText = snapshot;
@@ -437,7 +457,24 @@ internal sealed class NoteDocument
 
     private static SaveOutcome Save(string path, string snapshot, string recordedText, NoteFile.Stamp? recordedStamp, string? root, bool draft = false)
     {
-        // A draft's store is the app's own: nothing else writes there, so a save just overwrites.
+        if (draft)
+        {
+            // The store belongs to one process; a changed file means another one wrote it, so this text gets its own draft.
+            try
+            {
+                if (NoteFile.GetStamp(path) is { } current && current != recordedStamp)
+                {
+                    var other = Drafts.NewPath();
+                    NoteFile.Write(snapshot, other);
+                    return new DraftMoved(other, NoteFile.GetStamp(other));
+                }
+                Directory.CreateDirectory(System.IO.Path.GetDirectoryName(path)!);
+            }
+            catch (Exception e)
+            {
+                return new Failed(Paths.Describe(e));
+            }
+        }
         if (!draft && NoteFile.GetStamp(path) is { } stamp && stamp != recordedStamp)
         {
             // Changed on disk since it was loaded or saved here; only a touch without a content change may be overwritten.
