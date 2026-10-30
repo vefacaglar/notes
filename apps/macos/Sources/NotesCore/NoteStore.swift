@@ -3,11 +3,19 @@ import Foundation
 public enum NoteStoreError: LocalizedError, Equatable {
     case invalidName(String)
     case alreadyExists(String)
+    /// The folder a new item would go into does not exist (it was deleted or moved meanwhile).
+    case missingFolder(String)
+    /// The root folder is missing or is not a folder.
+    case rootUnavailable(String)
 
     public var errorDescription: String? {
         switch self {
         case .invalidName(let name): "Geçersiz ad: \"\(name)\""
         case .alreadyExists(let name): "Bu adda bir öğe zaten var: \"\(name)\""
+        case .missingFolder(let path):
+            String(localized: "The folder “\(path)” doesn't exist anymore.")
+        case .rootUnavailable(let path):
+            String(localized: "The folder “\(path)” doesn't exist or isn't a folder.")
         }
     }
 }
@@ -34,13 +42,47 @@ public struct SearchHit: Identifiable, Hashable, Sendable {
     public var id: String { "\(path):\(line ?? 0)" }
 }
 
+/// How the sidebar lists a folder (a display preference; see docs/format.md, "Display order").
+public struct ListingOptions: Sendable, Hashable {
+    public enum Order: Sendable, Hashable {
+        /// Folders, then files, each in localized natural order.
+        case name
+        /// Folders by name, then files newest first (ties by name).
+        case modified
+    }
+
+    public var order: Order
+    /// Lists only Markdown files (`md`, `markdown`, `mdown`, `mkd`); folders are always listed.
+    public var markdownOnly: Bool
+    /// Folders deeper than this many levels below the root are listed without their contents (`nil`: no limit); for
+    /// roots that are far too large to scan whole, such as a home folder.
+    public var maxDepth: Int?
+
+    public init(order: Order = .name, markdownOnly: Bool = false, maxDepth: Int? = nil) {
+        self.order = order
+        self.markdownOnly = markdownOnly
+        self.maxDepth = maxDepth
+    }
+}
+
 /// A folder of plain Markdown notes plus other readable text files. See docs/format.md for the rules both apps follow.
 public struct NoteStore: Sendable {
     public let root: URL
 
-    public init(root: URL) throws {
+    /// `createIfMissing` makes a missing root folder; without it a missing root (or one that is a file) throws
+    /// `rootUnavailable`, so a folder that went away is never silently recreated.
+    public init(root: URL, createIfMissing: Bool = true) throws {
         self.root = root.standardizedFileURL
-        try FileManager.default.createDirectory(at: self.root, withIntermediateDirectories: true)
+        if createIfMissing {
+            try FileManager.default.createDirectory(at: self.root, withIntermediateDirectories: true)
+        } else if !Self.isFolder(self.root) {
+            throw NoteStoreError.rootUnavailable(self.root.path)
+        }
+    }
+
+    static func isFolder(_ url: URL) -> Bool {
+        var isFolder: ObjCBool = false
+        return FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder) && isFolder.boolValue
     }
 
     /// Notes are the `.md` files; only they are created by New Note and named automatically.
@@ -54,6 +96,15 @@ public struct NoteStore: Sendable {
     public static func isListed(_ path: String) -> Bool {
         let ext = (lastComponent(path) as NSString).pathExtension.lowercased()
         return !ext.isEmpty && listedExtensions.contains(ext)
+    }
+
+    /// Markdown files: notes and the longer Markdown extensions.
+    public static func isMarkdown(_ path: String) -> Bool {
+        isListed(path) && CodeLanguage(path: lastComponent(path)) == .markdown
+    }
+
+    static func isShown(_ path: String, _ options: ListingOptions) -> Bool {
+        isListed(path) && (!options.markdownOnly || isMarkdown(path))
     }
 
     // MARK: Paths
@@ -142,35 +193,44 @@ public struct NoteStore: Sendable {
 
     // MARK: Listing
 
-    public func tree() -> [NoteNode] {
-        children(of: root, prefix: "")
+    /// `shouldContinue` is asked before each folder is read; once it returns `false` the scan stops and returns what it
+    /// has (the caller discards that partial result).
+    public func tree(_ options: ListingOptions = ListingOptions(), shouldContinue: () -> Bool = { true }) -> [NoteNode] {
+        children(of: root, prefix: "", depth: 0, options: options, shouldContinue: shouldContinue)
     }
 
     /// Paths of all listed files (notes and other text files), in display order.
-    public func notePaths() -> [String] {
+    public func notePaths(_ options: ListingOptions = ListingOptions()) -> [String] {
         func flatten(_ nodes: [NoteNode]) -> [String] {
             nodes.flatMap { $0.isFolder ? flatten($0.children ?? []) : [$0.path] }
         }
-        return flatten(tree())
+        return flatten(tree(options))
     }
 
-    private func children(of dir: URL, prefix: String) -> [NoteNode] {
+    private func children(of dir: URL, prefix: String, depth: Int, options: ListingOptions,
+                          shouldContinue: () -> Bool) -> [NoteNode] {
+        guard shouldContinue(), options.maxDepth.map({ depth < $0 }) ?? true else { return [] }
+        let keys: [URLResourceKey] = [.isDirectoryKey, .contentModificationDateKey]
         let urls = (try? FileManager.default.contentsOfDirectory(
-            at: dir, includingPropertiesForKeys: [.isDirectoryKey], options: [.skipsHiddenFiles]
+            at: dir, includingPropertiesForKeys: keys, options: [.skipsHiddenFiles]
         )) ?? []
-        let nodes: [NoteNode] = urls.compactMap { url in
+        let entries: [(node: NoteNode, date: Date)] = urls.compactMap { url in
             let name = url.lastPathComponent
             let path = prefix + name
-            let isFolder = (try? url.resourceValues(forKeys: [.isDirectoryKey]).isDirectory) ?? false
-            if isFolder {
-                return NoteNode(path: path, name: name, isFolder: true, children: children(of: url, prefix: path + "/"))
+            let values = try? url.resourceValues(forKeys: Set(keys))
+            if values?.isDirectory == true {
+                let children = children(of: url, prefix: path + "/", depth: depth + 1, options: options, shouldContinue: shouldContinue)
+                return (NoteNode(path: path, name: name, isFolder: true, children: children), .distantPast)
             }
-            guard Self.isListed(name) else { return nil }
-            return NoteNode(path: path, name: Self.displayName(name), isFolder: false, children: nil)
+            guard Self.isShown(name, options) else { return nil }
+            let node = NoteNode(path: path, name: Self.displayName(name), isFolder: false, children: nil)
+            return (node, values?.contentModificationDate ?? .distantPast)
         }
-        return nodes.sorted { a, b in
-            a.isFolder != b.isFolder ? a.isFolder : a.name.localizedStandardCompare(b.name) == .orderedAscending
-        }
+        return entries.sorted { a, b in
+            if a.node.isFolder != b.node.isFolder { return a.node.isFolder }
+            if options.order == .modified, !a.node.isFolder, a.date != b.date { return a.date > b.date }
+            return a.node.name.localizedStandardCompare(b.node.name) == .orderedAscending
+        }.map(\.node)
     }
 
     // MARK: Reading & writing
@@ -197,7 +257,8 @@ public struct NoteStore: Sendable {
         if !Self.isNote(name) { name += ".md" }
         let (path, url) = try newURL(named: name, in: folder)
         guard !FileManager.default.fileExists(atPath: url.path) else { throw NoteStoreError.alreadyExists(path) }
-        try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
+        // Never recreate a folder that was deleted meanwhile (a stale selection would bring it back).
+        guard Self.isFolder(url.deletingLastPathComponent()) else { throw NoteStoreError.missingFolder(Self.parent(path)) }
         try Data().write(to: url, options: .withoutOverwriting)
         return path
     }
@@ -206,7 +267,8 @@ public struct NoteStore: Sendable {
     public func createFolder(named name: String, in parent: String? = nil) throws -> String {
         let (path, url) = try newURL(named: name.trimmingCharacters(in: .whitespacesAndNewlines), in: parent)
         guard !FileManager.default.fileExists(atPath: url.path) else { throw NoteStoreError.alreadyExists(path) }
-        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: true)
+        guard Self.isFolder(url.deletingLastPathComponent()) else { throw NoteStoreError.missingFolder(Self.parent(path)) }
+        try FileManager.default.createDirectory(at: url, withIntermediateDirectories: false)
         return path
     }
 
@@ -270,14 +332,14 @@ public struct NoteStore: Sendable {
     // MARK: Search
 
     /// Case- and diacritic-insensitive search over file names and contents. File name matches come first.
-    public func search(_ query: String, limit: Int = 100) -> [SearchHit] {
+    public func search(_ query: String, limit: Int = 100, listing: ListingOptions = ListingOptions()) -> [SearchHit] {
         let query = Self.foldDotlessI(query.trimmingCharacters(in: .whitespacesAndNewlines))
         guard !query.isEmpty else { return [] }
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
 
         var nameHits: [SearchHit] = []
         var contentHits: [SearchHit] = []
-        for path in notePaths() {
+        for path in notePaths(listing) {
             let name = Self.isNote(path) ? (path as NSString).deletingPathExtension : path
             if Self.foldDotlessI(name).range(of: query, options: options) != nil {
                 nameHits.append(SearchHit(path: path, line: nil, snippet: nil))

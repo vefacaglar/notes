@@ -17,6 +17,32 @@ struct NoteFileTests {
         #expect(try NoteFile.read(file) == "bir\niki\n")
     }
 
+    @Test func writeNormalizesSoWhatIsWrittenReadsBackUnchanged() throws {
+        let file = folder.appendingPathComponent("yapıştır.md")
+        let pasted = "\u{FEFF}bir\r\niki\r\nüç 😀\r\n"
+        try NoteFile.write(pasted, to: file)
+        #expect(try Data(contentsOf: file) == Data("bir\niki\nüç 😀\n".utf8))
+        #expect(try NoteFile.read(file) == NoteFile.normalized(pasted))
+        // Overwriting an existing file goes through the same path.
+        try NoteFile.write("x\r\ny", to: file)
+        #expect(try NoteFile.read(file) == "x\ny")
+    }
+
+    @Test func normalizedOnlyTouchesBOMAndCRLF() {
+        #expect(NoteFile.normalized("a\rb") == "a\rb")
+        #expect(NoteFile.normalized("a\r\n\r\nb\r") == "a\n\nb\r")
+        #expect(NoteFile.normalized("\u{FEFF}\u{FEFF}a") == "\u{FEFF}a")
+        #expect(NoteFile.normalized("İ ı çğ 😀\n") == "İ ı çğ 😀\n")
+        #expect(NoteFile.normalized("") == "")
+    }
+
+    @Test func coarseTimestampsAreWholeSeconds() {
+        let whole = NoteFile.Stamp(modificationDate: Date(timeIntervalSince1970: 1_700_000_000), size: 1, fileNumber: 1)
+        let fine = NoteFile.Stamp(modificationDate: Date(timeIntervalSince1970: 1_700_000_000.123456), size: 1, fileNumber: 1)
+        #expect(whole.hasCoarseTimestamp)
+        #expect(!fine.hasCoarseTimestamp)
+    }
+
     @Test func writeCreatesAMissingFile() throws {
         let file = folder.appendingPathComponent("yeni.md")
         try NoteFile.write("çğ 😀\n", to: file)

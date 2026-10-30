@@ -1,8 +1,55 @@
 import Foundation
 
-/// Automatic naming: new notes start as "Adsız" and follow their first line. See docs/format.md.
+/// The language of the names the apps write (docs/format.md, "Localized names"). Reading never depends on it.
+public enum NamingLanguage: Sendable, CaseIterable {
+    case english, turkish
+
+    private static let storage = NamingLanguageStorage()
+
+    /// The language of the names the apps write. English until the app sets it (`configure`).
+    public static var current: NamingLanguage { storage.value }
+
+    /// Sets `current` from the UI language the app resolved (macOS: `Bundle.main.preferredLocalizations.first`):
+    /// Turkish for `tr` and its regional forms, English for anything else or `nil`.
+    public static func configure(localization: String?) {
+        storage.value = resolve(localization: localization)
+    }
+
+    public static func resolve(localization: String?) -> NamingLanguage {
+        localization.flatMap { Locale(identifier: $0).language.languageCode } == .turkish ? .turkish : .english
+    }
+
+    public var untitledName: String {
+        switch self {
+        case .english: "Untitled"
+        case .turkish: "Adsız"
+        }
+    }
+
+    public var conflictMarker: String {
+        switch self {
+        case .english: "conflict"
+        case .turkish: "çakışma"
+        }
+    }
+}
+
+private final class NamingLanguageStorage: @unchecked Sendable {
+    private let lock = NSLock()
+    private var language = NamingLanguage.english
+
+    var value: NamingLanguage {
+        get { lock.withLock { language } }
+        set { lock.withLock { language = newValue } }
+    }
+}
+
+/// Automatic naming: new notes start as "Untitled" ("Adsız" in Turkish) and follow their first line. See docs/format.md.
 extension NoteStore {
-    public static let untitledName = "Adsız"
+    /// The name new notes get, in the current UI language.
+    public static var untitledName: String { NamingLanguage.current.untitledName }
+    /// Every untitled name, whatever the UI language: a note called any of them follows its first line.
+    public static let untitledNames: Set<String> = Set(NamingLanguage.allCases.map(\.untitledName))
     static let maxTitleLength = 60
     static let maxTitleBytes = 200
 
@@ -107,10 +154,11 @@ extension NoteStore {
     }
 
     /// Whether a note called `name` follows its first line: its name, ignoring a " 2", " 3"… suffix,
-    /// is "Adsız" or the title of `content`.
+    /// is an untitled name ("Untitled", "Adsız") or the title of `content`.
     public static func isAutoNamed(_ name: String, content: String) -> Bool {
         let base = baseName(name)
-        if base == untitledName { return true }
+        // String equality is canonical equivalence, so this compares after NFC as the format asks.
+        if untitledNames.contains(base) { return true }
         guard let title = title(from: content) else { return false }
         return name == title || base == title
     }
@@ -158,14 +206,17 @@ extension NoteStore {
         return !isSameFile(url, own)
     }
 
-    /// Where to keep local edits that would overwrite a file changed by another program: "<name> (çakışma).<ext>",
-    /// then "<name> (çakışma 2).<ext>"…, the first name for which `isTaken` is false.
-    public static func conflictCopyName(for fileName: String, isTaken: (String) -> Bool) -> String {
+    /// Where to keep local edits that would overwrite a file changed by another program: "<name> (conflict).<ext>",
+    /// then "<name> (conflict 2).<ext>"… ("çakışma" in Turkish), the first name for which `isTaken` is false.
+    public static func conflictCopyName(
+        for fileName: String, language: NamingLanguage = .current, isTaken: (String) -> Bool
+    ) -> String {
         let ext = (fileName as NSString).pathExtension
         let base = (fileName as NSString).deletingPathExtension
+        let marker = language.conflictMarker
         var number = 1
         while true {
-            let suffix = number == 1 ? "çakışma" : "çakışma \(number)"
+            let suffix = number == 1 ? marker : "\(marker) \(number)"
             let candidate = "\(base) (\(suffix))" + (ext.isEmpty ? "" : "." + ext)
             if !isTaken(candidate) { return candidate }
             number += 1
@@ -173,9 +224,9 @@ extension NoteStore {
     }
 
     /// `conflictCopyName` for a file anywhere on disk, checked against what its folder holds now.
-    public static func conflictCopyURL(for url: URL) -> URL {
+    public static func conflictCopyURL(for url: URL, language: NamingLanguage = .current) -> URL {
         let folder = url.deletingLastPathComponent()
-        let name = conflictCopyName(for: url.lastPathComponent) {
+        let name = conflictCopyName(for: url.lastPathComponent, language: language) {
             FileManager.default.fileExists(atPath: folder.appendingPathComponent($0).path)
         }
         return folder.appendingPathComponent(name)

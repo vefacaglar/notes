@@ -14,7 +14,7 @@ public enum NoteFileError: LocalizedError, Equatable {
         case .brokenLink(let path):
             String(localized: "“\(URL(fileURLWithPath: path).lastPathComponent)” is a link to a file that doesn't exist.")
         case .tooLarge(let bytes):
-            "Dosya çok büyük (\(bytes / 1_048_576) MB); en fazla \(NoteFile.maxOpenSize / 1_048_576) MB açılabilir."
+            String(localized: "The file is too large (\(bytes / 1_048_576) MB); files up to \(NoteFile.maxOpenSize / 1_048_576) MB can be opened.")
         }
     }
 }
@@ -33,6 +33,14 @@ public enum NoteFile {
         public let size: Int?
         /// The inode; an atomic save by another program replaces it.
         public let fileNumber: Int?
+
+        /// Whether the modification time is a whole second: volumes with coarse timestamps (HFS+, FAT) can hide an
+        /// edit made right after ours; a nanosecond timestamp (APFS) is a whole second only by a one-in-a-billion chance.
+        public var hasCoarseTimestamp: Bool {
+            guard let modificationDate else { return true }
+            let seconds = modificationDate.timeIntervalSince1970
+            return seconds == seconds.rounded(.down)
+        }
     }
 
     /// The stamp of the file `url` points to (through links), or `nil` when there is none (also for a broken link).
@@ -58,11 +66,32 @@ public enum NoteFile {
         return fm.fileExists(atPath: target.path) ? folderWritable && fm.isWritableFile(atPath: target.path) : folderWritable
     }
 
+    /// The form of a text on disk: a leading BOM dropped and CRLF turned into LF (a lone CR stays). Both `read` and
+    /// `write` apply it, so what is written reads back unchanged and an editor's text can be compared with the disk.
+    public static func normalized(_ text: String) -> String {
+        guard needsNormalizing(text) else { return text }
+        let hasBOM = text.unicodeScalars.first == "\u{FEFF}"
+        let body = hasBOM ? String(text.unicodeScalars.dropFirst()) : text
+        return body.replacingOccurrences(of: "\r\n", with: "\n")
+    }
+
+    /// Whether `normalized` would change `text`; cheap (a memmem over the UTF-8 bytes), so it can run on every
+    /// keystroke in a large text.
+    public static func needsNormalizing(_ text: String) -> Bool {
+        text.unicodeScalars.first == "\u{FEFF}" || containsCRLF(text)
+    }
+
+    private static func containsCRLF(_ text: String) -> Bool {
+        var text = text
+        let crlf: [UInt8] = [0x0D, 0x0A]
+        return text.withUTF8 { buffer in
+            buffer.baseAddress.map { memmem($0, buffer.count, crlf, 2) != nil } ?? false
+        }
+    }
+
     /// UTF-8 text with a leading BOM dropped and CRLF turned into LF.
     public static func read(_ url: URL) throws -> String {
-        var text = try String(contentsOf: url.resolvingSymlinksInPath(), encoding: .utf8)
-        if text.hasPrefix("\u{FEFF}") { text.removeFirst() }
-        return text.replacingOccurrences(of: "\r\n", with: "\n")
+        normalized(try String(contentsOf: url.resolvingSymlinksInPath(), encoding: .utf8))
     }
 
     /// Writes `text` as UTF-8 without a BOM, atomically. An existing file is replaced through
@@ -86,7 +115,7 @@ public enum NoteFile {
         if !fm.fileExists(atPath: target.path), isLink(target) || isLink(url) {
             throw NoteFileError.brokenLink(path: target.path)
         }
-        let data = Data(text.utf8)
+        let data = Data(normalized(text).utf8)
         do {
             guard fm.fileExists(atPath: target.path) else {
                 try data.write(to: target, options: .atomic)
