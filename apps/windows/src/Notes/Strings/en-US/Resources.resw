@@ -85,6 +85,6 @@
   <data name="NoFolderToSave" xml:space="preserve"><value>Add a folder to the workspace first; the note needs a folder to be saved in.</value></data>
   <data name="MarkdownFiles" xml:space="preserve"><value>Markdown files</value></data>
   <data name="AllFiles" xml:space="preserve"><value>All files</value></data>
-  <data name="DraftsInOtherWindow" xml:space="preserve"><value>Drafts are open in another Notes window; new drafts here won't be kept.</value></data>
+  <data name="DraftsInOtherWindow" xml:space="preserve"><value>Drafts are open in another Notes window; drafts made here are kept separately and moved over when possible.</value></data>
   <data name="DraftsUnavailable" xml:space="preserve"><value>Drafts can't be kept this session; new drafts here will be lost when Notes closes.</value></data>
 </root>

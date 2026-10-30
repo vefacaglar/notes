@@ -19,23 +19,39 @@ internal static class Drafts
     /// <summary>Set by <c>--drafts &lt;dir&gt;</c> for this run.</summary>
     public static string? Override { get; set; }
 
-    // A test run (--root or --drafts) never touches the real store: its drafts are throwaway, kept in a per-process temp
-    // folder that is deleted on exit (a --drafts folder is the caller's and stays).
-    private static readonly Lazy<string> Default = new(() => AppSettings.IsPersistent && !IsFallback
-        ? RealFolder
-        : Path.Combine(Path.GetTempPath(), $"NotesDrafts-{Environment.ProcessId}"));
+    // A test run (--root) never touches the real store or PendingDrafts: its drafts are throwaway, kept in a temp folder
+    // that is deleted on exit (a --drafts folder is the caller's and stays). A persistent run that can't own the store
+    // keeps its drafts in its own folder under PendingDrafts, locked while it runs, and the next store owner adopts it.
+    private static readonly Lazy<string> Default = new(() =>
+    {
+        if (!AppSettings.IsPersistent) return Path.Combine(Path.GetTempPath(), "NotesTestDrafts-" + Guid.NewGuid().ToString("N"));
+        if (!IsFallback) return RealFolder;
+        var folder = Path.Combine(PendingRoot, Guid.NewGuid().ToString("N"));
+        try
+        {
+            Directory.CreateDirectory(folder);
+            pendingLock = new FileStream(Path.Combine(folder, LockFile), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+        }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+        {
+        }
+        return folder;
+    });
 
-    private static string RealFolder =>
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Notes", "Drafts");
+    private static string AppFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Notes");
+    private static string RealFolder => Path.Combine(AppFolder, "Drafts");
+    private static string PendingRoot => Path.Combine(AppFolder, "PendingDrafts");
 
-    private static FileStream? storeLock;
+    private static FileStream? storeLock, pendingLock;
 
-    /// <summary>Another Notes process holds the persistent store; this run keeps its drafts in a throwaway folder.</summary>
+    /// <summary>Another Notes process holds the persistent store; this run keeps its drafts in a folder of its own.</summary>
     public static bool SharedWithOtherWindow { get; private set; }
     /// <summary>The persistent store can't be used for another reason (permissions, disk); same fallback.</summary>
     public static bool Unavailable { get; private set; }
-    /// <summary>A persistent run whose drafts are in a throwaway folder: they need handing over (or asking about) on exit.</summary>
+    /// <summary>A persistent run whose drafts are in a folder of its own: they need handing over (or asking about) on exit.</summary>
     public static bool IsFallback => SharedWithOtherWindow || Unavailable;
+    /// <summary>The run's own store was handed over or deleted; saving to it would recreate it.</summary>
+    public static bool IsClosed => cleanedUp;
 
     private static bool TryLock()
     {
@@ -63,16 +79,42 @@ internal static class Drafts
         TryLock();
     }
 
+    /// <summary>The store owner takes over the drafts of earlier runs that could not own it (their folders are no longer locked).</summary>
+    public static void AdoptPending()
+    {
+        if (Override is not null || !AppSettings.IsPersistent || storeLock is null) return;
+        lock (OrderLock)
+        {
+            string[] folders;
+            try { folders = Directory.Exists(PendingRoot) ? Directory.GetDirectories(PendingRoot) : []; }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return; }
+            foreach (var folder in folders)
+            {
+                try
+                {
+                    using var held = new FileStream(Path.Combine(folder, LockFile), FileMode.OpenOrCreate, FileAccess.ReadWrite, FileShare.None);
+                    if (!MoveInto(folder)) continue;
+                    held.Dispose();
+                    Directory.Delete(folder, recursive: true);
+                }
+                catch (Exception e) when (e is IOException or UnauthorizedAccessException)
+                {
+                }
+            }
+        }
+    }
+
     private static volatile bool cleanedUp;
 
     /// <summary>
-    /// On exit: a test run's throwaway store is deleted. A persistent run that had to use a throwaway store moves its drafts
-    /// into the real store if that is free now (and deletes the folder only after that worked); otherwise the folder stays,
-    /// so nothing is destroyed.
+    /// On exit: a test run's temp store is deleted. A persistent run that had to use its own folder moves its drafts
+    /// into the real store if that is free now (and deletes the folder only after that worked); otherwise the folder
+    /// stays under PendingDrafts for the next store owner, so nothing is destroyed.
     /// </summary>
     public static void FinishRun()
     {
         if (Override is not null || !Default.IsValueCreated || Default.Value == RealFolder || cleanedUp) return;
+        NoteDocument.SaveAllNow();
         cleanedUp = true;
         var folder = Default.Value;
         // Waits for a pending order write; later ones are skipped.
@@ -82,7 +124,10 @@ internal static class Drafts
             {
                 try
                 {
-                    if (!AppSettings.IsPersistent || HandOver(folder)) Directory.Delete(folder, recursive: true);
+                    var done = !AppSettings.IsPersistent || (storeLock is not null || TryLock()) && MoveInto(folder);
+                    if (!done) return;
+                    pendingLock?.Dispose();
+                    Directory.Delete(folder, recursive: true);
                 }
                 catch (Exception e) when (e is IOException or UnauthorizedAccessException)
                 {
@@ -91,12 +136,11 @@ internal static class Drafts
         }).Wait();
     }
 
-    /// <summary>Moves the throwaway drafts into the real store under new names. False when that wasn't possible.</summary>
-    private static bool HandOver(string folder)
+    /// <summary>Moves the drafts of `folder` into the real store under new names (the caller owns the store). False when that failed.</summary>
+    private static bool MoveInto(string folder)
     {
         var drafts = SavedIn(folder);
         if (drafts.Count == 0) return true;
-        if (storeLock is null && !TryLock()) return false;
         var names = new List<string>();
         foreach (var draft in drafts)
         {

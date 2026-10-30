@@ -459,6 +459,8 @@ internal sealed class NoteDocument
     {
         if (draft)
         {
+            // Handed over or deleted with the run's own store: saving here would recreate it, so the text stays in memory.
+            if (Drafts.IsClosed) return new Failed(Loc.Get("DraftsUnavailable"));
             // The store belongs to one process; a changed file means another one wrote it, so this text gets its own draft.
             try
             {

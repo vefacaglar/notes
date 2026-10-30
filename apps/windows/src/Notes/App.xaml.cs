@@ -48,6 +48,7 @@ public partial class App : Application
     {
         await model.StartAsync(options.Roots.Count > 0 ? options.Roots : AppSettings.Roots);
         if (options.Files.Count > 0) await model.OpenFilesAsync(options.Files);
+        await Task.Run(Drafts.AdoptPending);
         await model.RestoreDraftsAsync();
         if (Drafts.SharedWithOtherWindow) model.ShowError(Loc.Get("DraftsInOtherWindow"));
         else if (Drafts.Unavailable) model.ShowError(Loc.Get("DraftsUnavailable"));
