@@ -5,7 +5,8 @@
 macOS app on main (local, 20+ commits ahead of origin, NOT pushed): core, live Markdown/code editors, auto-naming, JSON format, themes + settings window + fonts, multi-root workspace, tabs, drafts, session restore, outside-file windows, EN/TR localization with language setting, VS Code macOS tasks, muted palette (1b8fdb7).
 
 Windows-parity batch done and merged (Pi B: df63a8d, Pi C: dee1168): "+" tab button, Format button/menu, tab blending, Save(retry) on failed close; sidebar ⌘F/Esc/Return/⌘⌫, New Note in menus, Add Folder button, grouped search, repeatable -notesFolder, -theme.
-Next: ONE batched reviewer pass over commits since 8da335e, fixes, then ask the user to look at the app (no screen recording permission here). Known small gaps: quit-time save-failure alert has no retry; a conflict copy during close-retry may still report failure.
+Batched review done; fixes in 99c49ce (⇧⌘F sidebar search, test-run prefs suite, close/quit retry, ownsDraftStore, restore fixes). Also 2bc572e: tab bar at top with no tab, no app-name title.
+Next: user looks at the app (relaunch needed); unverified by hand: ⇧⌘F focus (collapsed sidebar, macOS 14/15), Try Again loops, test-run prefs isolation.
 
 Working rules now in CLAUDE.md: Pi for bounded jobs (run in separate worktrees when parallel), explorer agent on Haiku for exploration, swift-dev/windows-dev on Sonnet medium, reviewer (Opus) only for risky changes or batched per phase, commit directly on main, never push unless asked.
 
