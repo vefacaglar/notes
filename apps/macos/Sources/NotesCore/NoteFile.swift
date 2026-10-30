@@ -10,11 +10,11 @@ public enum NoteFileError: LocalizedError, Equatable {
     public var errorDescription: String? {
         switch self {
         case .notWritable(let path):
-            String(localized: "“\(URL(fileURLWithPath: path).lastPathComponent)” can't be saved because it is read-only or locked.")
+            L("“\(URL(fileURLWithPath: path).lastPathComponent)” can't be saved because it is read-only or locked.")
         case .brokenLink(let path):
-            String(localized: "“\(URL(fileURLWithPath: path).lastPathComponent)” is a link to a file that doesn't exist.")
+            L("“\(URL(fileURLWithPath: path).lastPathComponent)” is a link to a file that doesn't exist.")
         case .tooLarge(let bytes):
-            String(localized: "The file is too large (\(bytes / 1_048_576) MB); files up to \(NoteFile.maxOpenSize / 1_048_576) MB can be opened.")
+            L("The file is too large (\(bytes / 1_048_576) MB); files up to \(NoteFile.maxOpenSize / 1_048_576) MB can be opened.")
         }
     }
 }

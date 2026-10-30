@@ -10,11 +10,11 @@ struct SettingsView: View {
         let settings = environmentSettings ?? .shared
         TabView {
             GeneralSettingsView(settings: settings)
-                .tabItem { Label("General", systemImage: "gearshape") }
+                .tabItem { Label(loc: "General", systemImage: "gearshape") }
             AppearanceSettingsView(settings: settings)
-                .tabItem { Label("Appearance", systemImage: "paintpalette") }
+                .tabItem { Label(loc: "Appearance", systemImage: "paintpalette") }
             EditorSettingsView(settings: settings)
-                .tabItem { Label("Editor", systemImage: "character.cursor.ibeam") }
+                .tabItem { Label(loc: "Editor", systemImage: "character.cursor.ibeam") }
         }
         .frame(width: 580)
     }
@@ -29,7 +29,7 @@ private struct GeneralSettingsView: View {
         Form {
             Section {
                 if settings.workspaceRoots.isEmpty {
-                    Text("No folders in the workspace.")
+                    Text(loc: "No folders in the workspace.")
                         .foregroundStyle(.secondary)
                 }
                 ForEach(settings.workspaceRoots, id: \.self) { path in
@@ -41,36 +41,58 @@ private struct GeneralSettingsView: View {
                             .truncationMode(.middle)
                             .help(path)
                         Spacer()
-                        Button("Remove") { settings.removeRoot?(path) }
+                        Button(loc: "Remove") { settings.removeRoot?(path) }
                             .disabled(settings.removeRoot == nil)
                     }
                 }
                 HStack {
                     Spacer()
-                    Button("Add Folder…") { settings.addRoot?() }
+                    Button(loc: "Add Folder…") { settings.addRoot?() }
                         .disabled(settings.addRoot == nil)
                 }
             } header: {
-                Text("Workspace Folders")
+                Text(loc: "Workspace Folders")
             }
 
             Section {
-                Toggle("Name notes after their first line", isOn: $settings.autoNaming)
-                Toggle("Reopen tabs at launch", isOn: $settings.restoreTabs)
-            }
-
-            Section {
-                Picker("Sort by", selection: $settings.sidebarSort) {
-                    Text("Name").tag(SidebarSort.name)
-                    Text("Date Modified").tag(SidebarSort.modified)
+                Picker(loc: "Language", selection: $settings.language) {
+                    Text(loc: "System").tag(LanguageChoice.system)
+                    Text(verbatim: Self.languageName("en")).tag(LanguageChoice.english)
+                    Text(verbatim: Self.languageName("tr")).tag(LanguageChoice.turkish)
                 }
-                Toggle("Show other text and code files", isOn: $settings.showNonMarkdownFiles)
+                if settings.needsRestart {
+                    HStack {
+                        Text(loc: "Restart Notes to apply")
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Button(loc: "Restart") { LanguageSetting.requestRelaunch() }
+                    }
+                }
+            }
+
+            Section {
+                Toggle(loc: "Name notes after their first line", isOn: $settings.autoNaming)
+                Toggle(loc: "Reopen tabs at launch", isOn: $settings.restoreTabs)
+            }
+
+            Section {
+                Picker(loc: "Sort by", selection: $settings.sidebarSort) {
+                    Text(loc: "Name").tag(SidebarSort.name)
+                    Text(loc: "Date Modified").tag(SidebarSort.modified)
+                }
+                Toggle(loc: "Show other text and code files", isOn: $settings.showNonMarkdownFiles)
             } header: {
-                Text("Sidebar")
+                Text(loc: "Sidebar")
             }
         }
         .formStyle(.grouped)
         .fixedSize(horizontal: false, vertical: true)
+    }
+
+    /// A language's name in that language ("English", "Türkçe").
+    private static func languageName(_ code: String) -> String {
+        let locale = Locale(identifier: code)
+        return locale.localizedString(forLanguageCode: code)?.capitalized(with: locale) ?? code
     }
 }
 
@@ -82,10 +104,10 @@ private struct AppearanceSettingsView: View {
     var body: some View {
         Form {
             Section {
-                Picker("Appearance", selection: $settings.appearanceMode) {
-                    Text("System").tag(AppearanceMode.system)
-                    Text("Light").tag(AppearanceMode.light)
-                    Text("Dark").tag(AppearanceMode.dark)
+                Picker(loc: "Appearance", selection: $settings.appearanceMode) {
+                    Text(loc: "System").tag(AppearanceMode.system)
+                    Text(loc: "Light").tag(AppearanceMode.light)
+                    Text(loc: "Dark").tag(AppearanceMode.dark)
                 }
                 .pickerStyle(.segmented)
             }
@@ -94,13 +116,13 @@ private struct AppearanceSettingsView: View {
                 ThemePickerRow(settings: settings, appearance: .light, selection: $settings.lightThemeID)
                 ThemePickerRow(settings: settings, appearance: .dark, selection: $settings.darkThemeID)
             } header: {
-                Text("Themes")
+                Text(loc: "Themes")
             } footer: {
                 HStack {
-                    Button("Open Themes Folder") {
+                    Button(loc: "Open Themes Folder") {
                         NSWorkspace.shared.open(settings.createThemesDirectory())
                     }
-                    Button("Reload Themes") { settings.reloadThemes() }
+                    Button(loc: "Reload Themes") { settings.reloadThemes() }
                     if settings.isLoadingThemes {
                         ProgressView().controlSize(.small)
                     }
@@ -127,7 +149,7 @@ private struct AppearanceSettingsView: View {
                     }
                     .frame(maxHeight: 140)
                 } header: {
-                    Text("Theme files that could not be loaded")
+                    Text(loc: "Theme files that could not be loaded")
                 }
             }
         }
@@ -147,13 +169,13 @@ private struct ThemePickerRow: View {
         let known = themes.contains { $0.id == selection }
         let title: LocalizedStringKey = appearance == .light ? "Light theme" : "Dark theme"
         VStack(alignment: .leading, spacing: 8) {
-            Picker(title, selection: $selection) {
+            Picker(loc: title, selection: $selection) {
                 ForEach(themes) { theme in
-                    Text(verbatim: theme.name).tag(theme.id)
+                    Text(verbatim: theme.displayName).tag(theme.id)
                 }
                 if !known {
                     // A chosen theme that is gone (or still loading) keeps its id; the default is drawn meanwhile.
-                    Text("\(selection) (not available)").tag(selection)
+                    Text(loc: "\(selection) (not available)").tag(selection)
                 }
             }
             ThemePreview(theme: library.resolvedTheme(id: selection, for: appearance), settings: settings)
@@ -214,11 +236,11 @@ private struct EditorSettingsView: View {
                 FontSettingRow(title: "Text font", choice: $settings.textFont, monospaced: false)
                 FontSettingRow(title: "Code font", choice: $settings.codeFont, monospaced: true)
             } header: {
-                Text("Fonts")
+                Text(loc: "Fonts")
             }
 
             Section {
-                LabeledContent("Line spacing") {
+                LabeledContent(loc: "Line spacing") {
                     HStack {
                         Slider(value: $settings.lineSpacing, in: AppSettings.lineSpacingRange, step: 0.05)
                         Text(settings.lineSpacing, format: .number.precision(.fractionLength(2)))
@@ -226,21 +248,21 @@ private struct EditorSettingsView: View {
                             .frame(width: 36, alignment: .trailing)
                     }
                 }
-                Toggle("Limit line width", isOn: $settings.limitLineWidth)
-                Picker("Markdown syntax", selection: $settings.markerStyle) {
-                    Text("Dimmed").tag(MarkerStyle.dimmed)
-                    Text("Hidden, shown on the cursor line").tag(MarkerStyle.hidden)
+                Toggle(loc: "Limit line width", isOn: $settings.limitLineWidth)
+                Picker(loc: "Markdown syntax", selection: $settings.markerStyle) {
+                    Text(loc: "Dimmed").tag(MarkerStyle.dimmed)
+                    Text(loc: "Hidden, shown on the cursor line").tag(MarkerStyle.hidden)
                 }
-                Toggle("Check spelling while typing", isOn: $settings.spellCheck)
+                Toggle(loc: "Check spelling while typing", isOn: $settings.spellCheck)
             } header: {
-                Text("Notes")
+                Text(loc: "Notes")
             }
 
             Section {
-                Toggle("Show line numbers", isOn: $settings.codeLineNumbers)
-                Toggle("Wrap lines", isOn: $settings.codeWrap)
+                Toggle(loc: "Show line numbers", isOn: $settings.codeLineNumbers)
+                Toggle(loc: "Wrap lines", isOn: $settings.codeWrap)
             } header: {
-                Text("Code Files")
+                Text(loc: "Code Files")
             }
         }
         .formStyle(.grouped)

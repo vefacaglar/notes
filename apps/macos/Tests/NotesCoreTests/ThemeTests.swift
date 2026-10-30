@@ -22,9 +22,9 @@ struct ThemeColorTests {
         #expect(throws: ThemeError.invalidColor(input)) { try ThemeColor(hex: input) }
     }
 
-    @Test func errorMessageIsTurkish() {
+    @Test func errorMessageIsLocalized() {
         let message = ThemeError.invalidColor("#12").localizedDescription
-        #expect(message.contains("Geçersiz renk"))
+        #expect(message.contains("Invalid color"))
         #expect(message.contains("#12"))
     }
 
@@ -91,21 +91,21 @@ struct ThemeDecodingTests {
     }
 
     @Test(arguments: [
-        ("{", ThemeError.malformedJSON(line: 1, reason: "dosya beklenmedik biçimde bitti.")),
+        ("{", ThemeError.malformedJSON(line: 1, reason: "the file ended unexpectedly.")),
         ("[]", ThemeError.invalidJSON),
         ("\"tema\"", ThemeError.invalidJSON),
         (##"{"name": "A"}"##, ThemeError.missingField("appearance")),
         (##"{"appearance": "light"}"##, ThemeError.missingField("name")),
-        (##"{"name": "A", "appearance": "sepia"}"##, ThemeError.invalidValue(field: "appearance", reason: "\"light\" ya da \"dark\" olmalı.")),
-        (##"{"name": "  ", "appearance": "light"}"##, ThemeError.invalidValue(field: "name", reason: "boş olamaz.")),
+        (##"{"name": "A", "appearance": "sepia"}"##, ThemeError.invalidValue(field: "appearance", reason: "must be \"light\" or \"dark\".")),
+        (##"{"name": "  ", "appearance": "light"}"##, ThemeError.invalidValue(field: "name", reason: "must not be empty.")),
         (##"{"name": "A", "appearance": "light", "colors": {"text": "#12"}}"##,
-         ThemeError.invalidValue(field: "colors.text", reason: "#RRGGBB ya da #RRGGBBAA biçiminde bir renk olmalı.")),
+         ThemeError.invalidValue(field: "colors.text", reason: "must be a color like #RRGGBB or #RRGGBBAA.")),
         (##"{"name": "A", "appearance": "light", "syntax": {"tag": "red"}}"##,
-         ThemeError.invalidValue(field: "syntax.tag", reason: "#RRGGBB ya da #RRGGBBAA biçiminde bir renk olmalı.")),
+         ThemeError.invalidValue(field: "syntax.tag", reason: "must be a color like #RRGGBB or #RRGGBBAA.")),
         (##"{"name": "A", "appearance": "light", "colors": {"text": 12}}"##,
-         ThemeError.invalidValue(field: "colors.text", reason: "metin bekleniyordu.")),
+         ThemeError.invalidValue(field: "colors.text", reason: "Expected a string.")),
         (##"{"name": null, "appearance": "light"}"##,
-         ThemeError.invalidValue(field: "name", reason: "null olamaz.")),
+         ThemeError.invalidValue(field: "name", reason: "must not be null.")),
     ])
     func invalidThemesReportTheField(json: String, error: ThemeError) {
         #expect(throws: error) { try Theme.decode(Data(json.utf8), fallbackID: "f") }
@@ -117,9 +117,9 @@ struct ThemeDecodingTests {
         }
     }
 
-    @Test func errorMessagesAreTurkish() {
-        #expect(ThemeError.missingField("name").localizedDescription == "\"name\" alanı eksik.")
-        #expect(ThemeError.invalidJSON.localizedDescription == "Dosya geçerli bir JSON nesnesi değil.")
+    @Test func errorMessagesAreLocalized() {
+        #expect(ThemeError.missingField("name").localizedDescription == "The field \"name\" is missing.")
+        #expect(ThemeError.invalidJSON.localizedDescription == "The file is not a valid JSON object.")
     }
 
     @Test func encodingRoundTripsAndOmitsUnsetFields() throws {
@@ -244,11 +244,11 @@ struct ThemeLibraryTests {
 
         let issues = Dictionary(uniqueKeysWithValues: library.issues.map { ($0.file.lastPathComponent, $0.error) })
         #expect(issues.count == 4)
-        #expect(issues["bozuk.json"] == .malformedJSON(line: 1, reason: "tırnak içinde anahtar bekleniyordu."))
-        #expect(issues["renk.json"] == .invalidValue(field: "colors.link", reason: "#RRGGBB ya da #RRGGBBAA biçiminde bir renk olmalı."))
+        #expect(issues["bozuk.json"] == .malformedJSON(line: 1, reason: "a key in quotes was expected."))
+        #expect(issues["renk.json"] == .invalidValue(field: "colors.link", reason: "must be a color like #RRGGBB or #RRGGBBAA."))
         #expect(issues["sepya-kopya.json"] == .duplicateID("sepia"))
         #expect(issues["z-kum.json"] == .duplicateID("kum"))
-        #expect(library.issues.first { $0.file.lastPathComponent == "z-kum.json" }!.description.hasPrefix("z-kum.json: \"kum\" kimliği"))
+        #expect(library.issues.first { $0.file.lastPathComponent == "z-kum.json" }!.description.hasPrefix("z-kum.json: The id \"kum\" is already"))
     }
 
     @Test func fileNameIDIsNFC() throws {
@@ -302,7 +302,7 @@ struct ThemeLibraryTests {
         #expect(prefs.mode == .system)
         #expect(prefs.lightThemeID == "default-light" && prefs.darkThemeID == "default-dark")
         #expect(try JSONDecoder().decode(ThemePreferences.self, from: JSONEncoder().encode(prefs)) == prefs)
-        #expect(AppearanceMode.allCases.map(\.displayName) == ["Sistem", "Açık", "Koyu"])
+        #expect(AppearanceMode.allCases.map(\.displayName) == ["System", "Light", "Dark"])
     }
 
     @Test func docsExampleDecodes() throws {
@@ -375,9 +375,9 @@ struct ThemeJSONGrammarTests {
 
     @Test func malformedJSONNamesTheLine() {
         #expect(thrown { _ = try decode("{\n  \"name\": \"A\",\n  \"appearance\": \"light\",\n}") }
-                == .malformedJSON(line: 4, reason: "sondaki virgüle izin verilmez."))
-        #expect(thrown { _ = try decode("{\r\n\"name\": \"A\", // not\r\n}") } == .malformedJSON(line: 2, reason: "yorumlara izin verilmez."))
-        #expect(ThemeError.malformedJSON(line: 4, reason: "x").localizedDescription == "JSON hatası, satır 4: x")
+                == .malformedJSON(line: 4, reason: "a trailing comma is not allowed."))
+        #expect(thrown { _ = try decode("{\r\n\"name\": \"A\", // not\r\n}") } == .malformedJSON(line: 2, reason: "comments are not allowed."))
+        #expect(ThemeError.malformedJSON(line: 4, reason: "x").localizedDescription == "JSON error, line 4: x")
     }
 
     @Test(arguments: ["null", "[]", "1", "\"tema\"", "true", "   "])
@@ -386,7 +386,7 @@ struct ThemeJSONGrammarTests {
     }
 
     @Test func duplicateKeysAreErrors() {
-        let reason = "aynı anahtar birden fazla kez yazılmış."
+        let reason = "the same key appears more than once."
         #expect(thrown { _ = try decode(##"{"name": "A", "name": "B", "appearance": "light"}"##) }
                 == .invalidValue(field: "name", reason: reason))
         #expect(thrown { _ = try decode("{\(head), \"colors\": {\"text\": \"#000000\", \"text\": \"#111111\"}}") }
@@ -422,9 +422,9 @@ struct ThemeJSONGrammarTests {
 
     @Test func outOfRangeNumbersNameTheField() {
         #expect(thrown { _ = try decode("{\(head), \"fonts\": {\"body\": {\"size\": 1e400}}}") }
-                == .invalidValue(field: "fonts.body.size", reason: "sayı çok büyük."))
+                == .invalidValue(field: "fonts.body.size", reason: "the number is too large."))
         #expect(thrown { _ = try decode("{\(head), \"x\": [0, -1e309]}") }
-                == .invalidValue(field: "x.1", reason: "sayı çok büyük."))
+                == .invalidValue(field: "x.1", reason: "the number is too large."))
     }
 
     @Test func encodings() throws {
@@ -455,11 +455,11 @@ struct ThemeJSONGrammarTests {
     }
 
     @Test func initAndEncodingValidateLikeDecoding() throws {
-        #expect(thrown { _ = try Theme(id: " ", name: "A", appearance: .light) } == .invalidValue(field: "id", reason: "boş olamaz."))
+        #expect(thrown { _ = try Theme(id: " ", name: "A", appearance: .light) } == .invalidValue(field: "id", reason: "must not be empty."))
         var theme = try Theme(id: " Gu\u{308}l ", name: " Gül ", appearance: .light)
         #expect(theme.id == "Gül" && theme.id.unicodeScalars.count == 3 && theme.name == "Gül")
         theme.name = "\n"
-        #expect(thrown { _ = try theme.encodedJSON() } == .invalidValue(field: "name", reason: "boş olamaz."))
+        #expect(thrown { _ = try theme.encodedJSON() } == .invalidValue(field: "name", reason: "must not be empty."))
     }
 }
 
@@ -546,7 +546,7 @@ struct ThemeLibraryFileSystemTests {
 
         let issues = Dictionary(uniqueKeysWithValues: library.issues.map { ($0.file.lastPathComponent, $0.error) })
         #expect(issues.keys.sorted() == ["boru.json", "fifo.json", "kirik.json", "sifir.json"])
-        let notRegular = ThemeError.unreadable("normal bir dosya değil.")
+        let notRegular = ThemeError.unreadable("not a regular file.")
         #expect(issues["boru.json"] == notRegular)
         #expect(issues["fifo.json"] == notRegular)
         #expect(issues["sifir.json"] == notRegular)

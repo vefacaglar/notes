@@ -125,13 +125,13 @@ enum NamePrompt: Equatable {
 
     var title: String {
         switch self {
-        case .newFolder: String(localized: "New Folder")
-        case .rename: String(localized: "Rename")
+        case .newFolder: L("New Folder")
+        case .rename: L("Rename")
         }
     }
 
     var action: String {
-        if case .rename = self { String(localized: "Rename") } else { String(localized: "Create") }
+        if case .rename = self { L("Rename") } else { L("Create") }
     }
 }
 
@@ -235,18 +235,18 @@ final class Workspace: Identifiable {
         do {
             store = try NoteStore(root: url, createIfMissing: createIfMissing)
         } catch {
-            return String(localized: "“\(url.lastPathComponent)” couldn't be opened: \(error.localizedDescription)")
+            return L("“\(url.lastPathComponent)” couldn't be opened: \(error.localizedDescription)")
         }
         let root = RootFolder(store: store)
         for other in roots {
             if FilePaths.relative(root.url, to: other.url) == "" {
-                return String(localized: "“\(root.name)” is already in the workspace.")
+                return L("“\(root.name)” is already in the workspace.")
             }
             if FilePaths.isInside(root.url, other.url) {
-                return String(localized: "“\(root.name)” is inside “\(other.name)”, which is already in the workspace.")
+                return L("“\(root.name)” is inside “\(other.name)”, which is already in the workspace.")
             }
             if FilePaths.isInside(other.url, root.url) {
-                return String(localized: "“\(root.name)” contains “\(other.name)”, which is already in the workspace.")
+                return L("“\(root.name)” contains “\(other.name)”, which is already in the workspace.")
             }
         }
         root.watcher = FolderWatcher(url: store.root) { [weak self, weak root] in
@@ -273,7 +273,7 @@ final class Workspace: Identifiable {
     func removeRoot(_ root: RootFolder) -> Bool {
         let inside = tabs.filter { !$0.document.isDraft && FilePaths.isInside($0.document.url, root.url) }
         for tab in inside where !tab.document.flush() {
-            errorMessage = String(localized: "“\(tab.document.name)” couldn't be saved, so “\(root.name)” stays in the workspace. \(tab.document.error ?? "")")
+            errorMessage = L("“\(tab.document.name)” couldn't be saved, so “\(root.name)” stays in the workspace. \(tab.document.error ?? "")")
             tab.document.error = nil
             return false
         }
@@ -454,7 +454,7 @@ final class Workspace: Identifiable {
         do {
             document = try NoteDocument.open(url)
         } catch {
-            errorMessage = String(localized: "“\(url.lastPathComponent)” couldn't be opened: \(error.localizedDescription)")
+            errorMessage = L("“\(url.lastPathComponent)” couldn't be opened: \(error.localizedDescription)")
             return false
         }
         model?.configure(document)
@@ -611,7 +611,7 @@ final class Workspace: Identifiable {
             return
         }
         captureViewState(of: tab)
-        guard SaveGuard.flush([document], in: window, discard: String(localized: "Close Without Saving"), then: { [weak self] in
+        guard SaveGuard.flush([document], in: window, discard: L("Close Without Saving"), then: { [weak self] in
             self?.remove(tab)
         }) else { return }
         remove(tab)
@@ -629,11 +629,11 @@ final class Workspace: Identifiable {
     private func askAboutDraft(in tab: EditorTab) {
         let document = tab.document
         let alert = NSAlert()
-        alert.messageText = String(localized: "Do you want to save “\(document.name)”?")
-        alert.informativeText = String(localized: "If you don't save it, this draft is deleted.")
-        alert.addButton(withTitle: String(localized: "Save"))
-        alert.addButton(withTitle: String(localized: "Cancel"))
-        alert.addButton(withTitle: String(localized: "Don't Save")).hasDestructiveAction = true
+        alert.messageText = L("Do you want to save “\(document.name)”?")
+        alert.informativeText = L("If you don't save it, this draft is deleted.")
+        alert.addButton(withTitle: L("Save"))
+        alert.addButton(withTitle: L("Cancel"))
+        alert.addButton(withTitle: L("Don't Save")).hasDestructiveAction = true
         SaveGuard.present(alert, in: window) { [weak self] response in
             guard let self, self.tabs.contains(where: { $0 === tab }), tab.document === document else { return }
             switch response {
@@ -678,10 +678,10 @@ final class Workspace: Identifiable {
         if !isCloseConfirmed, model?.draftsArePending == true,
            documents.contains(where: { $0.isDraft && !$0.text.isEmpty }) {
             let alert = NSAlert()
-            alert.messageText = String(localized: "Close this window?")
-            alert.informativeText = String(localized: "Another Notes process owns the drafts folder, so the drafts in this window are kept in a separate folder until it quits.")
-            alert.addButton(withTitle: String(localized: "Cancel"))
-            alert.addButton(withTitle: String(localized: "Close"))
+            alert.messageText = L("Close this window?")
+            alert.informativeText = L("Another Notes process owns the drafts folder, so the drafts in this window are kept in a separate folder until it quits.")
+            alert.addButton(withTitle: L("Cancel"))
+            alert.addButton(withTitle: L("Close"))
             SaveGuard.present(alert, in: window) { [weak self, weak window] response in
                 guard response == .alertSecondButtonReturn else { return }
                 self?.isCloseConfirmed = true
@@ -692,7 +692,7 @@ final class Workspace: Identifiable {
         isCloseConfirmed = false
         documents.filter(\.isDraft).forEach { $0.flush() }
         return SaveGuard.flush(documents.filter { !$0.isDraft }, in: window,
-                               discard: String(localized: "Close Without Saving")) { [weak window] in window?.close() }
+                               discard: L("Close Without Saving")) { [weak window] in window?.close() }
     }
 
     /// Hands the drafts with text and the files with unsaved changes (a failed save) to `other` when an outside file's
@@ -728,7 +728,7 @@ final class Workspace: Identifiable {
         guard document.isDraft else { return true }
         guard !document.text.isEmpty else { return false }
         guard let folder = targetFolder, let root = root(folder.root) else {
-            errorMessage = String(localized: "There is no folder to save the note in. Add a folder to the workspace first.")
+            errorMessage = L("There is no folder to save the note in. Add a folder to the workspace first.")
             return false
         }
         let parent = folder.isRoot ? nil : folder.path
@@ -751,7 +751,7 @@ final class Workspace: Identifiable {
             setSelectionQuietly(ItemID(root: root.id, path: path))
             return true
         } catch {
-            errorMessage = String(localized: "“\(document.name)” couldn't be saved: \(error.localizedDescription)")
+            errorMessage = L("“\(document.name)” couldn't be saved: \(error.localizedDescription)")
             return false
         }
     }
@@ -775,7 +775,7 @@ final class Workspace: Identifiable {
         do {
             try NoteFile.write(text, to: url)
         } catch {
-            errorMessage = String(localized: "“\(url.lastPathComponent)” couldn't be saved: \(error.localizedDescription)")
+            errorMessage = L("“\(url.lastPathComponent)” couldn't be saved: \(error.localizedDescription)")
             return
         }
         refresh()
@@ -814,7 +814,7 @@ final class Workspace: Identifiable {
     /// else in a new tab, and focuses the editor; the first line names it later.
     func newNote() {
         guard let folder = targetFolder, let root = root(folder.root) else {
-            errorMessage = String(localized: "There is no folder to save the note in. Add a folder to the workspace first.")
+            errorMessage = L("There is no folder to save the note in. Add a folder to the workspace first.")
             return
         }
         // Save first, so a failed save doesn't leave a new empty note behind.
@@ -832,7 +832,7 @@ final class Workspace: Identifiable {
 
     func newFolder() {
         guard let folder = targetFolder else { return }
-        ask(.newFolder(in: folder), name: String(localized: "New Folder"))
+        ask(.newFolder(in: folder), name: L("New Folder"))
     }
 
     func rename(_ item: ItemID) {
@@ -861,7 +861,7 @@ final class Workspace: Identifiable {
                 setSelectionQuietly(ItemID(root: root.id, path: path))
             case .rename(let item):
                 guard let root = root(item.root),
-                      let path = saveDocuments(in: root, inside: item.path, cancelled: String(localized: "The rename was cancelled."))
+                      let path = saveDocuments(in: root, inside: item.path, cancelled: L("The rename was cancelled."))
                 else { return }
                 let oldURL = try root.store.url(for: path)
                 // Before the rename: afterwards the old URL no longer resolves.
@@ -898,7 +898,7 @@ final class Workspace: Identifiable {
 
     func trash(_ item: ItemID) {
         guard !item.isRoot, let root = root(item.root),
-              let path = saveDocuments(in: root, inside: item.path, cancelled: String(localized: "Moving to the Trash was cancelled."))
+              let path = saveDocuments(in: root, inside: item.path, cancelled: L("Moving to the Trash was cancelled."))
         else { return }
         do {
             let url = try root.store.url(for: path)
@@ -978,14 +978,14 @@ enum SaveGuard {
         guard !failed.isEmpty else { return true }
         let unsaved = failed.contains { $0.hasUnsavedChanges }
         let alert = NSAlert()
-        alert.messageText = unsaved ? String(localized: "Some changes couldn't be saved") : String(localized: "A file was changed elsewhere")
+        alert.messageText = unsaved ? L("Some changes couldn't be saved") : L("A file was changed elsewhere")
         alert.informativeText = failed.compactMap(\.error).joined(separator: "\n\n")
         failed.forEach { $0.error = nil }
         if unsaved {
-            alert.addButton(withTitle: String(localized: "Cancel"))
+            alert.addButton(withTitle: L("Cancel"))
             alert.addButton(withTitle: discard).hasDestructiveAction = true
         } else {
-            alert.addButton(withTitle: String(localized: "OK"))
+            alert.addButton(withTitle: L("OK"))
         }
         present(alert, in: window) { response in
             guard !unsaved || response == .alertSecondButtonReturn else { return }

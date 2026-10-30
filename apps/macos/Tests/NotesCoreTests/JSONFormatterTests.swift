@@ -51,26 +51,26 @@ struct JSONFormatterTests {
     }
 
     @Test(arguments: [
-        ("[1, 2,]", 1, 7, "sondaki virgüle izin verilmez"),
-        ("{\"a\": 1,\n }", 2, 2, "sondaki virgüle izin verilmez"),
-        ("{a: 1}", 1, 2, "anahtar çift tırnak içinde olmalı"),
-        ("{'a': 1}", 1, 2, "anahtar çift tırnak içinde olmalı"),
-        ("{\"a\": [1, 2", 1, 12, "belge beklenmedik şekilde bitti"),
-        ("{\"çğ\": \"açık", 1, 8, "kapanmamış dizge"),
-        ("", 1, 1, "boş belge"),
-        ("[01]", 1, 2, "geçersiz sayı"),
-        ("[1.]", 1, 2, "geçersiz sayı"),
-        ("[.5]", 1, 2, "beklenmeyen karakter \".\""),
-        ("[NaN]", 1, 2, "beklenmeyen karakter \"N\""),
-        ("[tru]", 1, 2, "beklenmeyen karakter \"t\""),
-        ("{\"a\" 1}", 1, 6, "':' bekleniyordu"),
-        ("[1 2]", 1, 4, "',' veya ']' bekleniyordu"),
-        ("{} []", 1, 4, "değerden sonra fazladan içerik"),
-        ("[\"a\tb\"]", 1, 4, "dizgede kaçışsız kontrol karakteri"),
-        ("[\"\\x\"]", 1, 3, "geçersiz kaçış dizisi"),
-        ("[\"\\u12G4\"]", 1, 3, "geçersiz \\u kaçışı"),
-        ("// yorum\n{}", 1, 1, "beklenmeyen karakter \"/\""),
-        ("[\"ş\", ü]", 1, 7, "beklenmeyen karakter \"ü\""),
+        ("[1, 2,]", 1, 7, "trailing commas are not allowed"),
+        ("{\"a\": 1,\n }", 2, 2, "trailing commas are not allowed"),
+        ("{a: 1}", 1, 2, "keys must be in double quotes"),
+        ("{'a': 1}", 1, 2, "keys must be in double quotes"),
+        ("{\"a\": [1, 2", 1, 12, "unexpected end of document"),
+        ("{\"çğ\": \"açık", 1, 8, "unterminated string"),
+        ("", 1, 1, "empty document"),
+        ("[01]", 1, 2, "invalid number"),
+        ("[1.]", 1, 2, "invalid number"),
+        ("[.5]", 1, 2, "unexpected character \".\""),
+        ("[NaN]", 1, 2, "unexpected character \"N\""),
+        ("[tru]", 1, 2, "unexpected character \"t\""),
+        ("{\"a\" 1}", 1, 6, "expected a colon"),
+        ("[1 2]", 1, 4, "expected a comma or a closing bracket"),
+        ("{} []", 1, 4, "unexpected content after the value"),
+        ("[\"a\tb\"]", 1, 4, "unescaped control character in string"),
+        ("[\"\\x\"]", 1, 3, "invalid escape sequence"),
+        ("[\"\\u12G4\"]", 1, 3, "invalid \\u escape"),
+        ("// yorum\n{}", 1, 1, "unexpected character \"/\""),
+        ("[\"ş\", ü]", 1, 7, "unexpected character \"ü\""),
     ])
     func rejectsInvalidJSON(input: String, line: Int, column: Int, message: String) {
         do {
@@ -80,7 +80,7 @@ struct JSONFormatterTests {
             #expect(error.line == line)
             #expect(error.column == column)
             #expect(error.message == message)
-            #expect(error.localizedDescription == "Geçersiz JSON (\(line):\(column)): \(message)")
+            #expect(error.localizedDescription == "Invalid JSON (\(line):\(column)): \(message)")
         } catch {
             Issue.record("unexpected error \(error)")
         }
@@ -88,7 +88,7 @@ struct JSONFormatterTests {
 
     @Test func errorOffsetIsUTF16() {
         let input = "{\"😀\": x}"
-        #expect(throws: JSONFormatError(line: 1, column: 7, offset: 7, message: "beklenmeyen karakter \"x\"")) {
+        #expect(throws: JSONFormatError(line: 1, column: 7, offset: 7, message: "unexpected character \"x\"")) {
             try JSONFormatter.format(input)
         }
     }
@@ -116,6 +116,6 @@ struct JSONFormatterTests {
         let deep = "[" + ok + "]"
         let error = try #require(throws: JSONFormatError.self) { try JSONFormatter.format(deep) }
         #expect(error.offset == JSONFormatter.maxDepth)
-        #expect(error.message.contains("çok derin"))
+        #expect(error.message.contains("too deep"))
     }
 }

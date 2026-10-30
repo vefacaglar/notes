@@ -91,7 +91,7 @@ final class NoteDocument {
     /// The tab's dot: unsaved edits, or a draft that has text (it is not in a notes folder yet).
     var showsUnsavedDot: Bool { isDraft ? !text.isEmpty : hasUnsavedChanges }
     /// Window and tab title: the display name, marked when the file can't be edited.
-    var title: String { isReadOnly ? String(localized: "\(name) (read-only)") : name }
+    var title: String { isReadOnly ? L("\(name) (read-only)") : name }
 
     private convenience init(url: URL, isDraft: Bool) throws {
         if isDraft && !FileManager.default.fileExists(atPath: url.path) {
@@ -134,9 +134,9 @@ final class NoteDocument {
         guard !isDraft else { return }
         let size = NoteFile.size(url) ?? 0
         if size > NoteFile.readOnlySize {
-            readOnlyReason = String(localized: "This file is larger than 20 MB, so it opens read-only.")
+            readOnlyReason = L("This file is larger than 20 MB, so it opens read-only.")
         } else if FileManager.default.fileExists(atPath: url.path), !NoteFile.isWritable(url) {
-            readOnlyReason = String(localized: "You don't have permission to change this file, so it opens read-only.")
+            readOnlyReason = L("You don't have permission to change this file, so it opens read-only.")
         } else {
             readOnlyReason = nil
         }
@@ -214,7 +214,7 @@ final class NoteDocument {
 
     private static func saveFailure(_ name: String, _ error: any Error) -> String {
         if let error = error as? NoteFileError {
-            return String(localized: "\(error.localizedDescription) Your changes are kept in this window.")
+            return L("\(error.localizedDescription) Your changes are kept in this window.")
         }
         let nsError = error as NSError
         let posix = (nsError.userInfo[NSUnderlyingErrorKey] as? NSError).flatMap { $0.domain == NSPOSIXErrorDomain ? $0.code : nil }
@@ -222,9 +222,9 @@ final class NoteDocument {
         let denied = nsError.domain == NSCocoaErrorDomain && nsError.code == CocoaError.fileWriteNoPermission.rawValue
             || posix == Int(EACCES) || posix == Int(EPERM)
         if denied {
-            return String(localized: "You don't have permission to save “\(name)”. Your changes are kept in this window.")
+            return L("You don't have permission to save “\(name)”. Your changes are kept in this window.")
         }
-        return String(localized: "“\(name)” couldn't be saved: \(error.localizedDescription)")
+        return L("“\(name)” couldn't be saved: \(error.localizedDescription)")
     }
 
     /// Writes `text` to a new "<name> (conflict)" file next to this one; `nil`, with `error` set, if that fails.
@@ -234,31 +234,31 @@ final class NoteDocument {
             try Data(text.utf8).write(to: copy, options: .withoutOverwriting)
             return copy
         } catch {
-            self.error = String(localized: "\(reason) Your changes couldn't be saved to a separate file either: \(error.localizedDescription)")
+            self.error = L("\(reason) Your changes couldn't be saved to a separate file either: \(error.localizedDescription)")
             return nil
         }
     }
 
     /// Saves `local` as a conflict copy and switches the document to the disk version.
     private func keepConflictCopy(of local: String, disk: String, stamp: NoteFile.Stamp) -> Bool {
-        let reason = String(localized: "“\(url.lastPathComponent)” was changed in another app.")
+        let reason = L("“\(url.lastPathComponent)” was changed in another app.")
         guard let copy = writeConflictCopy(local, reason: reason) else { return false }
         replace(with: disk, stamp: stamp)
-        error = String(localized: "\(reason) The version on disk is open now; your changes were saved as “\(copy.lastPathComponent)”.")
+        error = L("\(reason) The version on disk is open now; your changes were saved as “\(copy.lastPathComponent)”.")
         return false
     }
 
     /// The disk version changed and can't be read, so it can't be shown: saves `local` as a conflict copy and keeps
     /// editing that copy, leaving the original untouched.
     private func moveToConflictCopy(_ local: String) -> Bool {
-        let reason = String(localized: "“\(url.lastPathComponent)” was changed in another app and can't be read, so it wasn't overwritten.")
+        let reason = L("“\(url.lastPathComponent)” was changed in another app and can't be read, so it wasn't overwritten.")
         guard let copy = writeConflictCopy(local, reason: reason) else { return false }
         url = copy
         savedText = local
         savedStamp = NoteFile.stamp(copy)
         isAutoNamed = false
         updateReadOnly()
-        error = String(localized: "\(reason) Your changes were saved as “\(copy.lastPathComponent)”; you're editing that file now.")
+        error = L("\(reason) Your changes were saved as “\(copy.lastPathComponent)”; you're editing that file now.")
         relocated?(self)
         return false
     }
@@ -320,7 +320,7 @@ final class NoteDocument {
         updateReadOnly()
         guard let stamp = NoteFile.stamp(url), stamp != savedStamp else { return }
         if let size = stamp.size, size > NoteFile.maxOpenSize {
-            readOnlyReason = String(localized: "This file changed on disk and is now too large to open; the last version read is shown.")
+            readOnlyReason = L("This file changed on disk and is now too large to open; the last version read is shown.")
             isReadOnly = true
             return
         }

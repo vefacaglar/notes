@@ -124,25 +124,25 @@ public enum ThemeError: Error, Hashable, Sendable, LocalizedError {
     public var errorDescription: String? {
         switch self {
         case .invalidColor(let value):
-            "Geçersiz renk \"\(value)\": #RRGGBB ya da #RRGGBBAA biçiminde olmalı."
+            L("Invalid color \"\(value)\": it must be #RRGGBB or #RRGGBBAA.")
         case .invalidJSON:
-            "Dosya geçerli bir JSON nesnesi değil."
+            L("The file is not a valid JSON object.")
         case .malformedJSON(let line, let reason):
-            "JSON hatası, satır \(line): \(reason)"
+            L("JSON error, line \(line): \(reason)")
         case .notUTF8:
-            "Dosya UTF-8 olarak kaydedilmeli (UTF-16 desteklenmez)."
+            L("The file must be saved as UTF-8 (UTF-16 is not supported).")
         case .missingField(let field):
-            "\"\(field)\" alanı eksik."
+            L("The field \"\(field)\" is missing.")
         case .invalidValue(let field, let reason):
-            "\"\(field)\" alanı geçersiz: \(reason)"
+            L("The field \"\(field)\" is invalid: \(reason)")
         case .fileTooLarge:
-            "Dosya bir tema için fazla büyük (en çok 1.000.000 bayt)."
+            L("The file is too large for a theme (1,000,000 bytes at most).")
         case .tooManyFiles:
-            "Klasörde en çok \(ThemeLibrary.maxFileCount) tema dosyası okunur; bu dosya atlandı."
+            L("At most \(ThemeLibrary.maxFileCount) theme files are read from the folder; this file was skipped.")
         case .unreadable(let reason):
-            "Dosya okunamadı: \(reason)"
+            L("The file could not be read: \(reason)")
         case .duplicateID(let id):
-            "\"\(id)\" kimliği başka bir tema tarafından kullanılıyor; bu dosya yok sayıldı."
+            L("The id \"\(id)\" is already used by another theme; this file was ignored.")
         }
     }
 }
@@ -154,8 +154,8 @@ public enum ThemeAppearance: String, Codable, Sendable, CaseIterable {
 
     public var displayName: String {
         switch self {
-        case .light: "Açık"
-        case .dark: "Koyu"
+        case .light: L("Light")
+        case .dark: L("Dark")
         }
     }
 }
@@ -166,9 +166,9 @@ public enum AppearanceMode: String, Codable, Sendable, CaseIterable {
 
     public var displayName: String {
         switch self {
-        case .system: "Sistem"
-        case .light: "Açık"
-        case .dark: "Koyu"
+        case .system: L("System")
+        case .light: L("Light")
+        case .dark: L("Dark")
         }
     }
 
@@ -227,6 +227,19 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
     public var appearance: ThemeAppearance
     public var colors: Colors
     public var syntax: Syntax
+
+    /// The name to show: built-in themes are named in the UI language (their `name` is data), others use `name`.
+    public var displayName: String {
+        switch id {
+        case "default-light": L("Default Light")
+        case "sepia": L("Sepia")
+        case "paper": L("Paper")
+        case "default-dark": L("Default Dark")
+        case "midnight": L("Midnight")
+        case "ocean": L("Ocean")
+        default: name
+        }
+    }
 
     /// Applies the same normalization and validation as reading a file (trims, NFC).
     public init(id: String, name: String, appearance: ThemeAppearance, colors: Colors = .init(), syntax: Syntax = .init()) throws {
@@ -313,8 +326,8 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
         }
         id = clean(id)
         name = clean(name)
-        if id.isEmpty { throw ThemeError.invalidValue(field: "id", reason: "boş olamaz.") }
-        if name.isEmpty { throw ThemeError.invalidValue(field: "name", reason: "boş olamaz.") }
+        if id.isEmpty { throw ThemeError.invalidValue(field: "id", reason: L("must not be empty.")) }
+        if name.isEmpty { throw ThemeError.invalidValue(field: "name", reason: L("must not be empty.")) }
     }
 
     private static let fallbackIDKey = CodingUserInfoKey(rawValue: "notes.theme.fallbackID")!
@@ -383,22 +396,22 @@ private extension ThemeError {
         case .valueNotFound(_, let context):
             self = context.codingPath.isEmpty
                 ? .invalidJSON
-                : .invalidValue(field: path(context.codingPath), reason: "null olamaz.")
+                : .invalidValue(field: path(context.codingPath), reason: L("must not be null."))
         case .typeMismatch(let type, let context):
-            let expected = type == String.self ? "metin" : (type == Double.self ? "sayı" : "nesne")
+            let expected = type == String.self ? L("a string") : (type == Double.self ? L("a number") : L("an object"))
             self = context.codingPath.isEmpty
                 ? .invalidJSON
-                : .invalidValue(field: path(context.codingPath), reason: "\(expected) bekleniyordu.")
+                : .invalidValue(field: path(context.codingPath), reason: L("Expected \(expected)."))
         case .dataCorrupted(let context):
             let field = path(context.codingPath)
             if field.isEmpty {
                 self = .invalidJSON
             } else if context.codingPath.last?.stringValue == "appearance" {
-                self = .invalidValue(field: field, reason: "\"light\" ya da \"dark\" olmalı.")
+                self = .invalidValue(field: field, reason: L("must be \"light\" or \"dark\"."))
             } else if context.debugDescription == "invalid color" {
-                self = .invalidValue(field: field, reason: "#RRGGBB ya da #RRGGBBAA biçiminde bir renk olmalı.")
+                self = .invalidValue(field: field, reason: L("must be a color like #RRGGBB or #RRGGBBAA."))
             } else {
-                self = .invalidValue(field: field, reason: "okunamadı.")
+                self = .invalidValue(field: field, reason: L("could not be read."))
             }
         @unknown default:
             self = .invalidJSON
@@ -564,7 +577,7 @@ public struct ThemeLibrary: Sendable {
         } catch {
             throw ThemeError.unreadable(error.localizedDescription)
         }
-        guard values.isRegularFile == true else { throw ThemeError.unreadable("normal bir dosya değil.") }
+        guard values.isRegularFile == true else { throw ThemeError.unreadable(L("not a regular file.")) }
         if let size = values.fileSize, size > maxFileSize { throw ThemeError.fileTooLarge }
         let data: Data
         do {
@@ -831,12 +844,12 @@ struct StrictJSONValidator {
     mutating func run() throws {
         skipWhitespace()
         guard peek == UInt8(ascii: "{") else {
-            if peek == UInt8(ascii: "/") { throw fail("yorumlara izin verilmez.") }
+            if peek == UInt8(ascii: "/") { throw fail(L("comments are not allowed.")) }
             throw ThemeError.invalidJSON
         }
         try value(depth: 1)
         skipWhitespace()
-        guard i == s.count else { throw unexpected("JSON nesnesinden sonra fazladan içerik var.") }
+        guard i == s.count else { throw unexpected(L("unexpected content after the JSON object.")) }
     }
 
     private var peek: UInt8? { i < s.count ? s[i] : nil }
@@ -845,8 +858,8 @@ struct StrictJSONValidator {
 
     private func unexpected(_ reason: String) -> ThemeError {
         switch peek {
-        case nil: fail("dosya beklenmedik biçimde bitti.")
-        case UInt8(ascii: "/"): fail("yorumlara izin verilmez.")
+        case nil: fail(L("the file ended unexpectedly."))
+        case UInt8(ascii: "/"): fail(L("comments are not allowed."))
         default: fail(reason)
         }
     }
@@ -862,7 +875,7 @@ struct StrictJSONValidator {
     }
 
     private mutating func value(depth: Int) throws {
-        guard let c = peek else { throw unexpected("değer bekleniyordu.") }
+        guard let c = peek else { throw unexpected(L("a value was expected.")) }
         switch c {
         case UInt8(ascii: "{"): try object(depth: depth)
         case UInt8(ascii: "["): try array(depth: depth)
@@ -871,12 +884,12 @@ struct StrictJSONValidator {
         case UInt8(ascii: "f"): try word("false")
         case UInt8(ascii: "n"): try word("null")
         case UInt8(ascii: "-"), UInt8(ascii: "0")...UInt8(ascii: "9"): try number()
-        default: throw unexpected("değer bekleniyordu.")
+        default: throw unexpected(L("a value was expected."))
         }
     }
 
     private mutating func object(depth: Int) throws {
-        guard depth <= Self.maxDepth else { throw fail("en çok \(Self.maxDepth) düzey iç içe nesne/dizi olabilir.") }
+        guard depth <= Self.maxDepth else { throw fail(L("objects and arrays can be nested \(Self.maxDepth) levels deep at most.")) }
         i += 1
         skipWhitespace()
         if peek == UInt8(ascii: "}") { i += 1; return }
@@ -884,14 +897,14 @@ struct StrictJSONValidator {
         while true {
             skipWhitespace()
             guard peek == UInt8(ascii: "\"") else {
-                throw unexpected(peek == UInt8(ascii: "}") ? "sondaki virgüle izin verilmez." : "tırnak içinde anahtar bekleniyordu.")
+                throw unexpected(peek == UInt8(ascii: "}") ? L("a trailing comma is not allowed.") : L("a key in quotes was expected."))
             }
             let key = try string()
             guard keys.insert(key.unicodeScalars.map(\.value)).inserted else {
-                throw ThemeError.invalidValue(field: (path + [key]).joined(separator: "."), reason: "aynı anahtar birden fazla kez yazılmış.")
+                throw ThemeError.invalidValue(field: (path + [key]).joined(separator: "."), reason: L("the same key appears more than once."))
             }
             skipWhitespace()
-            guard peek == UInt8(ascii: ":") else { throw unexpected("':' bekleniyordu.") }
+            guard peek == UInt8(ascii: ":") else { throw unexpected(L("a colon was expected.")) }
             i += 1
             skipWhitespace()
             path.append(key)
@@ -901,20 +914,20 @@ struct StrictJSONValidator {
             switch peek {
             case UInt8(ascii: ","): i += 1
             case UInt8(ascii: "}"): i += 1; return
-            default: throw unexpected("',' ya da '}' bekleniyordu.")
+            default: throw unexpected(L("a comma or a closing brace was expected."))
             }
         }
     }
 
     private mutating func array(depth: Int) throws {
-        guard depth <= Self.maxDepth else { throw fail("en çok \(Self.maxDepth) düzey iç içe nesne/dizi olabilir.") }
+        guard depth <= Self.maxDepth else { throw fail(L("objects and arrays can be nested \(Self.maxDepth) levels deep at most.")) }
         i += 1
         skipWhitespace()
         if peek == UInt8(ascii: "]") { i += 1; return }
         var index = 0
         while true {
             skipWhitespace()
-            if peek == UInt8(ascii: "]") { throw fail("sondaki virgüle izin verilmez.") }
+            if peek == UInt8(ascii: "]") { throw fail(L("a trailing comma is not allowed.")) }
             path.append(String(index))
             try value(depth: depth + 1)
             path.removeLast()
@@ -923,14 +936,14 @@ struct StrictJSONValidator {
             switch peek {
             case UInt8(ascii: ","): i += 1
             case UInt8(ascii: "]"): i += 1; return
-            default: throw unexpected("',' ya da ']' bekleniyordu.")
+            default: throw unexpected(L("a comma or a closing bracket was expected."))
             }
         }
     }
 
     private mutating func word(_ literal: StaticString) throws {
         let bytes = UnsafeBufferPointer(start: literal.utf8Start, count: literal.utf8CodeUnitCount)
-        guard s.count - i >= bytes.count, s[i..<(i + bytes.count)].elementsEqual(bytes) else { throw fail("geçersiz değer.") }
+        guard s.count - i >= bytes.count, s[i..<(i + bytes.count)].elementsEqual(bytes) else { throw fail(L("invalid value.")) }
         i += bytes.count
     }
 
@@ -945,19 +958,19 @@ struct StrictJSONValidator {
         if peek == UInt8(ascii: "0") {
             i += 1
         } else if digits() == 0 {
-            throw fail("geçersiz sayı.")
+            throw fail(L("the number is not valid."))
         }
         if peek == UInt8(ascii: ".") {
             i += 1
-            guard digits() > 0 else { throw fail("geçersiz sayı.") }
+            guard digits() > 0 else { throw fail(L("the number is not valid.")) }
         }
         if peek == UInt8(ascii: "e") || peek == UInt8(ascii: "E") {
             i += 1
             if peek == UInt8(ascii: "+") || peek == UInt8(ascii: "-") { i += 1 }
-            guard digits() > 0 else { throw fail("geçersiz sayı.") }
+            guard digits() > 0 else { throw fail(L("the number is not valid.")) }
         }
         guard let number = Double(String(decoding: s[start..<i], as: UTF8.self)), number.isFinite else {
-            throw ThemeError.invalidValue(field: path.joined(separator: "."), reason: "sayı çok büyük.")
+            throw ThemeError.invalidValue(field: path.joined(separator: "."), reason: L("the number is too large."))
         }
     }
 
@@ -966,16 +979,16 @@ struct StrictJSONValidator {
         i += 1
         var scalars = String.UnicodeScalarView()
         while true {
-            guard let c = peek else { throw fail("kapanmamış metin.") }
+            guard let c = peek else { throw fail(L("a string is not terminated.")) }
             switch c {
             case UInt8(ascii: "\""):
                 i += 1
                 return String(scalars)
             case 0..<0x20:
-                throw fail("metin içinde kaçışsız kontrol karakteri var.")
+                throw fail(L("unescaped control character in a string."))
             case UInt8(ascii: "\\"):
                 i += 1
-                guard let e = peek else { throw fail("kapanmamış metin.") }
+                guard let e = peek else { throw fail(L("a string is not terminated.")) }
                 i += 1
                 switch e {
                 case UInt8(ascii: "\""): scalars.append("\"")
@@ -987,7 +1000,7 @@ struct StrictJSONValidator {
                 case UInt8(ascii: "r"): scalars.append("\r")
                 case UInt8(ascii: "t"): scalars.append("\t")
                 case UInt8(ascii: "u"): scalars.append(try unicodeEscape())
-                default: throw fail("geçersiz kaçış dizisi.")
+                default: throw fail(L("invalid escape sequence in a string."))
                 }
             default:
                 // Already validated as UTF-8: decode one scalar.
@@ -1003,24 +1016,24 @@ struct StrictJSONValidator {
     /// `i` is after `\u`. Surrogates must come as a valid pair.
     private mutating func unicodeEscape() throws -> Unicode.Scalar {
         func hex4() throws -> UInt32 {
-            guard s.count - i >= 4 else { throw fail("geçersiz \\u kaçışı.") }
+            guard s.count - i >= 4 else { throw fail(L("invalid \\u escape in a string.")) }
             var value: UInt32 = 0
             for _ in 0..<4 {
-                guard let digit = ThemeColor.hexValue(s[i]).map(UInt32.init) else { throw fail("geçersiz \\u kaçışı.") }
+                guard let digit = ThemeColor.hexValue(s[i]).map(UInt32.init) else { throw fail(L("invalid \\u escape in a string.")) }
                 value = value << 4 | digit
                 i += 1
             }
             return value
         }
         let first = try hex4()
-        if (0xDC00...0xDFFF).contains(first) { throw fail("eşi olmayan UTF-16 vekil karakteri.") }
+        if (0xDC00...0xDFFF).contains(first) { throw fail(L("unpaired UTF-16 surrogate.")) }
         guard (0xD800...0xDBFF).contains(first) else { return Unicode.Scalar(first)! }
         guard s.count - i >= 2, s[i] == UInt8(ascii: "\\"), s[i + 1] == UInt8(ascii: "u") else {
-            throw fail("eşi olmayan UTF-16 vekil karakteri.")
+            throw fail(L("unpaired UTF-16 surrogate."))
         }
         i += 2
         let second = try hex4()
-        guard (0xDC00...0xDFFF).contains(second) else { throw fail("eşi olmayan UTF-16 vekil karakteri.") }
+        guard (0xDC00...0xDFFF).contains(second) else { throw fail(L("unpaired UTF-16 surrogate.")) }
         return Unicode.Scalar(0x10000 + ((first - 0xD800) << 10) + (second - 0xDC00))!
     }
 }

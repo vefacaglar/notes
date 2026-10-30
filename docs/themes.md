@@ -47,7 +47,7 @@ A JSON object as above. Keys are case-sensitive; unknown keys are ignored (so ne
 | `colors` | no | Editor colors, see below. |
 | `syntax` | no | Code colors, see below. |
 
-Fonts are not part of a theme: the text and code fonts are app settings (Ayarlar → Editör), so they stay the same when the theme changes. Older files may still have a `fonts` key; it is ignored like any unknown key.
+Fonts are not part of a theme: the text and code fonts are app settings (Settings → Editor; Ayarlar → Editör in Turkish), so they stay the same when the theme changes. Older files may still have a `fonts` key; it is ignored like any unknown key.
 
 ### Colors
 

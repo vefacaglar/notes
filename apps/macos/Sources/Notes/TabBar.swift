@@ -68,7 +68,7 @@ private struct TabItem: View {
                             .contentShape(Rectangle())
                     }
                     .buttonStyle(.borderless)
-                    .help("Close Tab")
+                    .help(loc: "Close Tab")
                 } else if document.showsUnsavedDot {
                     Circle()
                         .fill(.secondary)
@@ -88,12 +88,12 @@ private struct TabItem: View {
         .onHover { isHovering = $0 }
         .help(document.isDraft ? document.name : document.url.path)
         .contextMenu {
-            Button("Close Tab") { workspace.close(tab) }
-            Button("Close Other Tabs") { workspace.closeOtherTabs(than: tab) }
+            Button(loc: "Close Tab") { workspace.close(tab) }
+            Button(loc: "Close Other Tabs") { workspace.closeOtherTabs(than: tab) }
                 .disabled(workspace.tabs.count < 2)
             if !document.isDraft {
                 Divider()
-                Button("Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([document.url]) }
+                Button(loc: "Show in Finder") { NSWorkspace.shared.activateFileViewerSelecting([document.url]) }
             }
         }
         .onDrag {

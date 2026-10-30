@@ -9,7 +9,7 @@ public struct JSONFormatError: LocalizedError, Equatable, Sendable {
     public let message: String
 
     public var errorDescription: String? {
-        "Geçersiz JSON (\(line):\(column)): \(message)"
+        L("Invalid JSON (\(line):\(column)): \(message)")
     }
 }
 
@@ -34,14 +34,14 @@ public enum JSONFormatter {
 }
 
 public extension CodeLanguage {
-    /// Whether "Biçimlendir" is available for this language.
+    /// Whether Format is available for this language.
     var canFormat: Bool { self == .json }
 
     /// The formatted text; throws when the text is invalid or the language has no formatter.
     func format(_ text: String) throws -> String {
         switch self {
         case .json: try JSONFormatter.format(text)
-        default: throw JSONFormatError(line: 1, column: 1, offset: 0, message: "\(displayName) biçimlendirilemiyor")
+        default: throw JSONFormatError(line: 1, column: 1, offset: 0, message: L("\(displayName) can't be formatted"))
         }
     }
 }
@@ -72,12 +72,12 @@ private struct Writer {
 
     mutating func run() throws {
         skipWhitespace()
-        guard i < n else { throw error("boş belge") }
+        guard i < n else { throw error(L("empty document")) }
         try value()
         // A loop rather than recursion, so deep nesting cannot overflow the stack.
         while !stack.isEmpty {
             skipWhitespace()
-            guard i < n else { throw error("belge beklenmedik şekilde bitti") }
+            guard i < n else { throw error(L("unexpected end of document")) }
             if expectsItem {
                 expectsItem = false
                 try item()
@@ -91,15 +91,15 @@ private struct Writer {
                 i += 1
                 out.append(44)
                 skipWhitespace()
-                guard i < n else { throw error("belge beklenmedik şekilde bitti") }
-                if s[i] == close { throw error("sondaki virgüle izin verilmez") }
+                guard i < n else { throw error(L("unexpected end of document")) }
+                if s[i] == close { throw error(L("trailing commas are not allowed")) }
                 expectsItem = true
             } else {
-                throw error(top.isObject ? "',' veya '}' bekleniyordu" : "',' veya ']' bekleniyordu")
+                throw error(top.isObject ? L("expected a comma or a closing brace") : L("expected a comma or a closing bracket"))
             }
         }
         skipWhitespace()
-        guard i == n else { throw error("değerden sonra fazladan içerik") }
+        guard i == n else { throw error(L("unexpected content after the value")) }
         if indent != nil { out.append(10) }
     }
 
@@ -119,17 +119,17 @@ private struct Writer {
         newline()
         if stack[stack.count - 1].isObject {
             guard s[i] == 34 else {
-                throw error(s[i] == 39 || isLetter(s[i]) ? "anahtar çift tırnak içinde olmalı" : "anahtar bekleniyordu")
+                throw error(s[i] == 39 || isLetter(s[i]) ? L("keys must be in double quotes") : L("expected a key"))
             }
             try string()
             skipWhitespace()
-            guard i < n else { throw error("belge beklenmedik şekilde bitti") }
-            guard s[i] == 58 else { throw error("':' bekleniyordu") } // :
+            guard i < n else { throw error(L("unexpected end of document")) }
+            guard s[i] == 58 else { throw error(L("expected a colon")) } // :
             i += 1
             out.append(58)
             if indent != nil { out.append(32) }
             skipWhitespace()
-            guard i < n else { throw error("belge beklenmedik şekilde bitti") }
+            guard i < n else { throw error(L("unexpected end of document")) }
         }
         try value()
     }
@@ -140,13 +140,13 @@ private struct Writer {
             let isObject = s[i] == 123
             // Indented output grows with the square of the depth; real files never come close. Minifying is linear.
             guard indent == nil || stack.count < JSONFormatter.maxDepth else {
-                throw error("iç içe geçme çok derin (en fazla \(JSONFormatter.maxDepth) düzey)")
+                throw error(L("nesting is too deep (at most \(JSONFormatter.maxDepth) levels)"))
             }
             out.append(s[i])
             i += 1
             stack.append((isObject, 0))
             skipWhitespace()
-            guard i < n else { throw error("belge beklenmedik şekilde bitti") }
+            guard i < n else { throw error(L("unexpected end of document")) }
             if s[i] == (isObject ? 125 : 93) { closeContainer() } else { expectsItem = true }
         case 34:
             try string()
@@ -156,7 +156,7 @@ private struct Writer {
         case 102: try literal("false")
         case 110: try literal("null")
         case 39:
-            throw error("dizgeler çift tırnak kullanmalı")
+            throw error(L("strings must use double quotes"))
         default:
             throw unexpected()
         }
@@ -179,30 +179,30 @@ private struct Writer {
                 out.append(contentsOf: s[start..<i])
                 return
             }
-            if b < 0x20 { throw error("dizgede kaçışsız kontrol karakteri") }
+            if b < 0x20 { throw error(L("unescaped control character in string")) }
             if b == 92 { // \
                 guard i + 1 < n else { break }
                 switch s[i + 1] {
                 case 34, 92, 47, 98, 102, 110, 114, 116: // " \ / b f n r t
                     i += 2
                 case 117: // u
-                    guard i + 5 < n, s[(i + 2)...(i + 5)].allSatisfy(isHexDigit) else { throw error("geçersiz \\u kaçışı") }
+                    guard i + 5 < n, s[(i + 2)...(i + 5)].allSatisfy(isHexDigit) else { throw error(L("invalid \\u escape")) }
                     i += 6
                 default:
-                    throw error("geçersiz kaçış dizisi")
+                    throw error(L("invalid escape sequence"))
                 }
                 continue
             }
             i += 1
         }
         i = start
-        throw error("kapanmamış dizge")
+        throw error(L("unterminated string"))
     }
 
     private mutating func number() throws {
         let start = i
         if s[i] == 45 { i += 1 }
-        guard i < n, isDigit(s[i]) else { i = start; throw error("geçersiz sayı") }
+        guard i < n, isDigit(s[i]) else { i = start; throw error(L("invalid number")) }
         if s[i] == 48 {
             i += 1
         } else {
@@ -210,16 +210,16 @@ private struct Writer {
         }
         if i < n && s[i] == 46 { // .
             i += 1
-            guard i < n, isDigit(s[i]) else { i = start; throw error("geçersiz sayı") }
+            guard i < n, isDigit(s[i]) else { i = start; throw error(L("invalid number")) }
             while i < n && isDigit(s[i]) { i += 1 }
         }
         if i < n && (s[i] == 101 || s[i] == 69) { // e E
             i += 1
             if i < n && (s[i] == 43 || s[i] == 45) { i += 1 }
-            guard i < n, isDigit(s[i]) else { i = start; throw error("geçersiz sayı") }
+            guard i < n, isDigit(s[i]) else { i = start; throw error(L("invalid number")) }
             while i < n && isDigit(s[i]) { i += 1 }
         }
-        if i < n && (isLetter(s[i]) || isDigit(s[i]) || s[i] == 46) { i = start; throw error("geçersiz sayı") }
+        if i < n && (isLetter(s[i]) || isDigit(s[i]) || s[i] == 46) { i = start; throw error(L("invalid number")) }
         out.append(contentsOf: s[start..<i])
     }
 
@@ -238,7 +238,7 @@ private struct Writer {
         // Show the whole character, not one byte of it.
         var end = i + 1
         while end < n && s[end] & 0xC0 == 0x80 { end += 1 }
-        return error("beklenmeyen karakter \"\(String(decoding: s[i..<end], as: UTF8.self))\"")
+        return error(L("unexpected character \"\(String(decoding: s[i..<end], as: UTF8.self))\""))
     }
 
     private func error(_ message: String) -> JSONFormatError {

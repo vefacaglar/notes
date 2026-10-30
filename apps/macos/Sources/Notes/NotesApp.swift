@@ -1,7 +1,15 @@
 import AppKit
 import SwiftUI
 
+/// Entry point: the UI language is fixed before any window, bundle lookup or model exists.
 @main
+enum Launcher {
+    static func main() {
+        LanguageSetting.configureAtLaunch()
+        NotesApp.main()
+    }
+}
+
 struct NotesApp: App {
     static let mainWindowID = "main"
     static let workspaceWindowID = "workspace"
@@ -88,6 +96,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Saves everything first. If a save failed, asks before quitting without it; conflict notices are shown too,
     /// since their windows are about to go away. Drafts need no question: they stay in the draft store.
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        let reply = terminationReply()
+        if reply == .terminateCancel { LanguageSetting.relaunchPending = false }
+        return reply
+    }
+
+    private func terminationReply() -> NSApplication.TerminateReply {
         guard !NoteDocument.flushAll() else {
             model.prepareForQuit()
             return .terminateNow
@@ -95,7 +109,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let documents = NoteDocument.all.filter { $0.error != nil }
         let unsaved = documents.contains { $0.hasUnsavedChanges }
         let alert = NSAlert()
-        alert.messageText = unsaved ? String(localized: "Some changes couldn't be saved") : String(localized: "Some files were changed elsewhere")
+        alert.messageText = unsaved ? L("Some changes couldn't be saved") : L("Some files were changed elsewhere")
         alert.informativeText = documents.compactMap(\.error).joined(separator: "\n\n")
         documents.forEach { $0.error = nil }
         guard unsaved else {
@@ -103,8 +117,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model.prepareForQuit()
             return .terminateNow
         }
-        alert.addButton(withTitle: String(localized: "Cancel"))
-        alert.addButton(withTitle: String(localized: "Quit Without Saving")).hasDestructiveAction = true
+        alert.addButton(withTitle: L("Cancel"))
+        alert.addButton(withTitle: L("Quit Without Saving")).hasDestructiveAction = true
         guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
         documents.forEach { $0.revert() }
         model.prepareForQuit()
@@ -114,6 +128,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillTerminate(_ notification: Notification) {
         NoteDocument.flushAll()
         model.prepareForQuit()
+        if LanguageSetting.relaunchPending { LanguageSetting.relaunch(releasing: model) }
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
@@ -130,51 +145,51 @@ struct NotesCommands: Commands {
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
-            Button("New Note") {
+            Button(loc: "New Note") {
                 model.main.newNote()
                 model.windowRequests.append(.main)
             }
             .keyboardShortcut("n")
-            Button("New Tab") {
+            Button(loc: "New Tab") {
                 (workspace ?? model.main).newDraftTab()
                 if workspace == nil { model.windowRequests.append(.main) }
             }
             .keyboardShortcut("t")
-            Button("New Folder") { (workspace ?? model.main).newFolder() }
+            Button(loc: "New Folder") { (workspace ?? model.main).newFolder() }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
             Divider()
-            Button("Add Folder to Workspace…", action: model.chooseRoot)
+            Button(loc: "Add Folder to Workspace…", action: model.chooseRoot)
                 .keyboardShortcut("o", modifiers: [.command, .shift])
         }
         CommandGroup(after: .newItem) {
             Divider()
-            Button("Close Tab") {
+            Button(loc: "Close Tab") {
                 if let workspace { workspace.closeActiveTabOrWindow() } else { NSApp.keyWindow?.performClose(nil) }
             }
             .keyboardShortcut("w")
             Divider()
-            Button("Save") {
+            Button(loc: "Save") {
                 if let workspace { workspace.saveActive() } else { NoteDocument.flushAll() }
             }
             .keyboardShortcut("s")
-            Button("Save As…") { workspace?.saveAs() }
+            Button(loc: "Save As…") { workspace?.saveAs() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
                 .disabled(workspace?.activeTab == nil)
         }
         CommandGroup(after: .textEditing) {
             Divider()
             // Goes through the text view, so ⌘Z undoes it.
-            Button("Format") { editor?.format() }
+            Button(loc: "Format") { editor?.format() }
                 .keyboardShortcut("f", modifiers: [.option, .shift])
                 .disabled(editor == nil)
         }
         CommandGroup(before: .sidebar) {
-            Button(workspace?.isSidebarVisible == false ? LocalizedStringKey("Show Sidebar") : "Hide Sidebar") {
+            Button(loc: workspace?.isSidebarVisible == false ? "Show Sidebar" : "Hide Sidebar") {
                 workspace?.isSidebarVisible.toggle()
             }
             .keyboardShortcut("s", modifiers: [.command, .control])
             .disabled(workspace == nil)
-            Toggle("Show Source", isOn: Binding(
+            Toggle(loc: "Show Source", isOn: Binding(
                 get: { workspace?.activeTab?.showsSource ?? false },
                 set: { _ in workspace?.toggleSource() }
             ))
@@ -183,13 +198,13 @@ struct NotesCommands: Commands {
             Divider()
         }
         CommandGroup(before: .windowList) {
-            Button("Show Next Tab") { workspace?.cycleTab(1) }
+            Button(loc: "Show Next Tab") { workspace?.cycleTab(1) }
                 .keyboardShortcut(.tab, modifiers: .control)
-            Button("Show Previous Tab") { workspace?.cycleTab(-1) }
+            Button(loc: "Show Previous Tab") { workspace?.cycleTab(-1) }
                 .keyboardShortcut(.tab, modifiers: [.control, .shift])
-            Button("Select Next Tab") { workspace?.cycleTab(1) }
+            Button(loc: "Select Next Tab") { workspace?.cycleTab(1) }
                 .keyboardShortcut("]", modifiers: [.command, .shift])
-            Button("Select Previous Tab") { workspace?.cycleTab(-1) }
+            Button(loc: "Select Previous Tab") { workspace?.cycleTab(-1) }
                 .keyboardShortcut("[", modifiers: [.command, .shift])
             Divider()
         }

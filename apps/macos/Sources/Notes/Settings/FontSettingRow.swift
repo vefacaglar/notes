@@ -10,7 +10,7 @@ struct FontSettingRow: View {
     @State private var showsPicker = false
 
     var body: some View {
-        LabeledContent(title) {
+        LabeledContent(loc: title) {
             HStack(spacing: 8) {
                 Button {
                     showsPicker.toggle()
@@ -22,11 +22,11 @@ struct FontSettingRow: View {
                 .popover(isPresented: $showsPicker, arrowEdge: .bottom) {
                     FontFamilyList(selection: $choice.family, monospaced: monospaced)
                 }
-                TextField("Size", value: size, format: .number.precision(.fractionLength(0...1)))
+                TextField(loc: "Size", value: size, format: .number.precision(.fractionLength(0...1)))
                     .labelsHidden()
                     .multilineTextAlignment(.trailing)
                     .frame(width: 44)
-                Stepper("Size", value: size, in: FontChoice.sizeRange, step: 1)
+                Stepper(loc: "Size", value: size, in: FontChoice.sizeRange, step: 1)
                     .labelsHidden()
             }
         }
@@ -36,7 +36,7 @@ struct FontSettingRow: View {
         if let family = choice.family {
             Text(verbatim: family).font(.custom(family, size: 13))
         } else {
-            Text("System")
+            Text(loc: "System")
         }
     }
 
@@ -67,10 +67,10 @@ private struct FontFamilyList: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            TextField("Search", text: $query)
+            TextField(loc: "Search", text: $query)
                 .textFieldStyle(.roundedBorder)
             if monospaced {
-                Toggle("Monospaced only", isOn: $monospacedOnly)
+                Toggle(loc: "Monospaced only", isOn: $monospacedOnly)
                     .disabled(catalog.monospaced == nil)
             }
             List {
@@ -104,7 +104,7 @@ private struct FontFamilyList: View {
                 if let family {
                     Text(verbatim: family).font(.custom(family, size: 14))
                 } else {
-                    Text("System").font(.system(size: 14, design: monospaced ? .monospaced : .default))
+                    Text(loc: "System").font(.system(size: 14, design: monospaced ? .monospaced : .default))
                 }
                 Spacer()
                 if family == selection {

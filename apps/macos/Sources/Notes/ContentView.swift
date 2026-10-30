@@ -26,8 +26,8 @@ struct WorkspaceView: View {
         .toolbar {
             if workspace.isMain {
                 ToolbarItemGroup(placement: .primaryAction) {
-                    Button("New Note", systemImage: "square.and.pencil", action: workspace.newNote)
-                    Button("New Folder", systemImage: "folder.badge.plus", action: workspace.newFolder)
+                    Button(action: workspace.newNote) { Label(loc: "New Note", systemImage: "square.and.pencil") }
+                    Button(action: workspace.newFolder) { Label(loc: "New Folder", systemImage: "folder.badge.plus") }
                 }
             }
         }
@@ -65,10 +65,10 @@ struct WorkspaceView: View {
             }
         } else {
             ContentUnavailableView {
-                Label("No Note Selected", systemImage: "doc.text")
+                Label(loc: "No Note Selected", systemImage: "doc.text")
             } description: {
-                Text(workspace.isMain
-                     ? LocalizedStringKey("Choose a note in the sidebar, press ⌘N for a new note or ⌘T for a new tab.")
+                Text(loc: workspace.isMain
+                     ? "Choose a note in the sidebar, press ⌘N for a new note or ⌘T for a new tab."
                      : "Choose a file in the sidebar or press ⌘T for a new tab.")
             }
         }
@@ -249,8 +249,8 @@ extension View {
     }
 
     func errorAlert(_ message: Binding<String?>) -> some View {
-        alert("Error", isPresented: message.isPresent, presenting: message.wrappedValue) { _ in
-            Button("OK") {}
+        alert(Text(loc: "Error"), isPresented: message.isPresent, presenting: message.wrappedValue) { _ in
+            Button(loc: "OK") {}
         } message: { Text($0) }
     }
 }

@@ -46,6 +46,10 @@ final class AppSettings {
     var sidebarSort: SidebarSort { didSet { save(sidebarSort.rawValue, .sidebarSort) } }
     var showNonMarkdownFiles: Bool { didSet { save(showNonMarkdownFiles, .showNonMarkdownFiles) } }
     var autoNaming: Bool { didSet { save(autoNaming, .autoNaming) } }
+    /// Stored as `AppleLanguages`; applies after a restart (`needsRestart`).
+    var language: LanguageChoice { didSet { LanguageSetting.store(language) } }
+    /// What was stored when the app started, i.e. what the running UI language was chosen from.
+    let launchLanguage: LanguageChoice
 
     /// Built-in themes at once; user themes arrive after `reloadThemes()` finishes reading the folder off the main actor.
     private(set) var themeLibrary = ThemeLibrary()
@@ -84,9 +88,14 @@ final class AppSettings {
         sidebarSort = string(.sidebarSort).flatMap(SidebarSort.init(rawValue:)) ?? .name
         showNonMarkdownFiles = bool(.showNonMarkdownFiles, true)
         autoNaming = bool(.autoNaming, true)
+        let stored = LanguageSetting.stored
+        language = stored
+        launchLanguage = stored
         reloadThemes()
         applyAppearance()
     }
+
+    var needsRestart: Bool { language != launchLanguage }
 
     // MARK: Themes
 

@@ -10,12 +10,12 @@ public enum NoteStoreError: LocalizedError, Equatable {
 
     public var errorDescription: String? {
         switch self {
-        case .invalidName(let name): "Geçersiz ad: \"\(name)\""
-        case .alreadyExists(let name): "Bu adda bir öğe zaten var: \"\(name)\""
+        case .invalidName(let name): L("Invalid name: \"\(name)\"")
+        case .alreadyExists(let name): L("An item with this name already exists: \"\(name)\"")
         case .missingFolder(let path):
-            String(localized: "The folder “\(path)” doesn't exist anymore.")
+            L("The folder “\(path)” doesn't exist anymore.")
         case .rootUnavailable(let path):
-            String(localized: "The folder “\(path)” doesn't exist or isn't a folder.")
+            L("The folder “\(path)” doesn't exist or isn't a folder.")
         }
     }
 }

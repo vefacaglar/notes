@@ -44,7 +44,7 @@ struct SidebarView: View {
                         .help(root.url.path)
                         .contextMenu {
                             if workspace.isMain {
-                                Button("Remove Folder from Workspace") { model.removeRoot(path: root.url.path) }
+                                Button(loc: "Remove Folder from Workspace") { model.removeRoot(path: root.url.path) }
                             }
                         }
                     }
@@ -52,37 +52,37 @@ struct SidebarView: View {
                 .overlay {
                     if workspace.roots.isEmpty && workspace.unavailableRoots.isEmpty && workspace.isMain {
                         ContentUnavailableView {
-                            Label("No Folders", systemImage: "folder")
+                            Label(loc: "No Folders", systemImage: "folder")
                         } description: {
-                            Text("Add a folder to the workspace to see its notes here.")
+                            Text(loc: "Add a folder to the workspace to see its notes here.")
                         } actions: {
-                            Button("Add Folder…", action: model.chooseRoot)
+                            Button(loc: "Add Folder…", action: model.chooseRoot)
                         }
                     }
                 }
             }
         }
-        .searchable(text: $workspace.query, placement: .sidebar, prompt: "Search")
+        .searchable(text: $workspace.query, placement: .sidebar, prompt: Text(loc: "Search"))
         .onChange(of: hitSelection) {
             if let hit = workspace.hits.first(where: { $0.id == hitSelection }) { workspace.selection = hit.item }
         }
         .onChange(of: workspace.isSearching) { hitSelection = nil }
         .alert(workspace.prompt?.title ?? "", isPresented: $workspace.prompt.isPresent, presenting: workspace.prompt) { prompt in
-            TextField("Name", text: $workspace.promptName)
+            TextField(loc: "Name", text: $workspace.promptName)
             Button(prompt.action) { workspace.commitPrompt(prompt) }
-            Button("Cancel", role: .cancel) {}
+            Button(loc: "Cancel", role: .cancel) {}
         }
         .confirmationDialog(
             trashTitle, isPresented: $workspace.trashCandidate.isPresent, titleVisibility: .visible,
             presenting: workspace.trashCandidate
         ) { item in
-            Button("Move to Trash", role: .destructive) { workspace.trash(item) }
-            Button("Cancel", role: .cancel) {}
+            Button(loc: "Move to Trash", role: .destructive) { workspace.trash(item) }
+            Button(loc: "Cancel", role: .cancel) {}
         }
     }
 
     private var trashTitle: String {
-        String(localized: "Move “\(NoteStore.displayName(workspace.trashCandidate?.path ?? ""))” to the Trash?")
+        L("Move “\(NoteStore.displayName(workspace.trashCandidate?.path ?? ""))” to the Trash?")
     }
 
     private func expanded(_ root: RootFolder) -> Binding<Bool> {
@@ -92,30 +92,30 @@ struct SidebarView: View {
 
     @ViewBuilder private func menu(for item: SidebarItem) -> some View {
         if !item.isFolder, let url = workspace.url(for: item.id) {
-            Button("Open in New Tab") { workspace.open(url, newTab: true) }
+            Button(loc: "Open in New Tab") { workspace.open(url, newTab: true) }
             Divider()
         }
         if item.isFolder {
-            Button("New Folder…") {
+            Button(loc: "Create Folder…") {
                 workspace.selection = item.id
                 workspace.newFolder()
             }
         }
-        Button("Rename…") { workspace.rename(item.id) }
-        Button("Show in Finder") { workspace.revealInFinder(item.id) }
+        Button(loc: "Rename Item…") { workspace.rename(item.id) }
+        Button(loc: "Show in Finder") { workspace.revealInFinder(item.id) }
         Divider()
-        Button("Move to Trash") { workspace.trashCandidate = item.id }
+        Button(loc: "Move to Trash") { workspace.trashCandidate = item.id }
     }
 
     @ViewBuilder private func rootMenu(for root: RootFolder) -> some View {
-        Button("New Folder…") {
+        Button(loc: "Create Folder…") {
             workspace.selection = ItemID(root: root.id, path: "")
             workspace.newFolder()
         }
-        Button("Show in Finder") { workspace.revealInFinder(ItemID(root: root.id, path: "")) }
+        Button(loc: "Show in Finder") { workspace.revealInFinder(ItemID(root: root.id, path: "")) }
         if workspace.isMain {
             Divider()
-            Button("Remove Folder from Workspace") { model.removeRoot(root) }
+            Button(loc: "Remove Folder from Workspace") { model.removeRoot(root) }
         }
     }
 

@@ -34,7 +34,6 @@ final class NotesModel {
     private(set) var configuredRoots: [String] = []
 
     init() {
-        NamingLanguage.configure(localization: Bundle.main.preferredLocalizations.first)
         main = Workspace(isMain: true, sidebarVisible: true)
         main.model = self
         let initial = Self.initialRoots()
@@ -120,8 +119,8 @@ final class NotesModel {
         panel.canChooseFiles = false
         panel.canCreateDirectories = true
         panel.allowsMultipleSelection = true
-        panel.prompt = String(localized: "Add")
-        panel.message = String(localized: "Choose folders to add to the workspace")
+        panel.prompt = L("Add")
+        panel.message = L("Choose folders to add to the workspace")
         guard panel.runModal() == .OK else { return }
         for url in panel.urls {
             if let problem = main.addRoot(url) {
@@ -252,9 +251,9 @@ final class NotesModel {
                 draftStore = store
                 return
             }
-            reason = String(localized: "Another Notes process is using the drafts folder. New tabs are kept in a separate folder and move there once it quits.")
+            reason = L("Another Notes process is using the drafts folder. New tabs are kept in a separate folder and move there once it quits.")
         } catch {
-            reason = String(localized: "The drafts folder can't be used (\(error.localizedDescription)). New tabs are kept in a separate folder and move there when it works again.")
+            reason = L("The drafts folder can't be used (\(error.localizedDescription)). New tabs are kept in a separate folder and move there when it works again.")
         }
         // A fresh name for every try: a pending folder that can't be locked or created is simply skipped.
         for _ in 0..<3 {
@@ -266,19 +265,19 @@ final class NotesModel {
                 return
             }
         }
-        main.report(String(localized: "Drafts can't be stored right now, so new tabs can't be opened. Check that the Notes folder in Application Support is writable."))
+        main.report(L("Drafts can't be stored right now, so new tabs can't be opened. Check that the Notes folder in Application Support is writable."))
     }
 
     /// Where a new draft's file goes.
     func newDraftURL() -> URL? {
         guard let draftStore else {
-            main.report(String(localized: "A new tab couldn't be opened because drafts can't be stored right now."))
+            main.report(L("A new tab couldn't be opened because drafts can't be stored right now."))
             return nil
         }
         do {
             return try draftStore.newDraftURL()
         } catch {
-            main.report(String(localized: "A new tab couldn't be opened: \(error.localizedDescription)"))
+            main.report(L("A new tab couldn't be opened: \(error.localizedDescription)"))
             return nil
         }
     }
@@ -357,6 +356,11 @@ final class NotesModel {
     }
 
     /// Saves for the last time before the app quits; later changes (windows closing) are not recorded.
+    /// Lets a relaunched instance own the drafts folder right away (the lock would otherwise last until this process exits).
+    func releaseDraftsForRelaunch() {
+        draftStore?.unlock()
+    }
+
     func prepareForQuit() {
         guard !hasQuit else { return }
         saveSession()

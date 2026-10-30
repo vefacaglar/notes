@@ -50,7 +50,7 @@ public enum CodeLanguage: String, CaseIterable, Sendable {
         case .sql: "SQL"
         case .toml: "TOML"
         case .markdown: "Markdown"
-        case .plainText: "Düz metin"
+        case .plainText: L("Plain Text")
         }
     }
 
