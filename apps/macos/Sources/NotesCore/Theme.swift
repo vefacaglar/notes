@@ -633,29 +633,29 @@ enum BuiltInThemes {
       "name": "Varsayılan Açık",
       "appearance": "light",
       "colors": {
-        "background": "#FFFFFF",
-        "text": "#1F1F1F",
-        "secondaryText": "#6E6E73",
-        "marker": "#8A8A8F",
-        "heading": "#1D1D1F",
-        "link": "#0068DA",
-        "inlineCode": "#B42318",
-        "inlineCodeBackground": "#F1F1F3",
-        "codeBlockBackground": "#F6F6F8",
-        "blockquote": "#4B4B50",
+        "background": "#FAFAFA",
+        "text": "#1B1B1B",
+        "secondaryText": "#5F5F5F",
+        "marker": "#767676",
+        "heading": "#1B1B1B",
+        "link": "#2F6396",
+        "inlineCode": "#1B1B1B",
+        "inlineCodeBackground": "#F1F1F1",
+        "codeBlockBackground": "#F1F1F1",
+        "blockquote": "#5F5F5F",
         "selection": "#B3D7FF",
         "cursor": "#007AFF",
         "accent": "#007AFF"
       },
       "syntax": {
-        "keyword": "#9B2393",
-        "string": "#C41A16",
-        "number": "#1C00CF",
-        "comment": "#5D6C79",
-        "literal": "#6C36A9",
-        "type": "#0B4F79",
-        "property": "#326D74",
-        "tag": "#0F68A0"
+        "keyword": "#8C4A6B",
+        "string": "#8A5A3C",
+        "number": "#3F6A95",
+        "comment": "#767676",
+        "literal": "#8C4A6B",
+        "type": "#2F7771",
+        "property": "#6E5A94",
+        "tag": "#3F6A95"
       }
     }
     """
@@ -670,25 +670,25 @@ enum BuiltInThemes {
         "text": "#3B2F23",
         "secondaryText": "#6F5F4B",
         "marker": "#8F7C66",
-        "heading": "#2E2318",
-        "link": "#8A4B12",
-        "inlineCode": "#8C3A1E",
+        "heading": "#3B2F23",
+        "link": "#3F6280",
+        "inlineCode": "#3B2F23",
         "inlineCodeBackground": "#EADFC6",
         "codeBlockBackground": "#EEE4CE",
-        "blockquote": "#5C4B39",
+        "blockquote": "#6F5F4B",
         "selection": "#DCC79A",
-        "cursor": "#8A4B12",
-        "accent": "#A0522D"
+        "cursor": "#6F5F4B",
+        "accent": "#6B543C"
       },
       "syntax": {
-        "keyword": "#8E3A59",
-        "string": "#5F6B00",
-        "number": "#2F5F8A",
-        "comment": "#857259",
-        "literal": "#7B4FA0",
-        "type": "#2E6B5E",
-        "property": "#7A4B1E",
-        "tag": "#9C3D2B"
+        "keyword": "#7C4A61",
+        "string": "#7A5836",
+        "number": "#45688C",
+        "comment": "#8F7C66",
+        "literal": "#7C4A61",
+        "type": "#47655B",
+        "property": "#6B4E80",
+        "tag": "#45688C"
       }
     }
     """
@@ -702,26 +702,26 @@ enum BuiltInThemes {
         "background": "#FAFAF7",
         "text": "#2B2B2B",
         "secondaryText": "#6B6B66",
-        "marker": "#8C8C85",
-        "heading": "#111111",
+        "marker": "#7C7C76",
+        "heading": "#2B2B2B",
         "link": "#2F5D8C",
-        "inlineCode": "#6A3D9A",
+        "inlineCode": "#2B2B2B",
         "inlineCodeBackground": "#EFEFEA",
         "codeBlockBackground": "#F2F2EE",
-        "blockquote": "#55554F",
+        "blockquote": "#6B6B66",
         "selection": "#D8E2EC",
         "cursor": "#2B2B2B",
         "accent": "#2F5D8C"
       },
       "syntax": {
-        "keyword": "#5B3E8C",
-        "string": "#2F6B3A",
-        "number": "#9A4A12",
-        "comment": "#7E7E78",
-        "literal": "#8C2F5A",
-        "type": "#1F5A73",
-        "property": "#6B4A1F",
-        "tag": "#8A2F2F"
+        "keyword": "#7A4F66",
+        "string": "#7A5A3E",
+        "number": "#3F6A95",
+        "comment": "#7C7C76",
+        "literal": "#7A4F66",
+        "type": "#4F6F6B",
+        "property": "#6A5A86",
+        "tag": "#3F6A95"
       }
     }
     """
@@ -732,29 +732,29 @@ enum BuiltInThemes {
       "name": "Varsayılan Koyu",
       "appearance": "dark",
       "colors": {
-        "background": "#1E1E1E",
+        "background": "#272727",
         "text": "#E3E3E3",
-        "secondaryText": "#A1A1A6",
-        "marker": "#7D7D82",
-        "heading": "#F5F5F7",
-        "link": "#4DA3FF",
-        "inlineCode": "#FF8170",
-        "inlineCodeBackground": "#2C2C2E",
-        "codeBlockBackground": "#262628",
-        "blockquote": "#BDBDC2",
+        "secondaryText": "#C5C5C5",
+        "marker": "#8A8A8A",
+        "heading": "#E3E3E3",
+        "link": "#8DB4DE",
+        "inlineCode": "#E3E3E3",
+        "inlineCodeBackground": "#313131",
+        "codeBlockBackground": "#313131",
+        "blockquote": "#C5C5C5",
         "selection": "#3F638B",
         "cursor": "#0A84FF",
         "accent": "#0A84FF"
       },
       "syntax": {
-        "keyword": "#FF7AB2",
-        "string": "#FF8170",
-        "number": "#D9C97C",
-        "comment": "#7F8C98",
-        "literal": "#D0A8FF",
-        "type": "#5DD8FF",
-        "property": "#67B7A4",
-        "tag": "#ACF2E4"
+        "keyword": "#D18AA8",
+        "string": "#C9A27F",
+        "number": "#86A9D1",
+        "comment": "#8A8A8A",
+        "literal": "#D18AA8",
+        "type": "#7FBAB3",
+        "property": "#A99BD0",
+        "tag": "#86A9D1"
       }
     }
     """
@@ -767,27 +767,27 @@ enum BuiltInThemes {
       "colors": {
         "background": "#141B2D",
         "text": "#D8DEE9",
-        "secondaryText": "#94A0B8",
-        "marker": "#6B7894",
-        "heading": "#EEF2F8",
-        "link": "#7AB8FF",
-        "inlineCode": "#F2A97C",
+        "secondaryText": "#A4AEC2",
+        "marker": "#7C88A3",
+        "heading": "#D8DEE9",
+        "link": "#8DB4DE",
+        "inlineCode": "#D8DEE9",
         "inlineCodeBackground": "#1E2740",
         "codeBlockBackground": "#19213A",
-        "blockquote": "#AEB8CC",
+        "blockquote": "#A4AEC2",
         "selection": "#2E4373",
         "cursor": "#7AB8FF",
-        "accent": "#5E9BFF"
+        "accent": "#6E9BD6"
       },
       "syntax": {
-        "keyword": "#C59BFF",
-        "string": "#A5D6A7",
-        "number": "#F2C879",
-        "comment": "#7383A3",
-        "literal": "#FF9EBB",
-        "type": "#7FD4E8",
-        "property": "#8FB8FF",
-        "tag": "#FF8F8F"
+        "keyword": "#C79BB8",
+        "string": "#C4A385",
+        "number": "#8FAAD0",
+        "comment": "#7C88A3",
+        "literal": "#C79BB8",
+        "type": "#82B8B0",
+        "property": "#A79BCB",
+        "tag": "#8FAAD0"
       }
     }
     """
@@ -800,27 +800,27 @@ enum BuiltInThemes {
       "colors": {
         "background": "#0F2229",
         "text": "#D4E6E8",
-        "secondaryText": "#8FB0B5",
-        "marker": "#5F858C",
-        "heading": "#E8F5F6",
-        "link": "#5CD0E6",
-        "inlineCode": "#FFC07A",
+        "secondaryText": "#A6BEC2",
+        "marker": "#7D9CA3",
+        "heading": "#D4E6E8",
+        "link": "#8DB4DE",
+        "inlineCode": "#D4E6E8",
         "inlineCodeBackground": "#173039",
         "codeBlockBackground": "#132A32",
-        "blockquote": "#A6C4C8",
+        "blockquote": "#A6BEC2",
         "selection": "#1F4D5A",
         "cursor": "#5CD0E6",
-        "accent": "#2FB5C8"
+        "accent": "#6FAEB8"
       },
       "syntax": {
-        "keyword": "#7FB2FF",
-        "string": "#9FE0A8",
-        "number": "#FFC07A",
-        "comment": "#6E959C",
-        "literal": "#F49AC1",
-        "type": "#5CD0E6",
-        "property": "#B9A6FF",
-        "tag": "#FF8A80"
+        "keyword": "#C79BB8",
+        "string": "#C4A385",
+        "number": "#8FAAC4",
+        "comment": "#7D9CA3",
+        "literal": "#C79BB8",
+        "type": "#82B8B0",
+        "property": "#A79BCB",
+        "tag": "#8FAAC4"
       }
     }
     """

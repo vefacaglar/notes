@@ -157,6 +157,28 @@ struct BuiltInThemeTests {
         }
     }
 
+    /// The shared muted palette: headings and inline code are the body colour, markers and comments are one
+    /// dimmed grey, and no colour is saturated (no bright reds, purples or neon tones).
+    @Test func builtInPalettesAreMuted() {
+        for theme in ThemeLibrary.builtInThemes {
+            let c = theme.colors, s = theme.syntax
+            #expect(c.heading == c.text, "\(theme.id): heading is not the text color")
+            #expect(c.inlineCode == c.text, "\(theme.id): inline code is not the text color")
+            #expect(c.marker == s.comment, "\(theme.id): markers and comments differ")
+
+            // selection, cursor and accent are control colors (the system accent blue), not palette colors.
+            let controls: Set<String> = ["selection", "cursor", "accent"]
+            let colors = (Array(Mirror(reflecting: c).children) + Array(Mirror(reflecting: s).children))
+                .filter { !controls.contains($0.label ?? "") }
+                .compactMap { $0.value as? ThemeColor }
+            for color in colors {
+                let high = max(color.red, max(color.green, color.blue))
+                let low = min(color.red, min(color.green, color.blue))
+                #expect(Int(high) - Int(low) <= 120, "\(theme.id): \(color) is too saturated")
+            }
+        }
+    }
+
     @Test func builtInJSONRoundTrips() throws {
         for theme in ThemeLibrary.builtInThemes {
             #expect(try Theme.decode(theme.encodedJSON()) == theme)

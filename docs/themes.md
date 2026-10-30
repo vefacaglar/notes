@@ -124,6 +124,8 @@ The names above are the built-in files' JSON `name` values (data, like any other
 
 Built-ins are stored in the same JSON format (macOS: `apps/macos/Sources/NotesCore/Theme.swift`) and set every color. Their body text, headings, links, quotes, inline code and code tokens have a contrast ratio of at least 4.5:1 against their background (WCAG 2), and Markdown markers, comments, secondary text, cursor and accent at least 3:1. User themes are not checked.
 
+All six built-ins use one muted palette: low-saturation colors whose lightness sits close to the body text, no bright reds, purples or neon tones. Headings and inline code text are the body color, `literal` tokens take the keyword color, and markers, comments and dimmed text are one tinted grey; the syntax hues are dull plum (keywords, literals), brown (strings), slate blue (numbers, tags), grey (comments), teal (types) and lavender grey (properties), with the same hue families lightened for the dark themes. Keywords are drawn semibold in both apps.
+
 ## Full example
 
 Every key set (this is the `default-light` palette):
@@ -134,29 +136,29 @@ Every key set (this is the `default-light` palette):
   "name": "Benim Açık Temam",
   "appearance": "light",
   "colors": {
-    "background": "#FFFFFF",
-    "text": "#1F1F1F",
-    "secondaryText": "#6E6E73",
-    "marker": "#8A8A8F",
-    "heading": "#1D1D1F",
-    "link": "#0068DA",
-    "inlineCode": "#B42318",
-    "inlineCodeBackground": "#F1F1F3",
-    "codeBlockBackground": "#F6F6F8",
-    "blockquote": "#4B4B50",
+    "background": "#FAFAFA",
+    "text": "#1B1B1B",
+    "secondaryText": "#5F5F5F",
+    "marker": "#767676",
+    "heading": "#1B1B1B",
+    "link": "#2F6396",
+    "inlineCode": "#1B1B1B",
+    "inlineCodeBackground": "#F1F1F1",
+    "codeBlockBackground": "#F1F1F1",
+    "blockquote": "#5F5F5F",
     "selection": "#B3D7FF",
     "cursor": "#007AFF",
     "accent": "#007AFF"
   },
   "syntax": {
-    "keyword": "#9B2393",
-    "string": "#C41A16",
-    "number": "#1C00CF",
-    "comment": "#5D6C79",
-    "literal": "#6C36A9",
-    "type": "#0B4F79",
-    "property": "#326D74",
-    "tag": "#0F68A0"
+    "keyword": "#8C4A6B",
+    "string": "#8A5A3C",
+    "number": "#3F6A95",
+    "comment": "#767676",
+    "literal": "#8C4A6B",
+    "type": "#2F7771",
+    "property": "#6E5A94",
+    "tag": "#3F6A95"
   }
 }
 ```
