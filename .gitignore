@@ -4,3 +4,7 @@
 *.xcodeproj/
 xcuserdata/
 build/
+bin/
+obj/
+.vs/
+*.user

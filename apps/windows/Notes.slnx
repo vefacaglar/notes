@@ -1,0 +1,9 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/Notes/Notes.csproj" />
+    <Project Path="src/NotesCore/NotesCore.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/NotesCore.Tests/NotesCore.Tests.csproj" />
+  </Folder>
+</Solution>

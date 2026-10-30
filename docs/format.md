@@ -4,18 +4,18 @@ The storage contract shared by the macOS and Windows apps. The folder on disk is
 
 ## Layout
 
-- **Root**: one folder chosen by the user (macOS default: `~/Documents/Notes`). Created if missing.
+- **Root**: a folder chosen by the user (macOS default: `~/Documents/Notes`, Windows default: `%USERPROFILE%\Documents\Notes`). Created if missing. An app may show several roots side by side (a workspace, like VS Code); each root follows this contract on its own, paths are relative to their root, and roots may not be nested inside one another. The list of roots is app preference, not stored in the folders.
 - **Notes**: every regular file whose extension is `md` (case-insensitive) is a note. The note's display name is the file name without the extension. Only notes are created by New Note and named automatically.
 - **Other text files**: regular files with one of these extensions (case-insensitive) are listed, searched and editable too, but are not notes: `json`, `swift`, `js` `mjs` `cjs` `jsx` `ts` `tsx` `mts` `cts`, `py`, `sh` `bash` `zsh`, `yaml` `yml`, `xml` `html` `htm` `plist` `svg`, `css`, `c` `h` `cc` `cpp` `hpp` `m` `mm` `java` `kt` `kts` `cs` `go` `rs`, `sql`, `toml` `ini`, `markdown` `mdown` `mkd`, `txt`, `log`, `csv`. They are shown with their full file name (extension included). Markdown files with the longer extensions open in the Markdown editor, the rest in a code editor with syntax highlighting; JSON can be reformatted ("Biçimlendir"). They are never renamed automatically.
 - **Large files**: files over 20 MB open read-only; files over 200 MB are not opened. Styling is skipped for texts over 2,000,000 UTF-16 code units.
 - **Folders**: every subdirectory is a folder, nested to any depth. Empty folders are kept and shown.
-- **Ignored**: any file or folder whose name starts with `.` (and everything below it, e.g. `.git/`), and every file without one of the extensions above (including files without an extension). Apps never list, modify or delete ignored entries.
+- **Ignored**: any file or folder whose name starts with `.` or that the OS marks hidden (macOS hidden flag, Windows Hidden attribute, e.g. `desktop.ini`), and everything below it (e.g. `.git/`), and every file without one of the extensions above (including files without an extension). Apps never list, modify or delete ignored entries.
 - **No sidecar files**: apps write nothing but the files and folders themselves (and conflict copies, see *External changes*). Pinning, ordering, tags, timestamps etc. are not stored; modification time comes from the file system.
 
 ## Paths and names
 
 - An item is identified by its path relative to the root, using `/` as the separator on every platform (e.g. `Work/Plans/2026.md`). Paths are split at the Unicode scalar U+002F, never at grapheme clusters (a `/` followed by a combining mark is still a separator).
-- **Existing items** (anything found on disk) are opened, renamed and trashed whatever their names, so files made by other programs (`Why?.md`, `10:30.md`) keep working. A path is only rejected when a component is empty or starts with `.` (which covers `.`, `..` and hidden names), so it can never leave the root.
+- **Existing items** (anything found on disk) are opened, renamed and trashed whatever their names, so files made by other programs (`Why?.md`, `10:30.md`) keep working. A path is only rejected when a component is empty or starts with `.` (which covers `.`, `..` and hidden names), so it can never leave the root. On Windows a component containing `\ : * ? " < > |` or ending in `.` or a space is rejected too, and entries whose name ends in `.` or a space are not listed: Windows cannot create such names, and Win32 would resolve them to another item (`bar.`, `bar ` → `bar`), a stream or a wildcard.
 - **Names the user types** (new folder, rename) and automatic names must follow the portable rules. A name must:
   - be non-empty,
   - not start with `.` (checked on the first Unicode scalar),
@@ -69,7 +69,7 @@ Within a folder: subfolders first, then files (notes and other text files togeth
 
 ## Deleting
 
-Deleting a note or folder moves it to the OS trash (macOS Trash / Windows Recycle Bin) so it can be restored. Apps never delete permanently.
+Deleting a note or folder moves it to the OS trash (macOS Trash / Windows Recycle Bin) so it can be restored. Apps never delete permanently on their own; where the volume has no trash (e.g. some network shares on Windows), the OS asks the user before deleting permanently, and declining cancels the delete.
 
 ## External changes
 
