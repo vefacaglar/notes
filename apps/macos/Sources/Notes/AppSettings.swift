@@ -145,11 +145,12 @@ final class AppSettings {
 
     // MARK: Appearance
 
-    /// Sets `NSApp.appearance` from `appearanceMode`. Called on change; the app calls it once at launch too
-    /// (safe to call before `NSApp` exists — it does nothing then).
+    /// Sets `NSApp.appearance` from `appearanceMode`, or from `-theme` when that was given (for this run only; the
+    /// setting itself is left alone). Called on change; the app calls it once at launch too (safe to call before
+    /// `NSApp` exists — it does nothing then).
     func applyAppearance() {
         guard let app = NSApp else { return }
-        switch appearanceMode {
+        switch LaunchOptions.theme ?? appearanceMode {
         case .system: app.appearance = nil
         case .light: app.appearance = NSAppearance(named: .aqua)
         case .dark: app.appearance = NSAppearance(named: .darkAqua)

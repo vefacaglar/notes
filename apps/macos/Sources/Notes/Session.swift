@@ -1,14 +1,20 @@
 import Foundation
+import NotesCore
 
-/// Command-line options for test runs. Both are argument-domain values, so nothing is written to the preferences.
+/// Command-line options for test runs. All are argument-domain values, so nothing is written to the preferences.
 enum LaunchOptions {
-    /// `-notesFolder <path>`: one root that is never saved as the workspace.
-    static let testRoot: String? = argument("notesFolder")
+    /// `-notesFolder <path>`, repeatable: the roots for this run, never saved as the workspace.
+    static let testRoots: [String] = values("notesFolder")
     /// `-supportFolder <path>`: where session and drafts live instead of `~/Library/Application Support/Notes`.
     static let supportFolderOverride: String? = argument("supportFolder")
+    /// `-theme light|dark`: forces the appearance for this run only (it is not saved).
+    static let theme: AppearanceMode? = {
+        guard let mode = argument("theme").flatMap(AppearanceMode.init(rawValue:)), mode != .system else { return nil }
+        return mode
+    }()
 
     /// Whether this run may change the user's saved workspace and app state.
-    static var isPersistent: Bool { testRoot == nil }
+    static var isPersistent: Bool { testRoots.isEmpty }
 
     /// The app's own folder for the session file and drafts; `nil` for a test run without `-supportFolder`, which
     /// keeps no session and throwaway drafts.
@@ -22,6 +28,18 @@ enum LaunchOptions {
 
     private static func argument(_ key: String) -> String? {
         UserDefaults.standard.volatileDomain(forName: UserDefaults.argumentDomain)[key] as? String
+    }
+
+    /// Every value given for `-key <value>` on the command line. The argument domain keeps only the last one, so a
+    /// repeatable option is read from the arguments themselves; a value that starts with "-" is another option.
+    private static func values(_ key: String) -> [String] {
+        var result: [String] = []
+        var arguments = CommandLine.arguments.dropFirst().makeIterator()
+        while let argument = arguments.next() {
+            guard argument == "-" + key, let value = arguments.next(), !value.hasPrefix("-") else { continue }
+            result.append(value)
+        }
+        return result
     }
 }
 

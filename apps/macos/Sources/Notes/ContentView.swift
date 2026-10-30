@@ -28,6 +28,10 @@ struct WorkspaceView: View {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button(action: workspace.newNote) { Label(loc: "New Note", systemImage: "square.and.pencil") }
                     Button(action: workspace.newFolder) { Label(loc: "New Folder", systemImage: "folder.badge.plus") }
+                    Button(action: model.chooseRoot) {
+                        Label(loc: "Add Folder to Workspace…", systemImage: "plus.rectangle.on.folder")
+                    }
+                    .help(loc: "Add Folder to Workspace…")
                 }
             }
         }

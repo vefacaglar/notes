@@ -1,3 +1,4 @@
+import AppKit
 import NotesCore
 import SwiftUI
 
@@ -7,15 +8,24 @@ struct SidebarView: View {
     let model: NotesModel
     @State private var hitSelection: WorkspaceHit.ID?
     @State private var collapsedRoots: Set<UUID> = []
+    /// The search field: ⌘F focuses it, Esc clears it (and Return must not rename while it has the keys).
+    @FocusState private var searchFocused: Bool
 
     var body: some View {
         Group {
             if workspace.isSearching {
-                List(workspace.hits, selection: $hitSelection) { hit in
-                    HitRow(hit: hit, rootName: workspace.roots.count > 1 ? workspace.root(hit.root)?.name : nil)
+                List(searchRows, selection: $hitSelection) { row in
+                    switch row {
+                    case .header(_, let name):
+                        Label(name, systemImage: "folder")
+                            .fontWeight(.semibold)
+                            .selectionDisabled()
+                    case .hit(let hit):
+                        HitRow(hit: hit)
+                    }
                 }
                 .overlay {
-                    if workspace.hits.isEmpty { ContentUnavailableView.search(text: workspace.query) }
+                    if searchRows.isEmpty { noResults }
                 }
             } else {
                 List(selection: $workspace.selection) {
@@ -63,6 +73,10 @@ struct SidebarView: View {
             }
         }
         .searchable(text: $workspace.query, placement: .sidebar, prompt: Text(loc: "Search"))
+        .searchFocus($searchFocused)
+        .onKeyPress(phases: .down, action: handleKey)
+        .onDeleteCommand { if !isEditingSearchField { confirmTrash() } }
+        .background(SearchShortcut(action: focusSearch))
         .onChange(of: hitSelection) {
             if let hit = workspace.hits.first(where: { $0.id == hitSelection }) { workspace.selection = hit.item }
         }
@@ -85,22 +99,104 @@ struct SidebarView: View {
         L("Move “\(NoteStore.displayName(workspace.trashCandidate?.path ?? ""))” to the Trash?")
     }
 
+    /// The search list: a header with the root's name when there are several roots, so a hit's folder path needn't
+    /// repeat it. Roots without hits (or that went away) add nothing.
+    private var searchRows: [SearchRow] {
+        let groups = workspace.roots.count > 1
+        return workspace.roots.flatMap { root -> [SearchRow] in
+            let hits = workspace.hits.filter { $0.root == root.id }
+            guard !hits.isEmpty else { return [] }
+            return (groups ? [.header(id: root.id, name: root.name)] : []) + hits.map(SearchRow.hit)
+        }
+    }
+
+    private var noResults: some View {
+        Text(loc: "No results for “\(workspace.query.trimmingCharacters(in: .whitespacesAndNewlines))”")
+            .foregroundStyle(.secondary)
+            .multilineTextAlignment(.center)
+            .padding(24)
+            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+    }
+
+    // MARK: Keys
+
+    /// Esc clears the search field, Return renames the selected item, ⌘⌫ moves it to the Trash.
+    private func handleKey(_ press: KeyPress) -> KeyPress.Result {
+        switch press.key {
+        case .escape:
+            guard isEditingSearchField, !workspace.query.isEmpty else { return .ignored }
+            workspace.query = ""
+            return .handled
+        case .return:
+            guard !isEditingSearchField, let item = workspace.selection, !item.isRoot else { return .ignored }
+            workspace.rename(item)
+            return .handled
+        case .delete:
+            guard press.modifiers.contains(.command), !isEditingSearchField else { return .ignored }
+            return confirmTrash() ? .handled : .ignored
+        default:
+            return .ignored
+        }
+    }
+
+    /// Whether the search field has the keys. `searchFocused` says so on macOS 15; before that the field is the first
+    /// responder of the window, with its field editor (`NSTextView`) in between.
+    private var isEditingSearchField: Bool {
+        if #available(macOS 15.0, *) { return searchFocused }
+        guard let window = workspace.window, let textView = window.firstResponder as? NSTextView else { return false }
+        return textView.delegate is NSSearchField
+    }
+
+    /// Asks before moving the selected item to the Trash, like its context menu does. `false` when there is nothing to
+    /// trash: a root, or no selection.
+    @discardableResult private func confirmTrash() -> Bool {
+        guard let item = workspace.selection, !item.isRoot else { return false }
+        workspace.trashCandidate = item
+        return true
+    }
+
+    /// ⌘F: shows the sidebar when it is collapsed and puts the cursor in the search field.
+    private func focusSearch() {
+        workspace.isSidebarVisible = true
+        // A field that appears just now (the sidebar was collapsed) takes focus a moment later.
+        Task { @MainActor in
+            for _ in 0..<20 {
+                if focusSearchField() { return }
+                try? await Task.sleep(for: .milliseconds(25))
+            }
+        }
+    }
+
+    /// Puts the cursor in the search field; `false` while the field doesn't exist yet, so the caller tries again.
+    private func focusSearchField() -> Bool {
+        if #available(macOS 15.0, *) {
+            let focused = searchFocused
+            searchFocused = true
+            return focused
+        }
+        guard let window = workspace.window, let field = window.sidebarSearchField else { return false }
+        return window.makeFirstResponder(field)
+    }
+
     private func expanded(_ root: RootFolder) -> Binding<Bool> {
         Binding(get: { !collapsedRoots.contains(root.id) },
                 set: { if $0 { collapsedRoots.remove(root.id) } else { collapsedRoots.insert(root.id) } })
     }
 
     @ViewBuilder private func menu(for item: SidebarItem) -> some View {
-        if !item.isFolder, let url = workspace.url(for: item.id) {
-            Button(loc: "Open in New Tab") { workspace.open(url, newTab: true) }
-            Divider()
-        }
         if item.isFolder {
+            Button(loc: "New Note") {
+                workspace.selection = item.id
+                workspace.newNote()
+            }
             Button(loc: "Create Folder…") {
                 workspace.selection = item.id
                 workspace.newFolder()
             }
+        } else if let url = workspace.url(for: item.id) {
+            Button(loc: "Open in New Tab") { workspace.open(url, newTab: true) }
         }
+        Divider()
         Button(loc: "Rename Item…") { workspace.rename(item.id) }
         Button(loc: "Show in Finder") { workspace.revealInFinder(item.id) }
         Divider()
@@ -108,10 +204,15 @@ struct SidebarView: View {
     }
 
     @ViewBuilder private func rootMenu(for root: RootFolder) -> some View {
+        Button(loc: "New Note") {
+            workspace.selection = ItemID(root: root.id, path: "")
+            workspace.newNote()
+        }
         Button(loc: "Create Folder…") {
             workspace.selection = ItemID(root: root.id, path: "")
             workspace.newFolder()
         }
+        Divider()
         Button(loc: "Show in Finder") { workspace.revealInFinder(ItemID(root: root.id, path: "")) }
         if workspace.isMain {
             Divider()
@@ -134,9 +235,35 @@ struct SidebarView: View {
     }
 }
 
+/// A row of the search list: a root's header, or a hit.
+private enum SearchRow: Identifiable {
+    case header(id: UUID, name: String)
+    case hit(WorkspaceHit)
+
+    var id: String {
+        switch self {
+        case .header(let id, _): return "root:\(id.uuidString)"
+        case .hit(let hit): return hit.id
+        }
+    }
+}
+
+/// ⌘F puts the cursor in the search field. An invisible button (like the tab number shortcuts): a menu item would only
+/// repeat what the search field's own menu does.
+private struct SearchShortcut: View {
+    let action: () -> Void
+
+    var body: some View {
+        Button("") { action() }
+            .keyboardShortcut("f", modifiers: .command)
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+    }
+}
+
 private struct HitRow: View {
     let hit: WorkspaceHit
-    let rootName: String?
 
     var body: some View {
         let path = hit.hit.path
@@ -156,9 +283,38 @@ private struct HitRow: View {
         .padding(.vertical, 2)
     }
 
+    /// The hit's folder inside its root; a hit row's group header already names the root.
     private func location(of path: String) -> String? {
         let parent = NoteStore.parent(path)
-        let parts = [rootName, parent.isEmpty ? nil : parent].compactMap { $0 }
-        return parts.isEmpty ? nil : parts.joined(separator: "/")
+        return parent.isEmpty ? nil : parent
+    }
+}
+
+private extension View {
+    /// SwiftUI's own `.searchFocused` (macOS 15); macOS 14 focuses the field through AppKit instead.
+    @ViewBuilder func searchFocus(_ focused: FocusState<Bool>.Binding) -> some View {
+        if #available(macOS 15.0, *) {
+            searchFocused(focused)
+        } else {
+            self
+        }
+    }
+}
+
+private extension NSWindow {
+    /// The sidebar's search field, wherever AppKit put it: in the sidebar itself or in a toolbar item.
+    var sidebarSearchField: NSSearchField? {
+        if let item = toolbar?.items.compactMap({ $0 as? NSSearchToolbarItem }).first { return item.searchField }
+        return contentView?.firstSearchField
+    }
+}
+
+private extension NSView {
+    var firstSearchField: NSSearchField? {
+        if let field = self as? NSSearchField { return field }
+        for subview in subviews {
+            if let field = subview.firstSearchField { return field }
+        }
+        return nil
     }
 }
