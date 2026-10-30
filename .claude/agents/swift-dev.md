@@ -16,5 +16,6 @@ Rules:
 - Builds must be warning-free under Swift 6 strict concurrency.
 - Stay inside the files you were assigned. If another agent works in parallel, transient compile errors in its files are expected; retry instead of fixing them.
 - Do not commit, push or change Package.swift dependencies unless told to.
+- Never touch the user's real notes folder (`~/Documents/Notes` or whatever the app has saved as its root) or other personal files while testing; use temp folders and point the app at them.
 
 Done means `swift test` and `swift build` pass in `apps/macos` (and `./scripts/bundle.sh` when you touched the app shell or Info.plist). Your final reply lists the files you changed, what you verified and how, and anything you were unsure about or could not verify (e.g. visual behaviour).
