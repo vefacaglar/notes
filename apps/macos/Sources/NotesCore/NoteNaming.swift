@@ -9,7 +9,7 @@ public enum NamingLanguage: Sendable, CaseIterable {
     /// The language of the names the apps write. English until the app sets it (`configure`).
     public static var current: NamingLanguage { storage.value }
 
-    /// Sets `current` from the UI language the app resolved (macOS: `Bundle.main.preferredLocalizations.first`):
+    /// Sets `current` from the UI language the app resolved (set by `Localization.configure`):
     /// Turkish for `tr` and its regional forms, English for anything else or `nil`.
     public static func configure(localization: String?) {
         storage.value = resolve(localization: localization)

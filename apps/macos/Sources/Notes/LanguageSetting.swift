@@ -44,13 +44,41 @@ enum LanguageSetting {
     /// `applicationShouldTerminate`, so unsaved changes were already dealt with.
     @MainActor static func relaunch(releasing model: NotesModel) {
         model.releaseDraftsForRelaunch()
+        // The new instance must read the language stored just now, not the one this run was forced to with `-lang`.
+        let arguments = argumentsWithoutLanguageOverride()
+        guard Bundle.main.bundleURL.pathExtension == "app" else {
+            // `swift run`: there is no app bundle for LaunchServices to open, so start the executable again.
+            let process = Process()
+            process.executableURL = Bundle.main.executableURL
+            process.arguments = arguments
+            do {
+                try process.run()
+            } catch {
+                NSLog("Notes: relaunch failed: %@", error.localizedDescription)
+            }
+            return
+        }
         let configuration = NSWorkspace.OpenConfiguration()
         configuration.createsNewApplicationInstance = true
-        configuration.arguments = Array(CommandLine.arguments.dropFirst())
+        configuration.arguments = arguments
         // The process ends right after this returns; wait until LaunchServices has taken the request.
         let accepted = DispatchSemaphore(value: 0)
-        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, _ in accepted.signal() }
+        NSWorkspace.shared.openApplication(at: Bundle.main.bundleURL, configuration: configuration) { _, error in
+            if let error { NSLog("Notes: relaunch failed: %@", error.localizedDescription) }
+            accepted.signal()
+        }
         _ = accepted.wait(timeout: .now() + 3)
+    }
+
+    /// This run's arguments without the `-lang <value>` pair that would override the language the user just chose.
+    private static func argumentsWithoutLanguageOverride() -> [String] {
+        var arguments = Array(CommandLine.arguments.dropFirst())
+        while let index = arguments.firstIndex(of: "-lang") {
+            arguments.remove(at: index)
+            // The value that followed it, unless the next argument is another option (or there is none).
+            if index < arguments.count, !arguments[index].hasPrefix("-") { arguments.remove(at: index) }
+        }
+        return arguments
     }
 
     @MainActor static func requestRelaunch() {

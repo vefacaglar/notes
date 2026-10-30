@@ -262,7 +262,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Plain Text"
+            "value": "Plain text"
           }
         },
         "tr": {
@@ -704,7 +704,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "expected a colon"
+            "value": "expected ':'"
           }
         },
         "tr": {
@@ -721,7 +721,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "expected a comma or a closing brace"
+            "value": "expected ',' or '}'"
           }
         },
         "tr": {
@@ -738,7 +738,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "expected a comma or a closing bracket"
+            "value": "expected ',' or ']'"
           }
         },
         "tr": {
@@ -1180,7 +1180,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "unexpected content after the value"
+            "value": "extra content after the value"
           }
         },
         "tr": {

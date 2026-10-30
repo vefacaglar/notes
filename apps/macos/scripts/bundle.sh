@@ -22,9 +22,13 @@ done
 # One .lproj per UI language so Bundle.main.preferredLocalizations (and AppKit's own texts) resolve to en or tr.
 mkdir -p "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/tr.lproj"
 cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<'STRINGS'
+"CFBundleName" = "Notes";
+"CFBundleDisplayName" = "Notes";
 "Text and Code" = "Text and Code";
 STRINGS
 cat > "$APP/Contents/Resources/tr.lproj/InfoPlist.strings" <<'STRINGS'
+"CFBundleName" = "Notlar";
+"CFBundleDisplayName" = "Notlar";
 "Text and Code" = "Metin ve Kod";
 STRINGS
 

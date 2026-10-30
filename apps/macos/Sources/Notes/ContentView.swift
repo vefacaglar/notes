@@ -86,7 +86,7 @@ struct WorkspaceView: View {
 
     private var title: String {
         if let document = workspace.activeDocument { return document.title }
-        return workspace.isMain ? "Notes" : workspace.roots.first?.name ?? "Notes"
+        return workspace.isMain ? L("Notes") : workspace.roots.first?.name ?? L("Notes")
     }
 
     private var representedURL: URL? {

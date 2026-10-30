@@ -62,7 +62,7 @@ private struct GeneralSettingsView: View {
                 }
                 if settings.needsRestart {
                     HStack {
-                        Text(loc: "Restart Notes to apply")
+                        Text(loc: "Restart \(L("Notes")) to apply")
                             .foregroundStyle(.secondary)
                         Spacer()
                         Button(loc: "Restart") { LanguageSetting.requestRelaunch() }
@@ -207,10 +207,10 @@ struct ThemePreview: View {
         let block = c.codeBlockBackground
         let run = Self.run
         return [
-            run("# ", c.marker, heading, nil) + run("Notes", c.heading, heading, nil),
-            run("Plain text, ", c.text, text, nil) + run("a link", c.link, text, nil) + run(" and ", c.text, text, nil)
+            run("# ", c.marker, heading, nil) + run(L("Notes"), c.heading, heading, nil),
+            run(L("Plain text, "), c.text, text, nil) + run(L("a link"), c.link, text, nil) + run(L(" and "), c.text, text, nil)
                 + run("`code`", c.inlineCode, code, c.inlineCodeBackground),
-            run("> ", c.marker, text, nil) + run("A quote", c.blockquote, text, nil),
+            run("> ", c.marker, text, nil) + run(L("A quote"), c.blockquote, text, nil),
             run("let ", s.keyword, code, block) + run("name = ", c.text, code, block) + run("\"Ada\"", s.string, code, block)
                 + run(" // ", s.comment, code, block) + run("42", s.number, code, block),
         ]

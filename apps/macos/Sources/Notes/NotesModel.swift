@@ -355,12 +355,12 @@ final class NotesModel {
         )
     }
 
-    /// Saves for the last time before the app quits; later changes (windows closing) are not recorded.
     /// Lets a relaunched instance own the drafts folder right away (the lock would otherwise last until this process exits).
     func releaseDraftsForRelaunch() {
         draftStore?.unlock()
     }
 
+    /// Saves for the last time before the app quits; later changes (windows closing) are not recorded.
     func prepareForQuit() {
         guard !hasQuit else { return }
         saveSession()

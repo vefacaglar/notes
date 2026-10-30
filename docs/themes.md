@@ -107,7 +107,7 @@ A file is skipped, and the problem shown to the user, when:
 
 **File-name order**: file names (with extension) are normalized to NFC and compared ordinally by Unicode scalar value, which equals comparing their UTF-8 bytes. Uppercase sorts before lowercase (`B.json` < `a.json`), `é` sorts after `z`, and U+FFFD sorts before 😀. On Windows this is *not* `string.CompareOrdinal` (UTF-16 code units order 😀 before U+FFFD); compare the UTF-8 bytes or `Rune`s instead.
 
-One bad file never affects the other themes. Errors name the field, e.g. `"colors.link" alanı geçersiz: #RRGGBB ya da #RRGGBBAA biçiminde bir renk olmalı.`
+One bad file never affects the other themes. Errors name the field, e.g. `The field "colors.link" is invalid: must be a color like #RRGGBB or #RRGGBBAA.`
 
 ## Built-in themes
 
@@ -119,6 +119,8 @@ One bad file never affects the other themes. Errors name the field, e.g. `"color
 | `default-dark` | Varsayılan Koyu | dark |
 | `midnight` | Gece Mavisi | dark |
 | `ocean` | Okyanus | dark |
+
+The names above are the built-in files' JSON `name` values (data, like any other theme's). The apps show a built-in theme's name in the UI language instead, through `Theme.displayName`, matching the theme by `id`.
 
 Built-ins are stored in the same JSON format (macOS: `apps/macos/Sources/NotesCore/Theme.swift`) and set every color. Their body text, headings, links, quotes, inline code and code tokens have a contrast ratio of at least 4.5:1 against their background (WCAG 2), and Markdown markers, comments, secondary text, cursor and accent at least 3:1. User themes are not checked.
 

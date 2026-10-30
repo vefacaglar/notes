@@ -17,7 +17,7 @@ struct NotesApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
     var body: some Scene {
-        Window("Notes", id: Self.mainWindowID) {
+        Window(Text(loc: "Notes"), id: Self.mainWindowID) {
             WorkspaceView(workspace: appDelegate.model.main, model: appDelegate.model)
                 .environment(AppSettings.shared)
         }

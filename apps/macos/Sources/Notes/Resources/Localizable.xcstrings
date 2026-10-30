@@ -1,6 +1,23 @@
 {
   "sourceLanguage": "en",
   "strings": {
+    " and ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " and "
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": " ve "
+          }
+        }
+      }
+    },
     "%@ (not available)": {
       "extractionState": "manual",
       "localizations": {
@@ -150,6 +167,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yeni sekme açılamadı: %@"
+          }
+        }
+      }
+    },
+    "A quote": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A quote"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bir alıntı"
           }
         }
       }
@@ -517,13 +551,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Create Folder…"
+            "value": "New Folder…"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klasör Oluştur…"
+            "value": "Yeni Klasör…"
           }
         }
       }
@@ -914,7 +948,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Çöp Sepetine Taşı"
+            "value": "Çöp Sepeti'ne Taşı"
           }
         }
       }
@@ -942,7 +976,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Moving to the Trash was cancelled."
+            "value": "Moving to the Trash was canceled."
           }
         },
         "tr": {
@@ -1157,6 +1191,23 @@
         }
       }
     },
+    "Plain text, ": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Plain text, "
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Düz metin, "
+          }
+        }
+      }
+    },
     "Quit Without Saving": {
       "extractionState": "manual",
       "localizations": {
@@ -1220,7 +1271,7 @@
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Klasörü Çalışma Alanından Kaldır"
+            "value": "Çalışma Alanından Kaldır"
           }
         }
       }
@@ -1248,13 +1299,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Rename Item…"
+            "value": "Rename…"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Öğeyi Yeniden Adlandır…"
+            "value": "Yeniden Adlandır…"
           }
         }
       }
@@ -1293,19 +1344,19 @@
         }
       }
     },
-    "Restart Notes to apply": {
+    "Restart %@ to apply": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Restart Notes to apply"
+            "value": "Restart %@ to apply"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uygulamak için Notes'u yeniden başlatın"
+            "value": "Uygulamak için %@ uygulamasını yeniden başlatın."
           }
         }
       }
@@ -1656,7 +1707,7 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The rename was cancelled."
+            "value": "The rename was canceled."
           }
         },
         "tr": {
@@ -1707,13 +1758,13 @@
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "There is no folder to save the note in. Add a folder to the workspace first."
+            "value": "Add a folder to the workspace first; the note needs a folder to be saved in."
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Notun kaydedileceği bir klasör yok. Önce çalışma alanına bir klasör ekleyin."
+            "value": "Önce çalışma alanına bir klasör ekleyin; notun kaydedileceği bir klasör gerekir."
           }
         }
       }
@@ -1816,6 +1867,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@” dosyasını kaydetme izniniz yok. Değişiklikleriniz bu pencerede tutuluyor."
+          }
+        }
+      }
+    },
+    "a link": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "a link"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "bir bağlantı"
           }
         }
       }

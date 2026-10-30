@@ -28,8 +28,8 @@ struct LocalizationTests {
 
     @Test func englishIsTheDefault() {
         #expect(Localization.code == "en")
-        #expect(english("Plain Text") == "Plain Text")
-        #expect(CodeLanguage.plainText.displayName == "Plain Text")
+        #expect(english("Plain Text") == "Plain text")
+        #expect(CodeLanguage.plainText.displayName == "Plain text")
         #expect(AppearanceMode.system.displayName == "System")
         #expect(ThemeError.invalidJSON.localizedDescription == "The file is not a valid JSON object.")
         #expect(ThemeLibrary.builtInThemes.map(\.displayName) == ["Default Light", "Sepia", "Paper", "Default Dark", "Midnight", "Ocean"])
