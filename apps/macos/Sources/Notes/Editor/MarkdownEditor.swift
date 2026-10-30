@@ -8,12 +8,15 @@ struct MarkdownEditor: NSViewRepresentable {
     var focusOnAppear = false
     var proxy: TextEditorProxy?
     var undoManager: UndoManager?
+    var isEditable = true
 
-    init(text: Binding<String>, focusOnAppear: Bool = false, proxy: TextEditorProxy? = nil, undoManager: UndoManager? = nil) {
+    init(text: Binding<String>, focusOnAppear: Bool = false, proxy: TextEditorProxy? = nil, undoManager: UndoManager? = nil,
+         isEditable: Bool = true) {
         _text = text
         self.focusOnAppear = focusOnAppear
         self.proxy = proxy
         self.undoManager = undoManager
+        self.isEditable = isEditable
     }
 
     func makeCoordinator() -> Coordinator {
@@ -30,6 +33,7 @@ struct MarkdownEditor: NSViewRepresentable {
         textView.font = MarkdownTheme.baseFont
         textView.defaultParagraphStyle = MarkdownTheme.paragraphStyle
         textView.typingAttributes = MarkdownTheme.base
+        textView.isEditable = isEditable
 
         textView.delegate = context.coordinator
         textView.textStorage?.delegate = context.coordinator
@@ -44,6 +48,7 @@ struct MarkdownEditor: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? NSTextView else { return }
+        textView.isEditable = isEditable
         proxy?.textView = textView
         proxy?.language = .markdown
         context.coordinator.update($text, in: textView)
@@ -60,6 +65,17 @@ struct MarkdownEditor: NSViewRepresentable {
 
         override func restyle(_ textView: NSTextView) {
             guard let storage = textView.textStorage else { return }
+            guard storage.length <= Self.maxStyledLength else {
+                // Too long to scan on every keystroke: plain text, styled once.
+                if needsFullRestyle {
+                    storage.setAttributes(MarkdownTheme.base, range: NSRange(location: 0, length: storage.length))
+                }
+                codeBlocks = []
+                pendingEdit = nil
+                needsFullRestyle = false
+                textView.typingAttributes = MarkdownTheme.base
+                return
+            }
             let spans = MarkdownStyler.spans(in: storage.string)
             let blocks = spans.filter { $0.kind == .codeBlock }.map(\.range)
 

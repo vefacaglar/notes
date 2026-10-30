@@ -19,7 +19,7 @@ struct CodeHighlighterTests {
         ("a.json", CodeLanguage.json), ("b.SWIFT", .swift), ("c.tsx", .javascript), ("d.mjs", .javascript),
         ("e.py", .python), ("f.zsh", .shell), ("g.yml", .yaml), ("h.plist", .xml), ("i.svg", .xml),
         ("j.css", .css), ("k.rs", .cFamily), ("l.hpp", .cFamily), ("m.sql", .sql), ("n.ini", .toml),
-        ("Klasör/o.md", .markdown), ("p.txt", .plainText), ("Makefile", .plainText),
+        ("Klasör/o.md", .markdown), ("x.mkd", .markdown), ("x.MDOWN", .markdown), ("p.txt", .plainText), ("Makefile", .plainText),
     ])
     func detectsLanguageFromExtension(path: String, language: CodeLanguage) {
         #expect(CodeLanguage(path: path) == language)

@@ -152,6 +152,16 @@ struct NoteNamingTests {
         #expect(!NoteStore.isAutoNamed("Toplantı", content: ""))
     }
 
+    /// After a rename by hand the app decides again from the new name: a name that is not the title stops
+    /// following the first line, while renaming a note to its own title keeps it auto-named.
+    @Test func renameByHandDecidesAutoNamingAgain() {
+        let content = "Market listesi\n- süt"
+        #expect(NoteStore.isAutoNamed("Market listesi", content: content))
+        #expect(!NoteStore.isAutoNamed("Alışveriş", content: content))
+        #expect(NoteStore.isAutoNamed("Adsız 4", content: content))
+        #expect(NoteStore.autoName(for: "Alışveriş", content: content) == "Market listesi")
+    }
+
     @Test func autoNameFollowsTheFirstLine() {
         #expect(NoteStore.autoName(for: "Adsız", content: "# Yeni başlık\n") == "Yeni başlık")
         #expect(NoteStore.autoName(for: "Eski", content: "Yeni") == "Yeni")

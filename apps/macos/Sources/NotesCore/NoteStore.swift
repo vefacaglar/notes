@@ -180,7 +180,7 @@ public struct NoteStore: Sendable {
     }
 
     public func write(_ text: String, to path: String) throws {
-        try Data(text.utf8).write(to: url(for: path), options: .atomic)
+        try NoteFile.write(text, to: url(for: path))
     }
 
     public func modificationDate(_ path: String) -> Date? {
@@ -210,7 +210,8 @@ public struct NoteStore: Sendable {
         return path
     }
 
-    /// Renames an item in place. Notes keep their `.md` extension; other files keep theirs when the new name has none.
+    /// Renames an item in place. Notes keep their `.md` extension; other files keep theirs unless the new name ends in
+    /// a listed extension (so "Toplantı 3.5" for `a.txt` gives `Toplantı 3.5.txt`).
     /// Returns the new path.
     @discardableResult
     public func rename(_ path: String, to newName: String) throws -> String {
@@ -225,7 +226,7 @@ public struct NoteStore: Sendable {
         let oldExtension = (path as NSString).pathExtension
         if !isFolder.boolValue && Self.isNote(path) {
             if !Self.isNote(newName) { newName += ".md" }
-        } else if !isFolder.boolValue, !oldExtension.isEmpty, (newName as NSString).pathExtension.isEmpty {
+        } else if !isFolder.boolValue, !oldExtension.isEmpty, !Self.isListed(newName) {
             newName += "." + oldExtension
         }
 

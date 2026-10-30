@@ -47,7 +47,8 @@ final class NotesModel {
     @ObservationIgnored private var watcher: FolderWatcher?
     @ObservationIgnored private var searchTask: Task<Void, Never>?
     @ObservationIgnored private var scanTask: Task<Void, Never>?
-    @ObservationIgnored private var missingCheck: Task<Void, Never>?
+    /// Pending "is it really gone?" checks, per document.
+    @ObservationIgnored private var missingChecks: [UUID: Task<Void, Never>] = [:]
     @ObservationIgnored private var isRevertingSelection = false
 
     init() {
@@ -59,7 +60,9 @@ final class NotesModel {
 
     // MARK: Folder
 
-    func setRoot(_ url: URL) {
+    /// Opens `url` as the notes folder. Only a folder the user picked is remembered, so launching with
+    /// `-notesFolder <path>` (e.g. a temp folder in tests) never replaces the saved choice.
+    func setRoot(_ url: URL, remember: Bool = false) {
         // A failed save keeps the current folder and note open; the document's alert says why.
         if let document, !document.flush() { return }
         document = nil
@@ -68,7 +71,7 @@ final class NotesModel {
         do {
             let store = try NoteStore(root: url)
             self.store = store
-            UserDefaults.standard.set(store.root.path, forKey: Self.folderKey)
+            if remember { UserDefaults.standard.set(store.root.path, forKey: Self.folderKey) }
             watcher = FolderWatcher(url: store.root) { [weak self] in self?.refresh() }
         } catch {
             store = nil
@@ -88,7 +91,7 @@ final class NotesModel {
         panel.message = "Notların bulunduğu klasörü seçin"
         panel.directoryURL = store?.root
         guard panel.runModal() == .OK, let url = panel.url else { return }
-        setRoot(url)
+        setRoot(url, remember: true)
     }
 
     /// Re-reads the tree off the main thread and reloads the open note if it changed on disk.
@@ -114,11 +117,11 @@ final class NotesModel {
     /// Closes `document` when its file is gone for good. Some apps save by deleting and recreating the file,
     /// so this waits a moment first.
     private func closeIfStillMissing(_ document: NoteDocument) {
-        guard missingCheck == nil else { return }
-        missingCheck = Task { [weak self] in
+        guard missingChecks[document.id] == nil else { return }
+        missingChecks[document.id] = Task { [weak self] in
             try? await Task.sleep(for: .seconds(1))
             guard let self else { return }
-            self.missingCheck = nil
+            self.missingChecks[document.id] = nil
             guard self.document === document, !document.hasUnsavedChanges,
                   !FileManager.default.fileExists(atPath: document.url.path)
             else { return }
@@ -132,8 +135,9 @@ final class NotesModel {
         if let document, let selection, let url = try? store.url(for: selection),
            NoteDocument.canonical(url) == NoteDocument.canonical(document.url) { return }
         if let document, !document.flush() {
-            // Keep the note open with its edits; its alert explains what happened.
-            revertSelection(to: old)
+            // Keep the note open with its edits; its alert explains what happened. The save may have moved it to a
+            // conflict copy, so select wherever it is now.
+            revertSelection(to: notePath(for: document.url) ?? old)
             return
         }
         document = nil
@@ -143,7 +147,8 @@ final class NotesModel {
             var isFolder: ObjCBool = false
             guard FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder), !isFolder.boolValue else { return }
             let document = try NoteDocument.open(url)
-            if document.isNote { document.autoRename = { [weak self] in self?.autoRename($0, to: $1) } }
+            document.autoRename = { [weak self] in self?.autoRename($0, to: $1) }
+            document.relocated = { [weak self] in self?.follow($0) }
             self.document = document
         } catch {
             errorMessage = error.localizedDescription
@@ -176,15 +181,32 @@ final class NotesModel {
         refresh()
     }
 
-    /// Saves the open note before `path` is renamed or trashed and returns `path`, following it if that save
-    /// auto-renamed the note. `nil` when the save needs the user and the operation would touch the open note.
-    private func saveDocument(following path: String) -> String? {
-        guard let document, let before = notePath(for: document.url) else { return path }
+    /// Selects the document's file after it switched to a conflict copy, so the sidebar matches the editor.
+    private func follow(_ document: NoteDocument) {
+        guard self.document === document, let path = notePath(for: document.url) else { return }
+        refresh()
+        selection = path
+    }
+
+    /// Saves the open document before `path` is renamed or trashed (`action` names that for the message) and returns
+    /// `path`, following it if that save auto-renamed the note. `nil` when the save needs the user and `path` is the
+    /// document or a folder holding it; the operation is then cancelled and the document's alert says so.
+    private func saveDocument(following path: String, action: String) -> String? {
+        guard let store, let document else { return path }
+        let before = notePath(for: document.url)
         let saved = document.flush()
-        let after = notePath(for: document.url) ?? before
-        let path = NoteStore.moved(path, from: before, to: after) ?? path
-        if !saved && NoteStore.moved(after, from: path, to: path) != nil { return nil }
-        return path
+        var path = path
+        if let before, let after = notePath(for: document.url) { path = NoteStore.moved(path, from: before, to: after) ?? path }
+        guard !saved, let target = try? store.url(for: path), Self.url(document.url, isInside: target) else { return path }
+        document.error = (document.error ?? "") + " \(action) iptal edildi."
+        return nil
+    }
+
+    /// Whether `url` is `folder` or inside it, comparing resolved paths per Unicode scalar.
+    private static func url(_ url: URL, isInside folder: URL) -> Bool {
+        let file = NoteDocument.canonical(url).path.unicodeScalars
+        let base = NoteDocument.canonical(folder).path.unicodeScalars
+        return file.elementsEqual(base) || file.starts(with: base + ["/"])
     }
 
     // MARK: Opening files from Finder
@@ -274,13 +296,16 @@ final class NotesModel {
                 refresh()
                 selection = path
             case .rename(let path):
-                guard let path = saveDocument(following: path) else { return }
+                guard let path = saveDocument(following: path, action: "Yeniden adlandırma") else { return }
+                // Before the rename: afterwards the old URL no longer resolves.
+                let docPath = document.flatMap { notePath(for: $0.url) }
                 let newPath = try store.rename(path, to: promptName)
                 guard newPath != path else { return }
                 // Keep the open document (text, cursor, undo) and point it at the new location.
-                if let document, let docPath = notePath(for: document.url),
-                   let moved = NoteStore.moved(docPath, from: path, to: newPath) {
-                    document.moved(to: try store.url(for: moved))
+                if let document, let docPath, let moved = NoteStore.moved(docPath, from: path, to: newPath) {
+                    let url = try store.url(for: moved)
+                    // Renaming the note itself is a hand-picked name; renaming its folder is not.
+                    if docPath == path { document.renamedByHand(to: url) } else { document.moved(to: url) }
                 }
                 if let selection, let moved = NoteStore.moved(selection, from: path, to: newPath) { self.selection = moved }
                 refresh()
@@ -291,7 +316,7 @@ final class NotesModel {
     }
 
     func trash(_ path: String) {
-        guard let store, let path = saveDocument(following: path) else { return }
+        guard let store, let path = saveDocument(following: path, action: "Çöp Kutusuna taşıma") else { return }
         do {
             try store.trash(path)
             if let selection, NoteStore.moved(selection, from: path, to: path) != nil {

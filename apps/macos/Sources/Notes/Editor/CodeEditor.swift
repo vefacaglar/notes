@@ -9,14 +9,16 @@ struct CodeEditor: NSViewRepresentable {
     var focusOnAppear = false
     var proxy: TextEditorProxy?
     var undoManager: UndoManager?
+    var isEditable = true
 
     init(text: Binding<String>, language: CodeLanguage, focusOnAppear: Bool = false, proxy: TextEditorProxy? = nil,
-         undoManager: UndoManager? = nil) {
+         undoManager: UndoManager? = nil, isEditable: Bool = true) {
         _text = text
         self.language = language
         self.focusOnAppear = focusOnAppear
         self.proxy = proxy
         self.undoManager = undoManager
+        self.isEditable = isEditable
     }
 
     func makeCoordinator() -> Coordinator {
@@ -32,6 +34,7 @@ struct CodeEditor: NSViewRepresentable {
         textView.font = CodeTheme.font
         textView.defaultParagraphStyle = CodeTheme.paragraphStyle
         textView.typingAttributes = CodeTheme.base
+        textView.isEditable = isEditable
 
         textView.delegate = context.coordinator
         textView.textStorage?.delegate = context.coordinator
@@ -46,6 +49,7 @@ struct CodeEditor: NSViewRepresentable {
 
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? CodeTextView else { return }
+        textView.isEditable = isEditable
         proxy?.textView = textView
         proxy?.language = language
         let coordinator = context.coordinator
@@ -66,9 +70,6 @@ struct CodeEditor: NSViewRepresentable {
         var language: CodeLanguage
         private var spans: [CodeSpan] = []
 
-        /// Beyond this many UTF-16 units the text stays plain; styling every span would stall typing.
-        private static let maxHighlightedLength = 2_000_000
-
         init(text: Binding<String>, language: CodeLanguage, undoManager: UndoManager?) {
             self.language = language
             super.init(text: text, undoManager: undoManager)
@@ -82,7 +83,7 @@ struct CodeEditor: NSViewRepresentable {
         /// Tokenizes the whole text, then restyles only where the spans differ from last time.
         override func restyle(_ textView: NSTextView) {
             guard let storage = textView.textStorage else { return }
-            let new = storage.length > Self.maxHighlightedLength
+            let new = storage.length > Self.maxStyledLength
                 ? [] : CodeHighlighter.spans(in: storage.string, language: language)
             var target = NSRange(location: 0, length: storage.length)
             if !needsFullRestyle, let edit = pendingEdit {

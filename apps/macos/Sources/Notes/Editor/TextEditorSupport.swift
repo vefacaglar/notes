@@ -81,6 +81,8 @@ class TextEditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate
     var pendingEdit: (range: NSRange, delta: Int)?
     /// Set on load and when several edits arrive before a restyle (IME composition).
     var needsFullRestyle = true
+    /// Beyond this many UTF-16 units the text stays plain; styling it would stall typing.
+    static let maxStyledLength = 2_000_000
 
     init(text: Binding<String>, undoManager: UndoManager?) {
         self.text = text

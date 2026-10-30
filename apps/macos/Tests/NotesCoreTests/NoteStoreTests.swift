@@ -50,7 +50,7 @@ struct NoteStoreTests {
         #expect(store.notePaths() == ["Work/app.swift", "a.md", "config.json", "data.csv", "Log.TXT", "script.py", "server.log"])
     }
 
-    @Test(arguments: ["a.md", "A.MD", "x.json", "x.yml", "x.ts", "x.txt", "x.log", "x.csv", "Work/x.swift"])
+    @Test(arguments: ["a.md", "A.MD", "x.mdown", "x.mkd", "x.markdown", "x.json", "x.yml", "x.ts", "x.txt", "x.log", "x.csv", "Work/x.swift"])
     func listsKnownExtensions(path: String) {
         #expect(NoteStore.isListed(path))
     }
@@ -148,6 +148,10 @@ struct NoteStoreTests {
         try put("config.json", "{}")
         #expect(try store.rename("config.json", to: "settings") == "settings.json")
         #expect(try store.rename("settings.json", to: "settings.yaml") == "settings.yaml")
+        // Only listed extensions count as extensions: ".5" or ".png" would make the file vanish from the list.
+        #expect(try store.rename("settings.yaml", to: "Toplantı 3.5") == "Toplantı 3.5.yaml")
+        #expect(try store.rename("Toplantı 3.5.yaml", to: "resim.png") == "resim.png.yaml")
+        #expect(store.notePaths() == ["resim.png.yaml"])
         try store.createFolder(named: "Folder")
         #expect(try store.rename("Folder", to: "Klasör") == "Klasör")
     }

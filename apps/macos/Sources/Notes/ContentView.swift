@@ -24,7 +24,7 @@ struct ContentView: View {
             // On the column, not the editor, so it stays up whatever happens to the editor.
             .errorAlert(documentError)
         }
-        .navigationTitle(model.document?.name ?? "Notes")
+        .navigationTitle(model.document.map(\.title) ?? "Notes")
         .toolbar {
             ToolbarItemGroup(placement: .primaryAction) {
                 Button("Yeni Not", systemImage: "square.and.pencil", action: model.newNote)
@@ -60,7 +60,7 @@ struct ExternalNoteView: View {
             }
         }
         .errorAlert(Binding(get: { document?.error }, set: { document?.error = $0 }))
-        .navigationTitle(document?.url.lastPathComponent ?? url.lastPathComponent)
+        .navigationTitle(document?.title ?? url.lastPathComponent)
         .background(RepresentedURL(url: document?.url ?? url))
         .task(id: url) {
             do {
@@ -127,16 +127,11 @@ private struct WindowCloseGuard: NSViewRepresentable {
 
     final class Marker: NSView {
         var document: (@MainActor () -> NoteDocument?)?
-        private var delegate: CloseGuardDelegate?
 
         override func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
-            guard let window, window.delegate !== delegate else { return }
-            let delegate = CloseGuardDelegate(original: window.delegate) { [weak self] window in
-                self?.shouldClose(window) ?? true
-            }
-            self.delegate = delegate
-            window.delegate = delegate
+            guard let window else { return }
+            CloseGuardDelegate.install(on: window) { [weak self] window in self?.shouldClose(window) ?? true }
         }
 
         private func shouldClose(_ window: NSWindow) -> Bool {
@@ -176,13 +171,29 @@ private struct WindowCloseGuard: NSViewRepresentable {
 /// Answers `windowShouldClose` and forwards every other delegate message to SwiftUI's own window delegate.
 @MainActor
 private final class CloseGuardDelegate: NSObject, NSWindowDelegate {
-    // Weak: SwiftUI owns its delegate, and the window owns this object through the marker view.
-    nonisolated(unsafe) private weak var original: (any NSWindowDelegate)?
-    private let shouldClose: @MainActor (NSWindow) -> Bool
+    nonisolated(unsafe) private static var associationKey: UInt8 = 0
 
-    init(original: (any NSWindowDelegate)?, shouldClose: @escaping @MainActor (NSWindow) -> Bool) {
+    // Weak: SwiftUI owns its delegate; the window retains this object (associated object).
+    nonisolated(unsafe) private weak var original: (any NSWindowDelegate)?
+    private var shouldClose: @MainActor (NSWindow) -> Bool
+
+    private init(original: (any NSWindowDelegate)?, shouldClose: @escaping @MainActor (NSWindow) -> Bool) {
         self.original = original
         self.shouldClose = shouldClose
+    }
+
+    /// Makes `window` ask `shouldClose` first. Installing again (a new marker view, or SwiftUI resetting the
+    /// delegate) never wraps a guard in another guard.
+    static func install(on window: NSWindow, shouldClose: @escaping @MainActor (NSWindow) -> Bool) {
+        if let existing = window.delegate as? CloseGuardDelegate {
+            existing.shouldClose = shouldClose
+            return
+        }
+        let existing = objc_getAssociatedObject(window, &associationKey) as? CloseGuardDelegate
+        let original = window.delegate ?? existing?.original
+        let guardDelegate = CloseGuardDelegate(original: original, shouldClose: shouldClose)
+        objc_setAssociatedObject(window, &associationKey, guardDelegate, .OBJC_ASSOCIATION_RETAIN)
+        window.delegate = guardDelegate
     }
 
     func windowShouldClose(_ sender: NSWindow) -> Bool {
