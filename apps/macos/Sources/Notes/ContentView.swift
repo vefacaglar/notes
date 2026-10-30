@@ -1,99 +1,173 @@
 import AppKit
 import SwiftUI
 
-struct ContentView: View {
-    @Bindable var model: NotesModel
+/// A window: the sidebar with the workspace's roots, the tab bar and the active tab's editor.
+struct WorkspaceView: View {
+    @Bindable var workspace: Workspace
+    let model: NotesModel
+    @Environment(AppSettings.self) private var settings
 
     var body: some View {
-        NavigationSplitView {
-            SidebarView(model: model)
+        NavigationSplitView(columnVisibility: sidebarVisibility) {
+            SidebarView(workspace: workspace, model: model)
                 .navigationSplitViewColumnWidth(min: 180, ideal: 240)
         } detail: {
-            Group {
-                if let document = model.document {
-                    NoteEditorView(document: document, focusOnAppear: document.focusOnOpen)
-                        // Keyed by the document, not its URL, so a rename keeps the editor (cursor, undo).
-                        .id(document.id)
-                } else {
-                    ContentUnavailableView(
-                        "Not seçilmedi", systemImage: "doc.text",
-                        description: Text("Kenar çubuğundan bir not seçin ya da ⌘N ile yeni bir not oluşturun.")
-                    )
+            VStack(spacing: 0) {
+                if !workspace.tabs.isEmpty {
+                    TabBar(workspace: workspace)
+                    Divider()
                 }
+                detail
             }
             // On the column, not the editor, so it stays up whatever happens to the editor.
             .errorAlert(documentError)
         }
-        .navigationTitle(model.document.map(\.title) ?? "Notes")
+        .navigationTitle(title)
         .toolbar {
-            ToolbarItemGroup(placement: .primaryAction) {
-                Button("Yeni Not", systemImage: "square.and.pencil", action: model.newNote)
-                Button("Yeni Klasör", systemImage: "folder.badge.plus", action: model.newFolder)
+            if workspace.isMain {
+                ToolbarItemGroup(placement: .primaryAction) {
+                    Button("New Note", systemImage: "square.and.pencil", action: workspace.newNote)
+                    Button("New Folder", systemImage: "folder.badge.plus", action: workspace.newFolder)
+                }
             }
         }
-        .errorAlert($model.errorMessage)
+        .errorAlert($workspace.errorMessage)
+        .focusedSceneValue(\.workspace, workspace)
+        .background(WindowBridge(workspace: workspace, representedURL: representedURL))
+        .background(TabNumberShortcuts(workspace: workspace))
         .handlesWindowRequests(model)
-        .guardsWindowClose { model.document }
-        .onDisappear { model.document?.flush() }
+        .onChange(of: settings.sidebarSort) { workspace.rescan() }
+        .onChange(of: settings.showNonMarkdownFiles) { workspace.rescan() }
+        .onDisappear {
+            workspace.documents.forEach { $0.flush() }
+            model.workspaceClosed(workspace)
+        }
+    }
+
+    @ViewBuilder private var detail: some View {
+        if let tab = workspace.activeTab {
+            let document = tab.document
+            VStack(spacing: 0) {
+                if let reason = document.readOnlyReason {
+                    Label(reason, systemImage: "lock")
+                        .font(.callout)
+                        .foregroundStyle(.secondary)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 6)
+                        .background(.bar)
+                    Divider()
+                }
+                NoteEditorView(document: document, showsSource: tab.showsSource)
+                    // Keyed by tab and document, not the URL, so a rename keeps the editor (cursor, undo).
+                    .id(EditorKey(tab: tab.id, document: document.id))
+                    .onAppear { workspace.editorAppeared(tab) }
+            }
+        } else {
+            ContentUnavailableView {
+                Label("No Note Selected", systemImage: "doc.text")
+            } description: {
+                Text(workspace.isMain
+                     ? LocalizedStringKey("Choose a note in the sidebar, press ⌘N for a new note or ⌘T for a new tab.")
+                     : "Choose a file in the sidebar or press ⌘T for a new tab.")
+            }
+        }
+    }
+
+    private struct EditorKey: Hashable {
+        let tab: UUID
+        let document: UUID
+    }
+
+    private var sidebarVisibility: Binding<NavigationSplitViewVisibility> {
+        Binding(get: { workspace.isSidebarVisible ? .all : .detailOnly },
+                set: { workspace.isSidebarVisible = $0 != .detailOnly })
+    }
+
+    private var title: String {
+        if let document = workspace.activeDocument { return document.title }
+        return workspace.isMain ? "Notes" : workspace.roots.first?.name ?? "Notes"
+    }
+
+    private var representedURL: URL? {
+        workspace.activeDocument.flatMap { $0.isDraft ? nil : $0.url }
     }
 
     private var documentError: Binding<String?> {
-        Binding(get: { model.document?.error }, set: { model.document?.error = $0 })
+        Binding(get: { workspace.documents.first { $0.error != nil }?.error },
+                set: { if $0 == nil { workspace.documents.first { $0.error != nil }?.error = nil } })
     }
 }
 
-/// Edits a file outside the notes folder in its own window.
-struct ExternalNoteView: View {
-    let url: URL
-    let model: NotesModel
-    @State private var document: NoteDocument?
-    @State private var loadError: String?
+/// ⌘1…⌘9 pick a tab. Invisible buttons: nine menu items would only clutter the Window menu.
+private struct TabNumberShortcuts: View {
+    let workspace: Workspace
 
     var body: some View {
-        Group {
-            if let document {
-                NoteEditorView(document: document)
-            } else if let loadError {
-                ContentUnavailableView("Dosya açılamadı", systemImage: "exclamationmark.triangle", description: Text(loadError))
-            } else {
-                Color.clear
+        ZStack {
+            ForEach(1...9, id: \.self) { number in
+                Button("") { workspace.selectTab(number: number) }
+                    .keyboardShortcut(KeyEquivalent(Character(String(number))), modifiers: .command)
             }
         }
-        .errorAlert(Binding(get: { document?.error }, set: { document?.error = $0 }))
-        .navigationTitle(document?.title ?? url.lastPathComponent)
-        .background(RepresentedURL(url: document?.url ?? url))
-        .task(id: url) {
-            do {
-                document = try NoteDocument.open(url)
-            } catch {
-                loadError = error.localizedDescription
-            }
-        }
-        .handlesWindowRequests(model)
-        .guardsWindowClose { document }
-        .onDisappear { document?.flush() }
+        .frame(width: 0, height: 0)
+        .opacity(0)
+        .accessibilityHidden(true)
     }
 }
 
-/// Sets the hosting window's `representedURL` (proxy icon; also lets `WindowRequestHandler` find the window again).
-private struct RepresentedURL: NSViewRepresentable {
-    let url: URL
+/// Connects the workspace with its window: remembers the window, keeps AppKit from restoring outside-file windows
+/// (the session file does that, without reopening files that are gone), guards closing and sets the proxy icon.
+private struct WindowBridge: NSViewRepresentable {
+    let workspace: Workspace
+    let representedURL: URL?
 
     final class Marker: NSView {
-        var url: URL?
-        override func viewDidMoveToWindow() { window?.representedURL = url }
+        weak var workspace: Workspace?
+        var representedURL: URL?
+
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window, let workspace else { return }
+            workspace.window = window
+            window.isRestorable = workspace.isMain
+            window.tabbingMode = .disallowed
+            if let frame = workspace.pendingFrame {
+                workspace.pendingFrame = nil
+                window.setFrame(frame, display: true)
+            }
+            window.representedURL = representedURL
+            CloseGuardDelegate.install(on: window) { [weak workspace] window in workspace?.shouldClose(window) ?? true }
+        }
     }
 
     func makeNSView(context: Context) -> Marker {
         let view = Marker()
-        view.url = url
+        view.workspace = workspace
+        view.representedURL = representedURL
         return view
     }
 
     func updateNSView(_ view: Marker, context: Context) {
-        view.url = url
-        view.window?.representedURL = url
+        view.workspace = workspace
+        view.representedURL = representedURL
+        if view.window?.representedURL != representedURL { view.window?.representedURL = representedURL }
     }
+}
+
+/// Content of a window whose workspace no longer exists (e.g. one AppKit restored from an older version): closes it.
+struct StaleWindowCloser: NSViewRepresentable {
+    final class Closer: NSView {
+        override func viewDidMoveToWindow() {
+            super.viewDidMoveToWindow()
+            guard let window else { return }
+            window.isRestorable = false
+            DispatchQueue.main.async { window.close() }
+        }
+    }
+
+    func makeNSView(context: Context) -> Closer { Closer() }
+    func updateNSView(_ view: Closer, context: Context) {}
 }
 
 private struct WindowRequestHandler: ViewModifier {
@@ -107,64 +181,22 @@ private struct WindowRequestHandler: ViewModifier {
             model.windowRequests = []
             for request in requests {
                 switch request {
-                case .main: openWindow(id: NotesApp.mainWindowID)
-                case .file(let url):
-                    if let window = NSApp.windows.first(where: { $0.representedURL == url }) {
+                case .main:
+                    if let window = model.main.window, window.isVisible {
                         window.makeKeyAndOrderFront(nil)
                     } else {
-                        openWindow(value: url)
+                        openWindow(id: NotesApp.mainWindowID)
+                    }
+                case .workspace(let id):
+                    guard let workspace = model.workspace(id) else { continue }
+                    if let window = workspace.window, window.isVisible {
+                        window.makeKeyAndOrderFront(nil)
+                    } else {
+                        openWindow(id: NotesApp.workspaceWindowID, value: id)
                     }
                 }
             }
         }
-    }
-}
-
-/// Saves the window's document before the window closes. When that needs the user (the save failed, or a conflict
-/// copy was made), the close waits for an alert: a failed save offers to keep the window open or discard the edits.
-private struct WindowCloseGuard: NSViewRepresentable {
-    let document: @MainActor () -> NoteDocument?
-
-    final class Marker: NSView {
-        var document: (@MainActor () -> NoteDocument?)?
-
-        override func viewDidMoveToWindow() {
-            super.viewDidMoveToWindow()
-            guard let window else { return }
-            CloseGuardDelegate.install(on: window) { [weak self] window in self?.shouldClose(window) ?? true }
-        }
-
-        private func shouldClose(_ window: NSWindow) -> Bool {
-            guard let document = document?(), !document.flush() else { return true }
-            let alert = NSAlert()
-            alert.messageText = document.hasUnsavedChanges ? "Değişiklikler kaydedilemedi" : "Dosya başka yerde değişti"
-            alert.informativeText = document.error ?? ""
-            document.error = nil
-            if document.hasUnsavedChanges {
-                alert.addButton(withTitle: "Vazgeç")
-                alert.addButton(withTitle: "Kaydetmeden Kapat").hasDestructiveAction = true
-            } else {
-                alert.addButton(withTitle: "Tamam")
-            }
-            alert.beginSheetModal(for: window) { response in
-                MainActor.assumeIsolated {
-                    guard !document.hasUnsavedChanges || response == .alertSecondButtonReturn else { return }
-                    document.revert()
-                    window.close()
-                }
-            }
-            return false
-        }
-    }
-
-    func makeNSView(context: Context) -> Marker {
-        let view = Marker()
-        view.document = document
-        return view
-    }
-
-    func updateNSView(_ view: Marker, context: Context) {
-        view.document = document
     }
 }
 
@@ -216,13 +248,9 @@ extension View {
         modifier(WindowRequestHandler(model: model))
     }
 
-    func guardsWindowClose(_ document: @escaping @MainActor () -> NoteDocument?) -> some View {
-        background(WindowCloseGuard(document: document))
-    }
-
     func errorAlert(_ message: Binding<String?>) -> some View {
-        alert("Hata", isPresented: message.isPresent, presenting: message.wrappedValue) { _ in
-            Button("Tamam") {}
+        alert("Error", isPresented: message.isPresent, presenting: message.wrappedValue) { _ in
+            Button("OK") {}
         } message: { Text($0) }
     }
 }

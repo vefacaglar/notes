@@ -24,7 +24,9 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundlePackageType</key><string>APPL</string>
     <key>CFBundleShortVersionString</key><string>0.1</string>
     <key>CFBundleVersion</key><string>1</string>
-    <key>CFBundleDevelopmentRegion</key><string>tr</string>
+    <key>CFBundleDevelopmentRegion</key><string>en</string>
+    <key>CFBundleLocalizations</key>
+    <array><string>en</string><string>tr</string></array>
     <key>LSMinimumSystemVersion</key><string>14.0</string>
     <key>LSApplicationCategoryType</key><string>public.app-category.productivity</string>
     <key>NSHighResolutionCapable</key><true/>
@@ -67,6 +69,16 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
                 <string>public.log</string>
                 <string>public.svg-image</string>
             </array>
+        </dict>
+    </array>
+    <key>UTExportedTypeDeclarations</key>
+    <array>
+        <dict>
+            <!-- A tab dragged within the tab bar; never written to disk. -->
+            <key>UTTypeIdentifier</key><string>com.vefa.notes.tab</string>
+            <key>UTTypeDescription</key><string>Notes Tab</string>
+            <key>UTTypeConformsTo</key>
+            <array><string>public.data</string></array>
         </dict>
     </array>
     <key>UTImportedTypeDeclarations</key>
