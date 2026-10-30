@@ -49,7 +49,10 @@ public struct NoteStore: Sendable {
     // MARK: Paths
 
     /// Characters that are invalid in Windows file names; rejected everywhere so notes stay portable.
-    private static let forbidden = CharacterSet(charactersIn: "\\:*?\"<>|").union(.controlCharacters)
+    /// Only C0/C1 controls: `.controlCharacters` would also reject format characters such as the emoji joiner U+200D.
+    static let forbidden = CharacterSet(charactersIn: "\\:*?\"<>|")
+        .union(CharacterSet(charactersIn: "\u{0}"..."\u{1F}"))
+        .union(CharacterSet(charactersIn: "\u{7F}"..."\u{9F}"))
 
     public func url(for path: String) throws -> URL {
         let parts = path.split(separator: "/", omittingEmptySubsequences: false).map(String.init)
@@ -175,20 +178,20 @@ public struct NoteStore: Sendable {
 
     /// Case- and diacritic-insensitive search over file names and contents. File name matches come first.
     public func search(_ query: String, limit: Int = 100) -> [SearchHit] {
-        let query = query.trimmingCharacters(in: .whitespacesAndNewlines)
+        let query = Self.foldDotlessI(query.trimmingCharacters(in: .whitespacesAndNewlines))
         guard !query.isEmpty else { return [] }
         let options: String.CompareOptions = [.caseInsensitive, .diacriticInsensitive]
 
         var nameHits: [SearchHit] = []
         var contentHits: [SearchHit] = []
         for path in notePaths() {
-            if path.dropLast(3).range(of: query, options: options) != nil {
+            if Self.foldDotlessI(String(path.dropLast(3))).range(of: query, options: options) != nil {
                 nameHits.append(SearchHit(path: path, line: nil, snippet: nil))
             }
             guard contentHits.count < limit, let text = try? read(path) else { continue }
             var matchesInFile = 0
             for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
-                guard line.range(of: query, options: options) != nil else { continue }
+                guard Self.foldDotlessI(String(line)).range(of: query, options: options) != nil else { continue }
                 let snippet = String(line.trimmingCharacters(in: .whitespacesAndNewlines).prefix(160))
                 contentHits.append(SearchHit(path: path, line: index + 1, snippet: snippet))
                 matchesInFile += 1
@@ -196,5 +199,11 @@ public struct NoteStore: Sendable {
             }
         }
         return Array((nameHits + contentHits).prefix(limit))
+    }
+
+    /// `.diacriticInsensitive` leaves Turkish ı/İ alone, so "toplanti" would miss "Toplantı".
+    private static func foldDotlessI(_ text: String) -> String {
+        guard text.contains(where: { $0 == "ı" || $0 == "İ" }) else { return text }
+        return text.replacingOccurrences(of: "ı", with: "i").replacingOccurrences(of: "İ", with: "i")
     }
 }
