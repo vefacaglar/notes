@@ -36,6 +36,7 @@ struct WorkspaceView: View {
         .focusedSceneValue(\.workspace, workspace)
         .background(WindowBridge(workspace: workspace, representedURL: representedURL))
         .background(TabNumberShortcuts(workspace: workspace))
+        .background(SearchShortcut(workspace: workspace))
         .handlesWindowRequests(model)
         .onChange(of: settings.sidebarSort) { workspace.rescan() }
         .onChange(of: settings.showNonMarkdownFiles) { workspace.rescan() }
@@ -118,6 +119,20 @@ private struct TabNumberShortcuts: View {
     }
 }
 
+/// ⇧⌘F shows the sidebar and puts the cursor in its search field (⌘F stays the editor's find bar). An invisible
+/// button, like the tab number shortcuts: a menu item would only repeat what the search field's own menu does.
+private struct SearchShortcut: View {
+    let workspace: Workspace
+
+    var body: some View {
+        Button("") { workspace.requestSearchFocus() }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+    }
+}
+
 /// Connects the workspace with its window: remembers the window, keeps AppKit from restoring outside-file windows
 /// (the session file does that, without reopening files that are gone), guards closing and sets the proxy icon.
 private struct WindowBridge: NSViewRepresentable {
@@ -132,7 +147,7 @@ private struct WindowBridge: NSViewRepresentable {
             super.viewDidMoveToWindow()
             guard let window, let workspace else { return }
             workspace.window = window
-            window.isRestorable = workspace.isMain
+            window.isRestorable = workspace.isMain && LaunchOptions.isPersistent
             window.tabbingMode = .disallowed
             if let frame = workspace.pendingFrame {
                 workspace.pendingFrame = nil

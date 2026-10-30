@@ -106,23 +106,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             model.prepareForQuit()
             return .terminateNow
         }
-        let documents = NoteDocument.all.filter { $0.error != nil }
-        let unsaved = documents.contains { $0.hasUnsavedChanges }
-        let alert = NSAlert()
-        alert.messageText = unsaved ? L("Some changes couldn't be saved") : L("Some files were changed elsewhere")
-        alert.informativeText = documents.compactMap(\.error).joined(separator: "\n\n")
-        documents.forEach { $0.error = nil }
-        guard unsaved else {
-            alert.runModal()
-            model.prepareForQuit()
-            return .terminateNow
+        while true {
+            let documents = NoteDocument.all.filter { $0.error != nil }
+            let unsaved = documents.contains { $0.hasUnsavedChanges }
+            let alert = NSAlert()
+            alert.messageText = unsaved ? L("Some changes couldn't be saved") : L("Some files were changed elsewhere")
+            alert.informativeText = documents.compactMap(\.error).joined(separator: "\n\n")
+            documents.forEach { $0.error = nil }
+            guard unsaved else {
+                alert.runModal()
+                model.prepareForQuit()
+                return .terminateNow
+            }
+            alert.addButton(withTitle: L("Try Again"))
+            alert.addButton(withTitle: L("Cancel"))
+            alert.addButton(withTitle: L("Quit Without Saving")).hasDestructiveAction = true
+            switch alert.runModal() {
+            case .alertFirstButtonReturn:
+                if NoteDocument.flushAll() {
+                    model.prepareForQuit()
+                    return .terminateNow
+                }
+            case .alertThirdButtonReturn:
+                documents.forEach { $0.revert() }
+                model.prepareForQuit()
+                return .terminateNow
+            default:
+                return .terminateCancel
+            }
         }
-        alert.addButton(withTitle: L("Cancel"))
-        alert.addButton(withTitle: L("Quit Without Saving")).hasDestructiveAction = true
-        guard alert.runModal() == .alertSecondButtonReturn else { return .terminateCancel }
-        documents.forEach { $0.revert() }
-        model.prepareForQuit()
-        return .terminateNow
     }
 
     func applicationWillTerminate(_ notification: Notification) {

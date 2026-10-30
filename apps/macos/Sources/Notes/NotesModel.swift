@@ -22,6 +22,9 @@ final class NotesModel {
     @ObservationIgnored private var draftStore: DraftStore?
     /// Another process owns the draft store, so this one keeps its drafts in a pending store of its own.
     @ObservationIgnored private(set) var draftsArePending = false
+    /// This process holds the real draft store's lock (or runs on a throwaway test store): only then it writes or
+    /// restores the session, which belongs to the owner of the app state (docs/format.md).
+    @ObservationIgnored private(set) var ownsDraftStore = false
     /// A test run's throwaway draft folder, deleted on quit.
     @ObservationIgnored private var temporaryDrafts: URL?
     @ObservationIgnored private var lastDraftOrder: [String]?
@@ -37,8 +40,10 @@ final class NotesModel {
         main = Workspace(isMain: true, sidebarVisible: true)
         main.model = self
         let initial = Self.initialRoots()
-        configuredRoots = initial.paths
-        for path in initial.paths {
+        // Standardized, so `removeRoot` finds a root by the path the workspace reports.
+        var seen = Set<String>()
+        configuredRoots = initial.paths.map { URL(fileURLWithPath: $0).standardizedFileURL.path }.filter { seen.insert($0).inserted }
+        for path in configuredRoots {
             openRoot(URL(fileURLWithPath: path, isDirectory: true), createIfMissing: initial.createsDefault)
         }
         if initial.isFirstRun { persistRoots() }
@@ -240,6 +245,7 @@ final class NotesModel {
             let folder = FileManager.default.temporaryDirectory.appendingPathComponent("NotesTestDrafts-\(UUID().uuidString)")
             temporaryDrafts = folder
             draftStore = DraftStore(folder: folder)
+            ownsDraftStore = true
             return
         }
         let store = DraftStore(folder: support.appendingPathComponent("Drafts", isDirectory: true))
@@ -249,6 +255,7 @@ final class NotesModel {
             if try store.lock() {
                 store.adoptPending(in: pendingRoot)
                 draftStore = store
+                ownsDraftStore = true
                 return
             }
             reason = L("Another Notes process is using the drafts folder. New tabs are kept in a separate folder and move there once it quits.")
@@ -331,7 +338,7 @@ final class NotesModel {
         sessionTask?.cancel()
         writeDraftOrder()
         // A second process (pending drafts) must not overwrite the session of the one that owns the app state.
-        guard !draftsArePending, AppSettings.shared.restoreTabs, let sessionURL else { return }
+        guard ownsDraftStore, AppSettings.shared.restoreTabs, let sessionURL else { return }
         for workspace in workspaces {
             if let tab = workspace.activeTab { workspace.captureViewState(of: tab) }
         }
@@ -373,11 +380,11 @@ final class NotesModel {
     private func restore() {
         isRestoring = true
         defer { isRestoring = false }
-        let drafts = draftsArePending ? [] : draftStore?.saved() ?? []
+        let drafts = ownsDraftStore ? draftStore?.saved() ?? [] : []
         let draftURLs = Dictionary(drafts.map { ($0.lastPathComponent, $0) }, uniquingKeysWith: { a, _ in a })
         var restoredDrafts = Set<String>()
 
-        if !draftsArePending, AppSettings.shared.restoreTabs, let sessionURL, let session = Session.read(sessionURL) {
+        if ownsDraftStore, AppSettings.shared.restoreTabs, let sessionURL, let session = Session.read(sessionURL) {
             for window in session.windows {
                 let workspace: Workspace
                 if window.isMain {
@@ -407,7 +414,10 @@ final class NotesModel {
                     tab.showsSource = saved.showsSource && document.language == .markdown
                     tab.viewState = saved.view
                     workspace.append(tab)
-                    if index == window.activeTab { active = workspace.tabs.count - 1 }
+                    // `append` skips a document that is open already; the active tab is the one that shows it.
+                    if index == window.activeTab {
+                        active = workspace.tabs.firstIndex { $0.document === document }
+                    }
                 }
                 if let active { workspace.setActiveTab(index: active) }
                 guard !window.isMain else { continue }

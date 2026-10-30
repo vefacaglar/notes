@@ -194,6 +194,15 @@ final class Workspace: Identifiable {
         }
     }
 
+    /// Set by ⇧⌘F; the sidebar takes it (once it exists) and puts the cursor in its search field.
+    var searchFocusRequested = false
+
+    /// ⇧⌘F: shows the sidebar when it is collapsed and asks it to focus the search field.
+    func requestSearchFocus() {
+        isSidebarVisible = true
+        searchFocusRequested = true
+    }
+
     var query = "" { didSet { if query != oldValue { scheduleSearch() } } }
     private(set) var hits: [WorkspaceHit] = []
     var isSearching: Bool { !query.trimmingCharacters(in: .whitespaces).isEmpty }
@@ -979,19 +988,25 @@ enum SaveGuard {
         guard !failed.isEmpty else { return true }
         let unsaved = failed.contains { $0.hasUnsavedChanges }
         guard unsaved else {
-            let alert = NSAlert()
-            alert.messageText = L("A file was changed elsewhere")
-            alert.informativeText = failed.compactMap(\.error).joined(separator: "\n\n")
-            failed.forEach { $0.error = nil }
-            alert.addButton(withTitle: L("OK"))
-            present(alert, in: window) { _ in
-                failed.forEach { $0.revert() }
-                proceed()
-            }
+            inform(failed, in: window, then: proceed)
             return false
         }
         askToSave(failed, in: window, discard: discard, then: proceed)
         return false
+    }
+
+    /// The "changed elsewhere" notice for documents whose edits went to a conflict copy; `proceed` runs after it.
+    private static func inform(_ documents: [NoteDocument], in window: NSWindow?,
+                               then proceed: @escaping @MainActor () -> Void) {
+        let alert = NSAlert()
+        alert.messageText = L("A file was changed elsewhere")
+        alert.informativeText = documents.compactMap(\.error).joined(separator: "\n\n")
+        documents.forEach { $0.error = nil }
+        alert.addButton(withTitle: L("OK"))
+        present(alert, in: window) { _ in
+            documents.forEach { $0.revert() }
+            proceed()
+        }
     }
 
     /// The save that failed while closing: "Save" tries again, "Don't Save" discards the edits, "Cancel" keeps
@@ -1009,11 +1024,20 @@ enum SaveGuard {
             switch response {
             case .alertFirstButtonReturn:
                 let remaining = failed.filter { !$0.flush() }
-                if remaining.isEmpty {
-                    proceed()
-                } else {
-                    // After the sheet has finished closing, not from inside its completion.
-                    DispatchQueue.main.async { askToSave(remaining, in: window, discard: discard, then: proceed) }
+                // A conflict copy took the edits of some: those are only a notice, not a failed save.
+                let unsaved = remaining.filter(\.hasUnsavedChanges)
+                let conflicted = remaining.filter { !$0.hasUnsavedChanges }
+                // After the sheet has finished closing, not from inside its completion.
+                DispatchQueue.main.async {
+                    if !unsaved.isEmpty {
+                        askToSave(unsaved, in: window, discard: discard) {
+                            if conflicted.isEmpty { proceed() } else { inform(conflicted, in: window, then: proceed) }
+                        }
+                    } else if !conflicted.isEmpty {
+                        inform(conflicted, in: window, then: proceed)
+                    } else {
+                        proceed()
+                    }
                 }
             case .alertSecondButtonReturn:
                 failed.forEach { $0.revert() }

@@ -8,7 +8,7 @@ struct SidebarView: View {
     let model: NotesModel
     @State private var hitSelection: WorkspaceHit.ID?
     @State private var collapsedRoots: Set<UUID> = []
-    /// The search field: ⌘F focuses it, Esc clears it (and Return must not rename while it has the keys).
+    /// The search field: ⇧⌘F focuses it, Esc clears it (and Return must not rename while it has the keys).
     @FocusState private var searchFocused: Bool
 
     var body: some View {
@@ -76,7 +76,11 @@ struct SidebarView: View {
         .searchFocus($searchFocused)
         .onKeyPress(phases: .down, action: handleKey)
         .onDeleteCommand { if !isEditingSearchField { confirmTrash() } }
-        .background(SearchShortcut(action: focusSearch))
+        .onChange(of: workspace.searchFocusRequested, initial: true) {
+            guard workspace.searchFocusRequested else { return }
+            workspace.searchFocusRequested = false
+            focusSearch()
+        }
         .onChange(of: hitSelection) {
             if let hit = workspace.hits.first(where: { $0.id == hitSelection }) { workspace.selection = hit.item }
         }
@@ -155,9 +159,8 @@ struct SidebarView: View {
         return true
     }
 
-    /// ⌘F: shows the sidebar when it is collapsed and puts the cursor in the search field.
+    /// Puts the cursor in the search field (⇧⌘F, see `Workspace.requestSearchFocus`).
     private func focusSearch() {
-        workspace.isSidebarVisible = true
         // A field that appears just now (the sidebar was collapsed) takes focus a moment later.
         Task { @MainActor in
             for _ in 0..<20 {
@@ -185,9 +188,11 @@ struct SidebarView: View {
 
     @ViewBuilder private func menu(for item: SidebarItem) -> some View {
         if item.isFolder {
-            Button(loc: "New Note") {
-                workspace.selection = item.id
-                workspace.newNote()
+            if workspace.isMain {
+                Button(loc: "New Note") {
+                    workspace.selection = item.id
+                    workspace.newNote()
+                }
             }
             Button(loc: "Create Folder…") {
                 workspace.selection = item.id
@@ -204,9 +209,11 @@ struct SidebarView: View {
     }
 
     @ViewBuilder private func rootMenu(for root: RootFolder) -> some View {
-        Button(loc: "New Note") {
-            workspace.selection = ItemID(root: root.id, path: "")
-            workspace.newNote()
+        if workspace.isMain {
+            Button(loc: "New Note") {
+                workspace.selection = ItemID(root: root.id, path: "")
+                workspace.newNote()
+            }
         }
         Button(loc: "Create Folder…") {
             workspace.selection = ItemID(root: root.id, path: "")
@@ -245,20 +252,6 @@ private enum SearchRow: Identifiable {
         case .header(let id, _): return "root:\(id.uuidString)"
         case .hit(let hit): return hit.id
         }
-    }
-}
-
-/// ⌘F puts the cursor in the search field. An invisible button (like the tab number shortcuts): a menu item would only
-/// repeat what the search field's own menu does.
-private struct SearchShortcut: View {
-    let action: () -> Void
-
-    var body: some View {
-        Button("") { action() }
-            .keyboardShortcut("f", modifiers: .command)
-            .frame(width: 0, height: 0)
-            .opacity(0)
-            .accessibilityHidden(true)
     }
 }
 

@@ -20,6 +20,7 @@ enum LanguageSetting {
     }
 
     static func store(_ choice: LanguageChoice) {
+        guard LaunchOptions.isPersistent else { return }
         if choice == .system {
             UserDefaults.standard.removeObject(forKey: key)
         } else {

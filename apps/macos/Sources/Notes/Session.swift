@@ -16,6 +16,14 @@ enum LaunchOptions {
     /// Whether this run may change the user's saved workspace and app state.
     static var isPersistent: Bool { testRoots.isEmpty }
 
+    /// Where preferences go: the user's defaults, or in a test run a throwaway suite (emptied at launch) so nothing
+    /// real is read or written.
+    nonisolated(unsafe) static let preferences: UserDefaults = {
+        guard !isPersistent, let suite = UserDefaults(suiteName: "com.vefa.notes.testrun") else { return .standard }
+        suite.removePersistentDomain(forName: "com.vefa.notes.testrun")
+        return suite
+    }()
+
     /// The app's own folder for the session file and drafts; `nil` for a test run without `-supportFolder`, which
     /// keeps no session and throwaway drafts.
     static var supportFolder: URL? {

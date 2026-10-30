@@ -25,7 +25,7 @@ enum SidebarSort: String, Codable, Sendable, CaseIterable {
 /// falls back to its own default without touching the others.
 @Observable @MainActor
 final class AppSettings {
-    static let shared = AppSettings()
+    static let shared = AppSettings(defaults: LaunchOptions.preferences)
 
     nonisolated static let defaultTextFont = FontChoice(family: nil, size: 15)
     nonisolated static let defaultCodeFont = FontChoice(family: nil, size: 13)
