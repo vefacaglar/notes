@@ -8,35 +8,73 @@ extension UTType {
 }
 
 /// The tabs above the editor: file icon and name, a dot for unsaved edits (or a draft with text), a lock for
-/// read-only files, a close button on hover. Scrolls sideways when the tabs don't fit; drag a tab to reorder.
+/// read-only files, a close button on hover, and a "+" after the last tab for a new one. Scrolls sideways when the
+/// tabs don't fit; drag a tab to reorder. Shown even with no tabs, so "+" stays reachable.
 struct TabBar: View {
     let workspace: Workspace
+    @Environment(AppSettings.self) private var environmentSettings: AppSettings?
+    @Environment(\.colorScheme) private var colorScheme
 
     var body: some View {
-        ScrollViewReader { proxy in
-            ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 0) {
-                    ForEach(workspace.tabs) { tab in
-                        TabItem(tab: tab, workspace: workspace)
-                            .id(tab.id)
-                        Divider()
-                            .frame(height: 16)
+        // The hairline under the bar stops at the active tab: its own background covers it and joins the editor.
+        ZStack(alignment: .bottom) {
+            Rectangle()
+                .fill(Color(nsColor: .separatorColor))
+                .frame(height: 1)
+            ScrollViewReader { proxy in
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 0) {
+                        ForEach(workspace.tabs) { tab in
+                            TabItem(tab: tab, workspace: workspace, editorBackground: editorBackground)
+                                .id(tab.id)
+                        }
+                        NewTabButton(workspace: workspace)
                     }
                 }
-            }
-            .onChange(of: workspace.activeTabID, initial: true) { _, id in
-                guard let id else { return }
-                withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id) }
+                .onChange(of: workspace.activeTabID, initial: true) { _, id in
+                    guard let id else { return }
+                    withAnimation(.easeOut(duration: 0.15)) { proxy.scrollTo(id) }
+                }
             }
         }
         .frame(height: 30)
         .background(.bar)
+    }
+
+    /// The editor's own background, so the active tab and the editor read as one surface.
+    private var editorBackground: Color {
+        let settings = environmentSettings ?? .shared
+        return Color(nsColor: settings.resolvedTheme(for: colorScheme).colors.background.nsColor)
+    }
+}
+
+/// "+" at the end of the tabs: a new draft tab, like ⌘T.
+private struct NewTabButton: View {
+    let workspace: Workspace
+    @State private var isHovering = false
+
+    var body: some View {
+        Button {
+            workspace.newDraftTab()
+        } label: {
+            Image(systemName: "plus")
+                .font(.system(size: 10, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .frame(width: 28, height: 30)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.borderless)
+        .background(isHovering ? Color.primary.opacity(0.06) : .clear)
+        .onHover { isHovering = $0 }
+        .help(loc: "New Tab")
     }
 }
 
 private struct TabItem: View {
     let tab: EditorTab
     let workspace: Workspace
+    /// The editor's background colour: the active tab uses it so it blends into the editor below.
+    let editorBackground: Color
     @State private var isHovering = false
 
     private var isActive: Bool { workspace.activeTabID == tab.id }
@@ -82,7 +120,7 @@ private struct TabItem: View {
         .padding(.leading, 10)
         .padding(.trailing, 6)
         .frame(minWidth: 100, maxWidth: 220, maxHeight: .infinity)
-        .background(isActive ? Color(nsColor: .textBackgroundColor) : .clear)
+        .background(isActive ? editorBackground : .clear)
         .contentShape(Rectangle())
         .onTapGesture { workspace.activate(tab, focus: true) }
         .onHover { isHovering = $0 }

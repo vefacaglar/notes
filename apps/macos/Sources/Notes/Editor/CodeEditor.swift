@@ -37,6 +37,7 @@ struct CodeEditor: NSViewRepresentable {
         textView.textStorage?.delegate = context.coordinator
         proxy?.textView = textView
         proxy?.language = language
+        textView.formatAction = isEditable && language.canFormat ? { [weak proxy] in proxy?.format() } : nil
 
         let scrollView = textView.embeddedInScrollView()
         context.coordinator.configure(textView, style: style, initial: true)
@@ -50,6 +51,7 @@ struct CodeEditor: NSViewRepresentable {
         textView.isEditable = isEditable
         proxy?.textView = textView
         proxy?.language = language
+        textView.formatAction = isEditable && language.canFormat ? { [weak proxy] in proxy?.format() } : nil
         let coordinator = context.coordinator
         coordinator.configure(textView, style: style, initial: false)
         let languageChanged = coordinator.language != language
@@ -147,6 +149,21 @@ struct CodeEditor: NSViewRepresentable {
 final class CodeTextView: EditorTextView {
     /// What Tab inserts; set per file from its existing indentation.
     var indentUnit = "    "
+    /// Set when the file can be formatted: adds "Format" to the right-click menu, like the Format command.
+    var formatAction: (() -> Void)?
+
+    /// The text view's own menu (cut, copy, paste, spelling…) with "Format" appended.
+    override func menu(for event: NSEvent) -> NSMenu? {
+        let menu = super.menu(for: event)
+        guard let menu, formatAction != nil else { return menu }
+        let item = NSMenuItem(title: L("Format"), action: #selector(formatFromMenu), keyEquivalent: "")
+        item.target = self
+        menu.addItem(.separator())
+        menu.addItem(item)
+        return menu
+    }
+
+    @objc private func formatFromMenu() { formatAction?() }
 
     /// Off: lines run as long as they are and the view scrolls horizontally.
     func setWrapsLines(_ wraps: Bool) {
