@@ -13,10 +13,7 @@ struct WorkspaceView: View {
                 .navigationSplitViewColumnWidth(min: 180, ideal: 240)
         } detail: {
             VStack(spacing: 0) {
-                if !workspace.tabs.isEmpty {
-                    TabBar(workspace: workspace)
-                    Divider()
-                }
+                TabBar(workspace: workspace)
                 detail
             }
             // On the column, not the editor, so it stays up whatever happens to the editor.
@@ -65,11 +62,9 @@ struct WorkspaceView: View {
             }
         } else {
             ContentUnavailableView {
-                Label(loc: "No Note Selected", systemImage: "doc.text")
+                Label(loc: "No note selected", systemImage: "doc.text")
             } description: {
-                Text(loc: workspace.isMain
-                     ? "Choose a note in the sidebar, press ⌘N for a new note or ⌘T for a new tab."
-                     : "Choose a file in the sidebar or press ⌘T for a new tab.")
+                Text(loc: "Select a note in the sidebar or press ⌘N to create one.")
             }
         }
     }

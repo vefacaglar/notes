@@ -629,17 +629,17 @@ final class Workspace: Identifiable {
     private func askAboutDraft(in tab: EditorTab) {
         let document = tab.document
         let alert = NSAlert()
-        alert.messageText = L("Do you want to save “\(document.name)”?")
-        alert.informativeText = L("If you don't save it, this draft is deleted.")
+        alert.messageText = L("Save “\(document.name)”?")
+        alert.informativeText = L("This note has not been saved to a folder yet.")
         alert.addButton(withTitle: L("Save"))
-        alert.addButton(withTitle: L("Cancel"))
         alert.addButton(withTitle: L("Don't Save")).hasDestructiveAction = true
+        alert.addButton(withTitle: L("Cancel"))
         SaveGuard.present(alert, in: window) { [weak self] response in
             guard let self, self.tabs.contains(where: { $0 === tab }), tab.document === document else { return }
             switch response {
             case .alertFirstButtonReturn:
                 if self.saveDraft(document) { self.remove(tab) }
-            case .alertThirdButtonReturn:
+            case .alertSecondButtonReturn:
                 document.discardDraft()
                 self.remove(tab)
             default:
@@ -970,29 +970,58 @@ final class Workspace: Identifiable {
 @MainActor
 enum SaveGuard {
     /// Saves `documents`. `true` when nothing needs the user. Otherwise shows why in one alert (a sheet on `window`):
-    /// a failed save offers to cancel or discard the edits (`discard` names that button), a conflict notice just
-    /// informs. `proceed` runs once the user discarded, or after the notice; meanwhile this returns `false`.
+    /// a failed save offers to try again, to discard the edits (`discard` names that button) or to cancel; a conflict
+    /// notice just informs. `proceed` runs once the user discarded, retried successfully, or after the notice;
+    /// meanwhile this returns `false`.
     static func flush(_ documents: [NoteDocument], in window: NSWindow?, discard: String,
                       then proceed: @escaping @MainActor () -> Void) -> Bool {
         let failed = documents.filter { !$0.flush() }
         guard !failed.isEmpty else { return true }
         let unsaved = failed.contains { $0.hasUnsavedChanges }
+        guard unsaved else {
+            let alert = NSAlert()
+            alert.messageText = L("A file was changed elsewhere")
+            alert.informativeText = failed.compactMap(\.error).joined(separator: "\n\n")
+            failed.forEach { $0.error = nil }
+            alert.addButton(withTitle: L("OK"))
+            present(alert, in: window) { _ in
+                failed.forEach { $0.revert() }
+                proceed()
+            }
+            return false
+        }
+        askToSave(failed, in: window, discard: discard, then: proceed)
+        return false
+    }
+
+    /// The save that failed while closing: "Save" tries again, "Don't Save" discards the edits, "Cancel" keeps
+    /// things open. A failed retry shows the alert again with the new error.
+    private static func askToSave(_ failed: [NoteDocument], in window: NSWindow?, discard: String,
+                                  then proceed: @escaping @MainActor () -> Void) {
         let alert = NSAlert()
-        alert.messageText = unsaved ? L("Some changes couldn't be saved") : L("A file was changed elsewhere")
+        alert.messageText = L("Some changes couldn't be saved")
         alert.informativeText = failed.compactMap(\.error).joined(separator: "\n\n")
         failed.forEach { $0.error = nil }
-        if unsaved {
-            alert.addButton(withTitle: L("Cancel"))
-            alert.addButton(withTitle: discard).hasDestructiveAction = true
-        } else {
-            alert.addButton(withTitle: L("OK"))
-        }
+        alert.addButton(withTitle: L("Save"))
+        alert.addButton(withTitle: discard).hasDestructiveAction = true
+        alert.addButton(withTitle: L("Cancel"))
         present(alert, in: window) { response in
-            guard !unsaved || response == .alertSecondButtonReturn else { return }
-            failed.forEach { $0.revert() }
-            proceed()
+            switch response {
+            case .alertFirstButtonReturn:
+                let remaining = failed.filter { !$0.flush() }
+                if remaining.isEmpty {
+                    proceed()
+                } else {
+                    // After the sheet has finished closing, not from inside its completion.
+                    DispatchQueue.main.async { askToSave(remaining, in: window, discard: discard, then: proceed) }
+                }
+            case .alertSecondButtonReturn:
+                failed.forEach { $0.revert() }
+                proceed()
+            default:
+                break
+            }
         }
-        return false
     }
 
     static func present(_ alert: NSAlert, in window: NSWindow?,

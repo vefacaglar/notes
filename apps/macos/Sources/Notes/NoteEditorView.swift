@@ -23,16 +23,30 @@ struct NoteEditorView: View {
     var body: some View {
         let language = document.language
         let style = EditorStyle(settings: environmentSettings ?? .shared, colorScheme: colorScheme)
-        Group {
-            if language == .markdown {
-                MarkdownEditor(text: $document.text, style: style, showsSource: showsSource, focusOnAppear: focusOnAppear,
-                               proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly)
-            } else {
-                CodeEditor(text: $document.text, language: language, style: style, focusOnAppear: focusOnAppear, proxy: editor,
-                           undoManager: document.undoManager, isEditable: !document.isReadOnly)
+        VStack(spacing: 0) {
+            if language.canFormat {
+                HStack(spacing: 0) {
+                    Spacer(minLength: 0)
+                    Button(loc: "Format") { editor.format() }
+                        .buttonStyle(.bordered)
+                        .controlSize(.small)
+                        .disabled(document.isReadOnly)
+                        .help(loc: "Format (⇧⌥F)")
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 8)
             }
+            Group {
+                if language == .markdown {
+                    MarkdownEditor(text: $document.text, style: style, showsSource: showsSource, focusOnAppear: focusOnAppear,
+                                   proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly)
+                } else {
+                    CodeEditor(text: $document.text, language: language, style: style, focusOnAppear: focusOnAppear, proxy: editor,
+                               undoManager: document.undoManager, isEditable: !document.isReadOnly)
+                }
+            }
+            .background(Color(nsColor: style.theme.colors.background.nsColor))
         }
-        .background(Color(nsColor: style.theme.colors.background.nsColor))
         .focusedSceneValue(\.textEditor, language.canFormat && !document.isReadOnly ? editor : nil)
         .onAppear { document.attach(editor) }
     }

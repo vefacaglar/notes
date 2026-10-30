@@ -341,40 +341,6 @@
         }
       }
     },
-    "Choose a file in the sidebar or press ⌘T for a new tab.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a file in the sidebar or press ⌘T for a new tab."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kenar çubuğundan bir dosya seçin ya da yeni sekme için ⌘T'ye basın."
-          }
-        }
-      }
-    },
-    "Choose a note in the sidebar, press ⌘N for a new note or ⌘T for a new tab.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Choose a note in the sidebar, press ⌘N for a new note or ⌘T for a new tab."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kenar çubuğundan bir not seçin, yeni not için ⌘N'ye ya da yeni sekme için ⌘T'ye basın."
-          }
-        }
-      }
-    },
     "Choose folders to add to the workspace": {
       "extractionState": "manual",
       "localizations": {
@@ -630,23 +596,6 @@
         }
       }
     },
-    "Do you want to save “%@”?": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Do you want to save “%@”?"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“%@” kaydedilsin mi?"
-          }
-        }
-      }
-    },
     "Don't Save": {
       "extractionState": "manual",
       "localizations": {
@@ -749,6 +698,23 @@
         }
       }
     },
+    "Format (⇧⌥F)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Format (⇧⌥F)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biçimlendir (⇧⌥F)"
+          }
+        }
+      }
+    },
     "General": {
       "extractionState": "manual",
       "localizations": {
@@ -796,23 +762,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kenar Çubuğunu Gizle"
-          }
-        }
-      }
-    },
-    "If you don't save it, this draft is deleted.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "If you don't save it, this draft is deleted."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kaydetmezseniz bu taslak silinir."
           }
         }
       }
@@ -1089,23 +1038,6 @@
         }
       }
     },
-    "No Note Selected": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "No Note Selected"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Not seçilmedi"
-          }
-        }
-      }
-    },
     "No folders in the workspace.": {
       "extractionState": "manual",
       "localizations": {
@@ -1119,6 +1051,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Çalışma alanında klasör yok."
+          }
+        }
+      }
+    },
+    "No note selected": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No note selected"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not seçilmedi"
           }
         }
       }
@@ -1395,6 +1344,23 @@
         }
       }
     },
+    "Save “%@”?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save “%@”?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” kaydedilsin mi?"
+          }
+        }
+      }
+    },
     "Search": {
       "extractionState": "manual",
       "localizations": {
@@ -1442,6 +1408,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Önceki Sekmeyi Seç"
+          }
+        }
+      }
+    },
+    "Select a note in the sidebar or press ⌘N to create one.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Select a note in the sidebar or press ⌘N to create one."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kenar çubuğundan bir not seçin ya da ⌘N ile yeni bir not oluşturun."
           }
         }
       }
@@ -1799,6 +1782,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bu dosya 20 MB'tan büyük olduğu için salt okunur açılır."
+          }
+        }
+      }
+    },
+    "This note has not been saved to a folder yet.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This note has not been saved to a folder yet."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu not henüz bir klasöre kaydedilmedi."
           }
         }
       }
