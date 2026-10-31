@@ -62,6 +62,9 @@ struct Session: Codable {
         var sidebarVisible: Bool
         /// `NSStringFromRect` of the window frame; outside-file windows only (the main window is restored by AppKit).
         var frame: String?
+        /// Sidebar folders (absolute paths): collapsed roots and expanded subfolders. Missing in older sessions.
+        var collapsedRoots: [String]? = nil
+        var expandedFolders: [String]? = nil
     }
 
     struct Tab: Codable {

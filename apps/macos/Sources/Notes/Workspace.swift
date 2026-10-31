@@ -206,6 +206,11 @@ final class Workspace: Identifiable {
         }
     }
 
+    /// Sidebar folders by absolute path: roots the user collapsed (roots start open) and subfolders the user
+    /// expanded (they start closed). Saved with the session.
+    var collapsedRoots: Set<String> = [] { didSet { if collapsedRoots != oldValue { model?.sessionChanged() } } }
+    var expandedFolders: Set<String> = [] { didSet { if expandedFolders != oldValue { model?.sessionChanged() } } }
+
     /// Set by ⇧⌘F; the sidebar takes it (once it exists) and puts the cursor in its search field.
     var searchFocusRequested = false
 

@@ -15,7 +15,6 @@ struct SidebarView: View {
     @State private var hitSelection: WorkspaceHit.ID?
     /// The pinned row the selection came from, if it was chosen there.
     @State private var pinnedSelection: ItemID?
-    @State private var collapsedRoots: Set<UUID> = []
     /// The search field: ⇧⌘F focuses it, Esc clears it (and Return must not rename while it has the keys).
     @FocusState private var searchFocused: Bool
     /// The folder row a drag is over, highlighted.
@@ -51,7 +50,7 @@ struct SidebarView: View {
                     }
                     ForEach(workspace.roots) { root in
                         DisclosureGroup(isExpanded: expanded(root)) {
-                            OutlineGroup(root.items, children: \.children) { item in row(item, pinned: false) }
+                            tree(root.items)
                         } label: {
                             Label {
                                 Text(verbatim: root.name).appFont(weight: .semibold)
@@ -247,8 +246,32 @@ struct SidebarView: View {
     }
 
     private func expanded(_ root: RootFolder) -> Binding<Bool> {
-        Binding(get: { !collapsedRoots.contains(root.id) },
-                set: { if $0 { collapsedRoots.remove(root.id) } else { collapsedRoots.insert(root.id) } })
+        let path = root.url.path
+        return Binding(get: { !workspace.collapsedRoots.contains(path) },
+                       set: { if $0 { workspace.collapsedRoots.remove(path) } else { workspace.collapsedRoots.insert(path) } })
+    }
+
+    /// A root's items with a disclosure group per folder, whose state the workspace keeps (and the session saves),
+    /// unlike `OutlineGroup`'s.
+    private func tree(_ items: [SidebarItem]) -> AnyView {
+        AnyView(ForEach(items) { item in
+            if let children = item.children {
+                DisclosureGroup(isExpanded: expanded(item)) {
+                    tree(children)
+                } label: {
+                    row(item, pinned: false)
+                }
+                .tag(SidebarSelection.item(item.id))
+            } else {
+                row(item, pinned: false)
+            }
+        })
+    }
+
+    private func expanded(_ folder: SidebarItem) -> Binding<Bool> {
+        let path = workspace.url(for: folder.id)?.path ?? ""
+        return Binding(get: { workspace.expandedFolders.contains(path) },
+                       set: { if $0 { workspace.expandedFolders.insert(path) } else { workspace.expandedFolders.remove(path) } })
     }
 
     @ViewBuilder private func menu(for item: SidebarItem) -> some View {

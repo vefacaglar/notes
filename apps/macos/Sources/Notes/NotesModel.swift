@@ -427,7 +427,9 @@ final class NotesModel {
             isMain: workspace.isMain, root: workspace.isMain ? nil : root, tabs: tabs,
             activeTab: workspace.activeTab.flatMap { active in workspace.tabs.firstIndex { $0 === active } },
             sidebarVisible: workspace.isSidebarVisible,
-            frame: workspace.isMain ? nil : workspace.window.map { NSStringFromRect($0.frame) }
+            frame: workspace.isMain ? nil : workspace.window.map { NSStringFromRect($0.frame) },
+            collapsedRoots: workspace.collapsedRoots.sorted(),
+            expandedFolders: workspace.expandedFolders.sorted()
         )
     }
 
@@ -466,6 +468,8 @@ final class NotesModel {
                     guard workspace.addRoot(URL(fileURLWithPath: root, isDirectory: true)) == nil else { continue }
                     workspace.pendingFrame = window.frame.map(NSRectFromString)
                 }
+                workspace.collapsedRoots = Set(window.collapsedRoots ?? [])
+                workspace.expandedFolders = Set(window.expandedFolders ?? [])
                 var active: Int?
                 for (index, saved) in window.tabs.enumerated() {
                     var document: NoteDocument?
