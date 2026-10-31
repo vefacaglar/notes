@@ -67,4 +67,31 @@ struct NoteLinksTests {
         #expect(NoteLinks.foldedName("İstanbul") == NoteLinks.foldedName("istanbul"))
         #expect(NoteLinks.foldedName("e\u{301}") == NoteLinks.foldedName("\u{E9}"))
     }
+
+    @Test func detectsRootEscapeAndPrograms() {
+        let note = NoteRef(root: 0, path: "a/b/n.md")
+        #expect(NoteLinks.escapesRoot("../../x.md", from: note) == false)
+        #expect(NoteLinks.escapesRoot("../../../x.md", from: note))
+        #expect(NoteLinks.escapesRoot("c/../../../x.md", from: note) == false)
+        #expect(NoteLinks.escapesRoot("../../../../x.md", from: note))
+        #expect(NoteLinks.escapesRoot("../x.md", from: NoteRef(root: 0, path: "n.md")))
+        #expect(NoteLinks.isProgram(fileName: "Setup.COMMAND"))
+        #expect(NoteLinks.isProgram(fileName: "tool.ps1"))
+        #expect(!NoteLinks.isProgram(fileName: "notes.md"))
+        #expect(!NoteLinks.isProgram(fileName: "app"))
+    }
+
+    @Test func schemeNeedsTwoCharactersLettersDigitsAndSigns() {
+        #expect(NoteLinks.classify("v2:notes.md") == .web(URL(string: "v2:notes.md")!))
+        #expect(NoteLinks.classify("C:\\x.md") == .file("C:\\x.md"))
+        #expect(NoteLinks.classify("2a:x") == .file("2a:x"))
+    }
+
+    @Test func outlineEntriesPointAtTheLineStart() {
+        let text = "intro\n   ### Çalışma 😀 ###\n# Üst\r\n"
+        let headings = MarkdownOutline.headings(in: text)
+        #expect(headings.map(\.title) == ["Çalışma 😀", "Üst"])
+        #expect(headings[0].location == 6)
+        #expect(headings[1].location == (text as NSString).range(of: "# Üst").location)
+    }
 }

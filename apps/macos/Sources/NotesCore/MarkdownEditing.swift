@@ -148,11 +148,14 @@ public enum MarkdownEditing {
     /// A click at UTF-16 offset `index` on a task item's `[ ]` / `[x]` box: the edit that flips it. `nil` when the
     /// index is not on a box (boxes inside fenced code are not task items).
     public static func toggleTask(in text: String, at index: Int) -> TextEdit? {
-        for span in MarkdownStyler.spans(in: text) {
-            guard case .taskMarker(let checked) = span.kind, NSLocationInRange(index, span.range) else { continue }
-            return TextEdit(range: NSRange(location: span.range.location + 1, length: 1), replacement: checked ? " " : "x")
-        }
-        return nil
+        let ns = text as NSString
+        guard index >= 0, index < ns.length else { return nil }
+        let line = lineBounds(at: index, in: ns)
+        let info = LineInfo(Array(ns.substring(with: NSRange(location: line.start, length: line.end - line.start)).utf16))
+        guard let checked = info.task else { return nil }
+        let box = line.start + info.boxStart
+        guard index >= box, index < box + 3, !isInsideCodeBlock(line.start, in: text) else { return nil }
+        return TextEdit(range: NSRange(location: box + 1, length: 1), replacement: checked ? " " : "x")
     }
 
     // MARK: Line parsing
@@ -165,8 +168,46 @@ public enum MarkdownEditing {
         return (start, end)
     }
 
-    private static func isInsideCodeBlock(_ location: Int, in text: String) -> Bool {
-        MarkdownStyler.spans(in: text).contains { $0.kind == .codeBlock && NSLocationInRange(location, $0.range) }
+    /// Whether the line starting at `location` is part of a fenced code block. Scans only the fence lines before it
+    /// (same rules as `MarkdownStyler`), without parsing inline syntax.
+    static func isInsideCodeBlock(_ location: Int, in text: String) -> Bool {
+        let ns = text as NSString
+        let length = ns.length
+        func skipSpaces(_ from: Int, _ end: Int) -> Int {
+            var i = from
+            while i < end, ns.character(at: i) == 0x20 || ns.character(at: i) == 0x09 { i += 1 }
+            return i
+        }
+        func fenceRun(_ start: Int, _ end: Int) -> (char: UInt16, count: Int, end: Int)? {
+            let i = skipSpaces(start, end)
+            guard i - start <= 3, i < end else { return nil }
+            let c = ns.character(at: i)
+            guard c == 0x60 || c == 0x7E else { return nil }
+            var j = i
+            while j < end, ns.character(at: j) == c { j += 1 }
+            return j - i >= 3 ? (c, j - i, j) : nil
+        }
+        var open: (char: UInt16, count: Int)?
+        var lineStart = 0
+        while lineStart <= length {
+            var next = lineStart
+            while next < length, ns.character(at: next) != 0x0A { next += 1 }
+            var end = next
+            if end > lineStart, ns.character(at: end - 1) == 0x0D { end -= 1 }
+            let run = fenceRun(lineStart, end)
+            if lineStart >= location {
+                if open != nil { return true }
+                guard let run else { return false }
+                return run.char == 0x7E || !(run.end..<end).contains { ns.character(at: $0) == 0x60 }
+            }
+            if let current = open {
+                if let run, run.char == current.char, run.count >= current.count, skipSpaces(run.end, end) == end { open = nil }
+            } else if let run, run.char == 0x7E || !(run.end..<end).contains(where: { ns.character(at: $0) == 0x60 }) {
+                open = (run.char, run.count)
+            }
+            lineStart = next + 1
+        }
+        return open != nil
     }
 
     enum Marker: Equatable {
@@ -185,6 +226,8 @@ public enum MarkdownEditing {
         /// End of the marker itself (before its space).
         var markerEnd = 0
         var task: Bool?
+        /// Start of the `[ ]` / `[x]` box when the line is a task item.
+        var boxStart = 0
         var contentStart = 0
         /// Without trailing CR.
         var end = 0
@@ -228,7 +271,10 @@ public enum MarkdownEditing {
                 case 0x78, 0x58: task = true
                 default: break
                 }
-                if task != nil { contentStart = skip(contentStart + 3) }
+                if task != nil {
+                    boxStart = contentStart
+                    contentStart = skip(contentStart + 3)
+                }
             }
         }
 

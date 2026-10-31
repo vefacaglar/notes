@@ -24,9 +24,16 @@ public enum MarkdownOutline {
         for span in MarkdownStyler.spans(in: text) {
             guard case .heading(let level) = span.kind, NSMaxRange(span.range) <= ns.length else { continue }
             let title = title(of: ns.substring(with: span.range))
-            if !title.isEmpty { result.append(OutlineHeading(level: level, title: title, location: span.range.location)) }
+            if !title.isEmpty { result.append(OutlineHeading(level: level, title: title, location: lineStart(of: span.range.location, in: ns))) }
         }
         return result
+    }
+
+    /// Lines end at LF only, like the scanner.
+    private static func lineStart(of location: Int, in ns: NSString) -> Int {
+        var start = location
+        while start > 0 && ns.character(at: start - 1) != 0x0A { start -= 1 }
+        return start
     }
 
     static func title(of line: String) -> String {

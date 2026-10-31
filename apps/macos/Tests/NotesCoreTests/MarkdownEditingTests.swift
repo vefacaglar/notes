@@ -170,4 +170,31 @@ struct MarkdownEditingTests {
         let inCode = (text as NSString).range(of: "[ ] kod").location
         #expect(toggled(inCode) == nil)
     }
+
+    @Test func codeBlockScanAgreesWithTheStyler() {
+        let text = "a\n```swift\nb `\n```\n~~~\nc\n```\n~~~\n````\nd\n```\n````\n- [ ] e\n``` x`\n- [ ] f\n```\nlast\n```"
+        let ns = text as NSString
+        let blocks = MarkdownStyler.spans(in: text).filter { $0.kind == .codeBlock }.map(\.range)
+        var start = 0
+        while start <= ns.length {
+            let expected = blocks.contains { NSLocationInRange(start, $0) }
+            #expect(MarkdownEditing.isInsideCodeBlock(start, in: text) == expected, "line at \(start)")
+            let next = ns.range(of: "\n", range: NSRange(location: start, length: ns.length - start))
+            if next.location == NSNotFound { break }
+            start = NSMaxRange(next)
+        }
+    }
+
+    @Test func togglesOnlyTheBoxItself() {
+        let text = "> 1. [x] ünlü 😀 [ ]\n- [ ] b"
+        func toggled(_ at: Int) -> String? {
+            MarkdownEditing.toggleTask(in: text, at: at).map { (text as NSString).replacingCharacters(in: $0.range, with: $0.replacement) }
+        }
+        let box = (text as NSString).range(of: "[x]").location
+        #expect(toggled(box + 1) == "> 1. [ ] ünlü 😀 [ ]\n- [ ] b")
+        #expect(toggled(box + 4) == nil)
+        let later = (text as NSString).range(of: "[ ]\n").location
+        #expect(toggled(later) == nil)
+        #expect(toggled(-1) == nil && toggled(1000) == nil)
+    }
 }

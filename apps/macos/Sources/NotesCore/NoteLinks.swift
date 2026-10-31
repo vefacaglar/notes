@@ -116,6 +116,33 @@ public enum NoteLinks {
         return parts.isEmpty ? nil : parts.joined(separator: "/")
     }
 
+    /// Whether the relative `path` of a note inside a root climbs above that root with `..`. Such a link resolves to
+    /// nothing, and the disk is not tried either.
+    public static func escapesRoot(_ relative: String, from origin: NoteRef) -> Bool {
+        var depth = NoteStore.components(NoteStore.parent(origin.path)).filter { !$0.isEmpty }.count
+        for part in NoteStore.components(relative) {
+            switch part {
+            case "", ".": continue
+            case "..":
+                if depth == 0 { return true }
+                depth -= 1
+            default: depth += 1
+            }
+        }
+        return false
+    }
+
+    /// Extensions of programs, scripts and installers (lowercase, no dot). A click on a link to such a file shows it in
+    /// the file manager instead of opening it; the apps add their own checks (executable bit, bundles).
+    public static let programExtensions: Set<String> = [
+        "app", "command", "sh", "bash", "zsh", "csh", "ksh", "fish", "pkg", "mpkg", "scpt", "scptd", "workflow", "action", "terminal",
+        "exe", "com", "bat", "cmd", "ps1", "psm1", "vbs", "vbe", "wsf", "msi", "msp", "lnk", "scr", "jar", "dmg", "appref-ms",
+    ]
+
+    public static func isProgram(fileName: String) -> Bool {
+        programExtensions.contains((fileName as NSString).pathExtension.lowercased())
+    }
+
     private static func withoutNoteExtension(_ path: String) -> String {
         NoteStore.isNote(path) ? (path as NSString).deletingPathExtension : path
     }

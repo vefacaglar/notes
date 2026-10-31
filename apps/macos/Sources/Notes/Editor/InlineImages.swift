@@ -10,37 +10,44 @@ final class InlineImageCache {
 
     private struct Entry {
         var image: NSImage?
+        /// Displayed size in points; kept when the bitmap is evicted so the room reserved for the line stays stable.
+        var size: NSSize?
         var stamp: NoteFile.Stamp?
         var checked: Date
         var loading = false
+        var used = 0
     }
 
     private var entries: [URL: Entry] = [:]
-    private var order: [URL] = []
-    private var waiting: [URL: [@MainActor () -> Void]] = [:]
+    private var waiting: [URL: [ObjectIdentifier: @MainActor () -> Void]] = [:]
+    private var pass = 0
     private static let capacity = 48
     private nonisolated static let maxFileSize = 64 * 1_048_576
     private static let recheckInterval: TimeInterval = 2
 
-    /// The cached image for `url`, nil while it is loading or when the file is missing or not an image.
-    /// `onUpdate` runs once when a (re)load of this file finishes.
-    func image(for url: URL, onUpdate: @escaping @MainActor () -> Void) -> NSImage? {
+    /// Starts a lookup pass (one `applyImageSpacing`): bitmaps looked up in it are never evicted by it.
+    func beginPass() { pass += 1 }
+
+    /// The natural size of the image for `url`, nil while it is loading for the first time or when the file is missing
+    /// or not an image. `onUpdate` runs when a (re)load of this file finishes; one callback per `owner` and file.
+    func size(for url: URL, owner: AnyObject, onUpdate: @escaping @MainActor () -> Void) -> NSSize? {
         let now = Date()
         guard var entry = entries[url] else {
-            entries[url] = Entry(image: nil, stamp: nil, checked: now)
-            order.append(url)
-            if order.count > Self.capacity { entries[order.removeFirst()] = nil }
-            load(url, onUpdate)
+            entries[url] = Entry(checked: now, used: pass)
+            load(url, owner, onUpdate)
             return nil
         }
-        if !entry.loading, now.timeIntervalSince(entry.checked) > Self.recheckInterval {
-            entry.checked = now
-            entries[url] = entry
-            if NoteFile.stamp(url) != entry.stamp { load(url, onUpdate) }
-        } else if entry.loading {
-            waiting[url, default: []].append(onUpdate)
+        entry.used = pass
+        entries[url] = entry
+        if entry.loading {
+            waiting[url, default: [:]][ObjectIdentifier(owner)] = onUpdate
+        } else if entry.size != nil, entry.image == nil {
+            load(url, owner, onUpdate)
+        } else if now.timeIntervalSince(entry.checked) > Self.recheckInterval {
+            entries[url]?.checked = now
+            if NoteFile.stamp(url) != entry.stamp { load(url, owner, onUpdate) }
         }
-        return entry.image
+        return entry.size
     }
 
     /// The image already in the cache, without starting a load.
@@ -51,9 +58,9 @@ final class InlineImageCache {
         for url in entries.keys { entries[url]?.checked = .distantPast }
     }
 
-    private func load(_ url: URL, _ onUpdate: @escaping @MainActor () -> Void) {
+    private func load(_ url: URL, _ owner: AnyObject, _ onUpdate: @escaping @MainActor () -> Void) {
         entries[url]?.loading = true
-        waiting[url, default: []].append(onUpdate)
+        waiting[url, default: [:]][ObjectIdentifier(owner)] = onUpdate
         let stamp = NoteFile.stamp(url)
         Task.detached(priority: .utility) {
             let decoded = Self.decode(url)
@@ -70,11 +77,23 @@ final class InlineImageCache {
         entries[url]?.checked = Date()
         if let decoded {
             entries[url]?.image = NSImage(cgImage: decoded.image, size: decoded.pointSize)
+            entries[url]?.size = decoded.pointSize
         } else {
             entries[url]?.image = nil
+            entries[url]?.size = nil
         }
-        let callbacks = waiting.removeValue(forKey: url) ?? []
+        trim()
+        let callbacks = waiting.removeValue(forKey: url)?.values ?? [:].values
         callbacks.forEach { $0() }
+    }
+
+    /// Drops the bitmaps (and the entries of missing files) that no current pass looked up, oldest first, while more
+    /// than `capacity` bitmaps are held. Sizes of images stay.
+    private func trim() {
+        let held = entries.filter { $0.value.image != nil }
+        guard held.count > Self.capacity else { return }
+        let victims = held.filter { $0.value.used < pass && !$0.value.loading }.sorted { $0.value.used < $1.value.used }
+        for (url, _) in victims.prefix(held.count - Self.capacity) { entries[url]?.image = nil }
     }
 
     private struct Decoded: @unchecked Sendable {

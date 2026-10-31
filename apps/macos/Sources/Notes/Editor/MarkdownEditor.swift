@@ -159,6 +159,10 @@ struct MarkdownEditor: NSViewRepresentable {
                 imageSlots = []
                 (textView as? MarkdownTextView)?.imageSlots = []
                 textView.needsDisplay = true
+                if focusMode, !textView.hasMarkedText() {
+                    updateFocus(in: textView)
+                    scheduleCentering(textView)
+                }
                 return
             }
             if needsFullRestyle { dimmedFor = nil }
@@ -264,26 +268,35 @@ struct MarkdownEditor: NSViewRepresentable {
             let width = container.size.width - 2 * container.lineFragmentPadding
             let folder = view.noteURL?.deletingLastPathComponent()
             let cache = InlineImageCache.shared
+            cache.beginPass()
             let reload: @MainActor () -> Void = { [weak self, weak view] in
                 if let self, let view { self.applyImageSpacing(in: view) }
             }
             let baseStyle = base[.paragraphStyle] as? NSParagraphStyle
             var changes: [(range: NSRange, spacing: CGFloat)] = []
+            var trailing: CGFloat = 0
             for index in imageSlots.indices {
                 let urls = imageSlots[index].destinations.map { MarkdownImages.fileURL(for: $0, noteFolder: folder) }
                 imageSlots[index].urls = urls
                 let sizes = urls.map { url -> NSSize in
-                    guard let url, let image = cache.image(for: url, onUpdate: reload) else { return .zero }
-                    return InlineImageLayout.size(of: image.size, fitting: width)
+                    guard let url, let natural = cache.size(for: url, owner: view, onUpdate: reload) else { return .zero }
+                    return InlineImageLayout.size(of: natural, fitting: width)
                 }
                 let paragraph = imageSlots[index].paragraph
                 guard NSMaxRange(paragraph) <= storage.length else { continue }
+                if NSMaxRange(paragraph) == storage.length, storage.mutableString.character(at: storage.length - 1) != 0x0A {
+                    trailing = InlineImageLayout.reservedHeight(sizes)
+                }
                 let spacing = (baseStyle?.paragraphSpacing ?? 0) + InlineImageLayout.reservedHeight(sizes)
                 let current = (storage.attribute(.paragraphStyle, at: paragraph.location, effectiveRange: nil) as? NSParagraphStyle)?.paragraphSpacing
                 if current != spacing { changes.append((paragraph, spacing)) }
             }
             view.imageSlots = imageSlots
             view.needsDisplay = true
+            if view.trailingImageHeight != trailing {
+                view.trailingImageHeight = trailing
+                view.sizeToFit()
+            }
             guard !changes.isEmpty, !textView.hasMarkedText() else { return }
             storage.beginEditing()
             for change in changes {
@@ -336,10 +349,14 @@ struct MarkdownEditor: NSViewRepresentable {
             let length = storage.length
             let paragraph = Self.revealRange(of: textView.selectedRanges, in: storage.mutableString)
             if let dimmedFor, dimmedFor.paragraph == paragraph, dimmedFor.length == length { return }
+            // Typing inside the same paragraph only moves the dimmed tail: the part before it stays as it is.
+            let keepsHead = dimmedFor?.paragraph.location == paragraph.location
             dimmedFor = (paragraph, length)
-            layout.removeTemporaryAttribute(.foregroundColor, forCharacterRange: NSRange(location: 0, length: length))
+            let cleared = keepsHead ? NSRange(location: paragraph.location, length: length - paragraph.location)
+                                    : NSRange(location: 0, length: length)
+            layout.removeTemporaryAttribute(.foregroundColor, forCharacterRange: cleared)
             let dim = palette.colors.text.nsColor.withAlphaComponent(0.3)
-            if paragraph.location > 0 {
+            if paragraph.location > 0, !keepsHead {
                 layout.addTemporaryAttribute(.foregroundColor, value: dim, forCharacterRange: NSRange(location: 0, length: paragraph.location))
             }
             if NSMaxRange(paragraph) < length {
@@ -642,10 +659,13 @@ final class MarkdownTextView: EditorTextView {
         didSet { if centersCaret != oldValue { updateInsets(for: frame.size) } }
     }
 
+    /// Room for the images under a last line that has no line break (paragraph spacing needs one to take effect).
+    var trailingImageHeight: CGFloat = 0
+
     override func setFrameSize(_ newSize: NSSize) {
         let widthChanged = newSize.width != frame.width
         updateInsets(for: newSize)
-        super.setFrameSize(newSize)
+        super.setFrameSize(NSSize(width: newSize.width, height: newSize.height + trailingImageHeight))
         if widthChanged { onLayoutWidthChange?() }
     }
 
@@ -713,7 +733,7 @@ final class MarkdownTextView: EditorTextView {
         guard let layout = layoutManager, let storage = textStorage else { return nil }
         let length = storage.length
         let location = min(selectedRange().location, length)
-        layout.ensureLayout(for: textContainer ?? NSTextContainer())
+        layout.ensureLayout(forCharacterRange: NSRange(location: max(0, min(location, length - 1)), length: length == 0 ? 0 : 1))
         if length == 0 || (location == length && storage.string.hasSuffix("\n")) {
             let extra = layout.extraLineFragmentRect
             return extra.isEmpty ? nil : extra
@@ -818,7 +838,9 @@ final class MarkdownTextView: EditorTextView {
             }
         }
         if !lines.isEmpty {
-            let text = lines.joined(separator: "\n")
+            var text = lines.joined(separator: "\n")
+            // At the very end the last image line would have no break to hold the room reserved under it.
+            if NSMaxRange(range) == (string as NSString).length { text += "\n" }
             let end = range.location + (text as NSString).length
             apply(TextEdit(range: range, replacement: text, selection: NSRange(location: end, length: 0)))
         }
@@ -873,9 +895,15 @@ final class MarkdownTextView: EditorTextView {
         isTrackingMouse = false
         onMouseUp?()
         guard let hit, event.clickCount == 1, selectedRange().length == 0, let window,
-              characterIndex(at: convert(window.mouseLocationOutsideOfEventStream, from: nil)) == hit,
+              Self.stayedInPlace(from: event.locationInWindow, to: window.mouseLocationOutsideOfEventStream),
               let value = textStorage?.attribute(.link, at: hit, effectiveRange: nil) else { return }
         onOpenLink?((value as? URL)?.absoluteString ?? "\(value)")
+    }
+
+    /// The pointer is where the click began (revealing markers may have shifted the text meanwhile, so the character
+    /// under it can't be compared again).
+    private static func stayedInPlace(from start: NSPoint, to end: NSPoint) -> Bool {
+        hypot(end.x - start.x, end.y - start.y) <= 4
     }
 
     /// Links are followed by `mouseDown`; AppKit must not open them a second time.
