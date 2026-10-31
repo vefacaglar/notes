@@ -118,17 +118,10 @@ public enum MarkdownImages {
 public enum NoteAssets {
     public static let folderName = "assets"
 
-    /// `<note name> <n>.<ext>`, valid under the portable name rules (forbidden characters become `-`, ends and
-    /// reserved device names fixed, the note name capped at 60 characters).
+    /// `<note name> <n>.<ext>`, valid under the portable name rules (`NoteStore.portableName`, the note name capped at
+    /// 60 characters; reserved device names fixed).
     public static func fileName(forNote noteName: String, index: Int, fileExtension: String) -> String {
-        var scalars = String.UnicodeScalarView()
-        for scalar in noteName.unicodeScalars {
-            scalars.append(scalar == "/" || NoteStore.forbidden.contains(scalar) ? "-" : scalar)
-        }
-        var base = String(scalars)
-        while let first = base.unicodeScalars.first, first == "." || first == " " { base.unicodeScalars.removeFirst() }
-        base = String(base.precomposedStringWithCanonicalMapping.prefix(60))
-        while let last = base.unicodeScalars.last, last == "." || last == " " { base.unicodeScalars.removeLast() }
+        var base = NoteStore.portableName(noteName, maxCharacters: 60)
         if base.isEmpty { base = "image" }
         return NoteStore.avoidingReservedName("\(base) \(index).\(fileExtension)")
     }
