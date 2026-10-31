@@ -53,9 +53,11 @@ struct SidebarView: View {
                         DisclosureGroup(isExpanded: expanded(root)) {
                             OutlineGroup(root.items, children: \.children) { item in row(item, pinned: false) }
                         } label: {
-                            Label(root.name, systemImage: "folder")
-                                .appFont()
-                                .fontWeight(.semibold)
+                            Label {
+                                Text(verbatim: root.name).appFont(weight: .semibold)
+                            } icon: {
+                                Image(systemName: "folder")
+                            }
                                 .help(root.url.path)
                                 .dropTarget(ItemID(root: root.id, path: ""), in: $dropTarget) { workspace.drop($0, onto: $1) }
                                 .contextMenu { rootMenu(for: root) }

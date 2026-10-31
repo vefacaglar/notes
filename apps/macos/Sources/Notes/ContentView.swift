@@ -22,6 +22,13 @@ struct WorkspaceView: View {
         .appFont()
         .navigationTitle(title)
         .toolbar {
+            // The title is drawn here, in the app font; AppKit's own title stays hidden (it keeps naming the window).
+            ToolbarItem(placement: .navigation) {
+                Text(verbatim: title)
+                    .appFont(.title3, weight: .semibold)
+                    .lineLimit(1)
+                    .help(title)
+            }
             if workspace.isMain {
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button(action: workspace.newNote) { Label(loc: "New Note", systemImage: "square.and.pencil") }
@@ -169,6 +176,7 @@ private struct WindowBridge: NSViewRepresentable {
             workspace.window = window
             window.isRestorable = workspace.isMain && LaunchOptions.isPersistent
             window.tabbingMode = .disallowed
+            window.titleVisibility = .hidden
             if let frame = workspace.pendingFrame {
                 workspace.pendingFrame = nil
                 window.setFrame(frame, display: true)
