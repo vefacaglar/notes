@@ -7,7 +7,10 @@
       "request": "launch",
       "preLaunchTask": "Windows: Build",
       "program": "${workspaceFolder}/apps/windows/src/Notes/bin/x64/Debug/net10.0-windows10.0.19041.0/Notes.exe",
-      "args": ["--root", "${env:TEMP}\\NotesTemp"],
+      "args": [
+        "--root",
+        "${env:TEMP}\\NotesTemp"
+      ],
       "cwd": "${workspaceFolder}/apps/windows/src/Notes",
       "console": "internalConsole",
       "justMyCode": true
@@ -34,7 +37,12 @@
       "request": "launch",
       "preLaunchTask": "macOS: Build for debugging",
       "program": "${workspaceFolder}/apps/macos/.build/debug/Notes",
-      "args": ["-notesFolder", "${env:TMPDIR}/NotesTemp", "-supportFolder", "${env:TMPDIR}/NotesTempSupport"],
+      "args": [
+        "-notesFolder",
+        "${env:TMPDIR}/NotesTemp",
+        "-supportFolder",
+        "${env:TMPDIR}/NotesTempSupport"
+      ],
       "cwd": "${workspaceFolder}/apps/macos"
     },
     {
@@ -43,7 +51,14 @@
       "request": "launch",
       "preLaunchTask": "macOS: Build for debugging",
       "program": "${workspaceFolder}/apps/macos/.build/debug/Notes",
-      "args": ["-notesFolder", "${env:TMPDIR}/NotesTemp", "-supportFolder", "${env:TMPDIR}/NotesTempSupport", "-lang", "tr"],
+      "args": [
+        "-notesFolder",
+        "${env:TMPDIR}/NotesTemp",
+        "-supportFolder",
+        "${env:TMPDIR}/NotesTempSupport",
+        "-lang",
+        "tr"
+      ],
       "cwd": "${workspaceFolder}/apps/macos"
     },
     {
@@ -51,6 +66,26 @@
       "type": "swift",
       "request": "attach",
       "program": "${workspaceFolder}/apps/macos/.build/debug/Notes"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:notes}/apps/macos",
+      "name": "Debug Notes (apps/macos)",
+      "target": "Notes",
+      "configuration": "debug",
+      "preLaunchTask": "swift: Build Debug Notes (apps/macos)"
+    },
+    {
+      "type": "swift",
+      "request": "launch",
+      "args": [],
+      "cwd": "${workspaceFolder:notes}/apps/macos",
+      "name": "Release Notes (apps/macos)",
+      "target": "Notes",
+      "configuration": "release",
+      "preLaunchTask": "swift: Build Release Notes (apps/macos)"
     }
   ]
 }

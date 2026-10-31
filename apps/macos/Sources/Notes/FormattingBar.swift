@@ -9,39 +9,34 @@ struct FormattingToolbar: ToolbarContent {
 
     var body: some ToolbarContent {
         let format = editor.activeFormat
-        ToolbarItem {
-            Menu {
-                headingItem("Heading 1", level: 1, format: format)
-                headingItem("Heading 2", level: 2, format: format)
-                headingItem("Heading 3", level: 3, format: format)
-                Toggle(loc: "Body", isOn: Binding(get: { format.heading == 0 }, set: { _ in editor.apply(.body) }))
-            } label: {
-                Label(loc: "Heading", systemImage: "textformat.size")
-            }
-            .menuIndicator(.hidden)
-            .disabled(isReadOnly)
-            .help(loc: "Heading")
-        }
-        ToolbarItem {
-            ControlGroup {
-                toggle("bold", "Bold (⌘B)", on: format.inline.contains(.bold)) { editor.toggle(.bold) }
-                toggle("italic", "Italic (⌘I)", on: format.inline.contains(.italic)) { editor.toggle(.italic) }
-                toggle("strikethrough", "Strikethrough (⇧⌘X)", on: format.inline.contains(.strikethrough)) { editor.toggle(.strikethrough) }
-                toggle("chevron.left.forwardslash.chevron.right", "Inline Code (⌃⌘C)", on: format.inline.contains(.code)) { editor.toggle(.code) }
-            }
-            .disabled(isReadOnly)
-        }
-        ToolbarItem {
-            ControlGroup {
-                toggle("list.bullet", "Bulleted List (⇧⌘8)", on: format.bullet) { editor.apply(.bullet) }
-                toggle("list.number", "Numbered List (⇧⌘7)", on: format.numbered) { editor.apply(.numbered) }
-                toggle("checklist", "Checklist (⇧⌘L)", on: format.task) { editor.apply(.task) }
-                toggle("text.quote", "Block Quote (⇧⌘')", on: format.quote) { editor.apply(.quote) }
-            }
-            .disabled(isReadOnly)
-        }
-        ToolbarItem {
-            ControlGroup {
+        // One item in the middle of the toolbar, so the controls share one rounded (capsule) background.
+        ToolbarItem(placement: .principal) {
+            HStack(spacing: 2) {
+                Menu {
+                    headingItem("Heading 1", level: 1, format: format)
+                    headingItem("Heading 2", level: 2, format: format)
+                    headingItem("Heading 3", level: 3, format: format)
+                    Toggle(loc: "Body", isOn: Binding(get: { format.heading == 0 }, set: { _ in editor.apply(.body) }))
+                } label: {
+                    Image(systemName: "textformat.size")
+                }
+                .menuStyle(.borderlessButton)
+                .menuIndicator(.hidden)
+                .fixedSize()
+                .foregroundStyle(format.heading > 0 ? .primary : .secondary)
+                .padding(.horizontal, 5)
+                .help(loc: "Heading")
+                separator
+                button("bold", "Bold (⌘B)", active: format.inline.contains(.bold)) { editor.toggle(.bold) }
+                button("italic", "Italic (⌘I)", active: format.inline.contains(.italic)) { editor.toggle(.italic) }
+                button("strikethrough", "Strikethrough (⇧⌘X)", active: format.inline.contains(.strikethrough)) { editor.toggle(.strikethrough) }
+                button("chevron.left.forwardslash.chevron.right", "Inline Code (⌃⌘C)", active: format.inline.contains(.code)) { editor.toggle(.code) }
+                separator
+                button("list.bullet", "Bulleted List (⇧⌘8)", active: format.bullet) { editor.apply(.bullet) }
+                button("list.number", "Numbered List (⇧⌘7)", active: format.numbered) { editor.apply(.numbered) }
+                button("checklist", "Checklist (⇧⌘L)", active: format.task) { editor.apply(.task) }
+                button("text.quote", "Block Quote (⇧⌘')", active: format.quote) { editor.apply(.quote) }
+                separator
                 button("link", "Link (⌘K)") { editor.insertLink() }
                 button("curlybraces", "Code Block (⌥⌘K)") { editor.insertCodeBlock() }
                 button("tablecells", "Table (⇧⌘T)") { editor.isTablePickerShown.toggle() }
@@ -50,23 +45,52 @@ struct FormattingToolbar: ToolbarContent {
                     }
                 button("minus", "Horizontal Rule (⇧⌘H)") { editor.insertRule() }
             }
+            .padding(.horizontal, 8)
+            .frame(height: 32)
+            .modifier(CapsuleBackground())
             .disabled(isReadOnly)
         }
+    }
+
+    private var separator: some View {
+        Divider().frame(height: 14).padding(.horizontal, 4)
     }
 
     private func headingItem(_ key: LocalizedStringKey, level: Int, format: ActiveFormat) -> some View {
         Toggle(loc: key, isOn: Binding(get: { format.heading == level }, set: { _ in editor.apply(.heading(level)) }))
     }
 
-    private func toggle(_ symbol: String, _ key: LocalizedStringKey, on: Bool, action: @escaping () -> Void) -> some View {
-        Toggle(isOn: Binding(get: { on }, set: { _ in action() })) { Label(loc: key, systemImage: symbol) }
-            .toggleStyle(.button)
+    private func button(_ symbol: String, _ key: LocalizedStringKey, active: Bool = false,
+                        action: @escaping () -> Void) -> some View {
+        Button(action: action) { Image(systemName: symbol) }
+            .buttonStyle(BarButtonStyle(active: active))
             .help(loc: key)
     }
+}
 
-    private func button(_ symbol: String, _ key: LocalizedStringKey, action: @escaping () -> Void) -> some View {
-        Button(action: action) { Label(loc: key, systemImage: symbol) }
-            .help(loc: key)
+/// Before macOS 26 toolbar items have no glass of their own: give the group its capsule.
+private struct CapsuleBackground: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 26, *) {
+            content
+        } else {
+            content.background(.quaternary.opacity(0.6), in: Capsule())
+        }
+    }
+}
+
+private struct BarButtonStyle: ButtonStyle {
+    let active: Bool
+    @Environment(\.isEnabled) private var isEnabled
+
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 13))
+            .foregroundStyle(active ? .primary : .secondary)
+            .frame(width: 26, height: 24)
+            .background(Color.primary.opacity(configuration.isPressed ? 0.14 : active ? 0.1 : 0), in: Capsule())
+            .contentShape(Capsule())
+            .opacity(isEnabled ? 1 : 0.5)
     }
 }
 
