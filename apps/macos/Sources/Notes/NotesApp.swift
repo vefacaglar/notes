@@ -23,7 +23,10 @@ struct NotesApp: App {
                 .environment(AppSettings.shared)
         }
         .defaultSize(width: 1000, height: 680)
-        .commands { NotesCommands(model: appDelegate.model) }
+        .commands {
+            NotesCommands(model: appDelegate.model)
+            EditorCommands()
+        }
 
         // Windows of files opened from outside the roots. They are never restored by AppKit (see `WindowBridge`);
         // the session file brings them back instead.
