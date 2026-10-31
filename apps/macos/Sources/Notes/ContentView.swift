@@ -23,7 +23,9 @@ struct WorkspaceView: View {
                 action: { detailFrame = $0 }
         }
         .appFont()
-        .navigationTitle(title)
+        // An empty title: the tab shows the name. Not hidden or removed, which would also line the toolbar's items up
+        // on the left instead of the right; WindowBridge names the window in the Window menu.
+        .navigationTitle("")
         .toolbar {
             if let tab = workspace.activeTab {
                 let document = tab.document
@@ -35,11 +37,8 @@ struct WorkspaceView: View {
                     }
                 }
                 if language.canFormat {
-                    ToolbarItem {
-                        Button(loc: "Format") { tab.editor.format() }
-                            .disabled(document.isReadOnly)
-                            .help(loc: "Format (⇧⌥F)")
-                    }
+                    CodeFormatToolbar(editor: tab.editor, isReadOnly: document.isReadOnly, column: detailFrame,
+                                      trailingRoom: workspace.isMain ? 105 : 8)
                 }
                 if language == .markdown, !settings.showFormattingBar {
                     ToolbarItem { OutlineButton(editor: tab.editor, document: document) }
@@ -59,7 +58,7 @@ struct WorkspaceView: View {
         .errorAlert($workspace.errorMessage)
         .sheet(isPresented: $workspace.isQuickOpenVisible) { QuickOpenView(workspace: workspace, model: model) }
         .focusedSceneValue(\.workspace, workspace)
-        .background(WindowBridge(workspace: workspace, representedURL: representedURL))
+        .background(WindowBridge(workspace: workspace, title: title, representedURL: representedURL))
         .background(TabNumberShortcuts(workspace: workspace))
         .background(SearchShortcut(workspace: workspace))
         .background(ZoomInAlternateShortcut(settings: settings))
@@ -180,10 +179,12 @@ private struct ZoomInAlternateShortcut: View {
 /// (the session file does that, without reopening files that are gone), guards closing and sets the proxy icon.
 private struct WindowBridge: NSViewRepresentable {
     let workspace: Workspace
+    let title: String
     let representedURL: URL?
 
     final class Marker: NSView {
         weak var workspace: Workspace?
+        var title = ""
         var representedURL: URL?
 
         override func viewDidMoveToWindow() {
@@ -192,9 +193,7 @@ private struct WindowBridge: NSViewRepresentable {
             workspace.window = window
             window.isRestorable = workspace.isMain && LaunchOptions.isPersistent
             window.tabbingMode = .disallowed
-            // The title keeps naming the window and keeps the toolbar's items at its right end, but is not drawn:
-            // the tab shows it. (Removing it from the toolbar would line all items up on the left.)
-            window.titleVisibility = .hidden
+            NSApp.changeWindowsItem(window, title: title, filename: false)
             if let frame = workspace.pendingFrame {
                 workspace.pendingFrame = nil
                 window.setFrame(frame, display: true)
@@ -207,6 +206,7 @@ private struct WindowBridge: NSViewRepresentable {
     func makeNSView(context: Context) -> Marker {
         let view = Marker()
         view.workspace = workspace
+        view.title = title
         view.representedURL = representedURL
         return view
     }
@@ -214,6 +214,10 @@ private struct WindowBridge: NSViewRepresentable {
     func updateNSView(_ view: Marker, context: Context) {
         view.workspace = workspace
         view.representedURL = representedURL
+        if let window = view.window, view.title != title {
+            view.title = title
+            NSApp.changeWindowsItem(window, title: title, filename: false)
+        }
         if view.window?.representedURL != representedURL { view.window?.representedURL = representedURL }
     }
 }

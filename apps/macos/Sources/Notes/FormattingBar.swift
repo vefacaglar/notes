@@ -85,6 +85,27 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
     }
 }
 
+/// The Format button of a code file (JSON…) in the toolbar, in its own capsule like the Markdown controls.
+struct CodeFormatToolbar: ToolbarContent {
+    let editor: TextEditorProxy
+    let isReadOnly: Bool
+    var column: ClosedRange<CGFloat> = 0...0
+    var trailingRoom: CGFloat = 0
+
+    var body: some ToolbarContent {
+        ToolbarItem {
+            Button { editor.format() } label: { Label(loc: "Format", systemImage: "wand.and.stars").labelStyle(.iconOnly) }
+                .buttonStyle(BarButtonStyle(active: false))
+                .disabled(isReadOnly)
+                .help(loc: "Format (⇧⌥F)")
+                .padding(.horizontal, 10)
+                .frame(height: 36)
+                .modifier(CapsuleBackground())
+                .modifier(CenteredOverColumn(column: column, trailingRoom: trailingRoom))
+        }
+    }
+}
+
 /// The toolbar lines its items up at its right end, so this item ends `trailingRoom` before the column's end; empty
 /// room after the content moves the content to the middle of the column.
 private struct CenteredOverColumn: ViewModifier {
