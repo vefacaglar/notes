@@ -44,6 +44,66 @@ struct MarkdownHTMLTests {
         #expect(html("[x](JavaScript:alert)").contains("href=\"#\""))
     }
 
+    @Test(arguments: [
+        "[x](\u{01}javascript:alert%281%29)",
+        "[x](\u{1F}JavaScript:alert)",
+        "[x]( \u{0B}javascript:alert)",
+        "[x](vbscript:x)",
+        "[x](data:text/html,hi)",
+        "![x](\u{01}javascript:alert)",
+        "[x](ftp://a/b)",
+        "[x](file:///etc/passwd)",
+    ])
+    func schemeBypassesAreNeutralised(_ markdown: String) {
+        let out = html(markdown)
+        #expect(out.contains("href=\"#\"") || out.contains("src=\"#\""), "\(out)")
+    }
+
+    @Test func allowedTargetsSurvive() {
+        #expect(html("[a](HTTPS://x.com/a:b)").contains("href=\"HTTPS://x.com/a:b\""))
+        #expect(html("[a](mailto:me@x.com)").contains("href=\"mailto:me@x.com\""))
+        #expect(html("[a](notes/b.md#h:1)").contains("href=\"notes/b.md#h:1\""))
+        #expect(html("[a](./x:y)").contains("href=\"./x:y\""))
+        #expect(html("[a](#top)").contains("href=\"#top\""))
+    }
+
+    @Test(arguments: [
+        "[x](<http://a/onerror=alert(1)//>)",
+        "![x](<http://a/\"onerror=alert(1)>)",
+        "[x](<https://a> \"t\")",
+        "[x](a \"<https://b/\" onmouseover=\"alert(1)>\")",
+        "![x](a \"<https://b/\" onerror=\"alert(1)>\")",
+        "[x](`a\"onerror=1`)",
+        "[x](a \"`b\" onfocus=\"1`\")",
+        "[x](\"onerror=alert(1) \"b\")",
+        "![\"onerror=1](x\" onerror=\"1)",
+        "[x](a<b>\"onerror=1)",
+    ])
+    func hostileDestinationsNeverBreakOutOfAttributes(_ markdown: String) {
+        let out = html(markdown)
+        // Every attribute value is closed by the tag's own quotes: no quote character is left unescaped inside one.
+        let tags = out.components(separatedBy: "<").dropFirst().map { "<" + $0 }
+        for tag in tags where tag.hasPrefix("<a ") || tag.hasPrefix("<img ") {
+            let head = String(tag.prefix { $0 != ">" })
+            // Whatever is left after removing the name and every well-formed `attr="value"` is an injected attribute.
+            let rest = head.replacingOccurrences(of: #"^<\w+"#, with: "", options: .regularExpression)
+                .replacingOccurrences(of: #"\s[a-z]+="[^"]*""#, with: "", options: .regularExpression)
+            #expect(rest.isEmpty, "\(out)")
+            #expect(!head.contains(" onerror=\"") && !head.contains(" onmouseover=\"") && !head.contains(" onfocus=\""), "\(out)")
+        }
+    }
+
+    @Test func safeURLCleansLikeABrowser() {
+        #expect(MarkdownHTML.safeURL("java\tscript:alert(1)") == "#")
+        #expect(MarkdownHTML.safeURL("\u{01} \u{1F}javascript:x") == "#")
+        #expect(MarkdownHTML.safeURL(" \thttps://a.b/c\n") == "https://a.b/c")
+        #expect(MarkdownHTML.safeURL("a/b:c") == "a/b:c")
+    }
+
+    @Test func escapedCharactersStillWorkInDestinations() {
+        #expect(html("[x](a\\_b.md)").contains("href=\"a_b.md\""))
+    }
+
     @Test func backslashEscapes() {
         #expect(html("\\*not em\\* \\# x") == "<p>*not em* # x</p>\n")
     }

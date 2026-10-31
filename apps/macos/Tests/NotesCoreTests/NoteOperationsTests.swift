@@ -109,6 +109,33 @@ struct NoteOperationsTests {
         #expect(FileManager.default.fileExists(atPath: outside.appendingPathComponent("n.md").path))
     }
 
+    @Test func copyInAndDuplicateMakeNamesPortable() throws {
+        let outside = FileManager.default.temporaryDirectory.appendingPathComponent("Outside-\(UUID().uuidString)")
+        try FileManager.default.createDirectory(at: outside, withIntermediateDirectories: true)
+        let longName = String(repeating: "a", count: 240) + ".md"
+        for name in ["con.md", "a:b.md", "Cafe\u{301}.md", longName] {
+            try Data("x".utf8).write(to: outside.appendingPathComponent(name))
+        }
+        #expect(try store.copyIn(outside.appendingPathComponent("con.md"), to: nil) == "con_.md")
+        #expect(try store.copyIn(outside.appendingPathComponent("a:b.md"), to: nil) == "a-b.md")
+        #expect(try store.copyIn(outside.appendingPathComponent("Cafe\u{301}.md"), to: nil) == "Caf\u{E9}.md")
+        let long = try store.copyIn(outside.appendingPathComponent(longName), to: nil)
+        #expect(long.utf8.count <= 200)
+        #expect(long.hasSuffix(".md"))
+        try put("Why?.md", "q")
+        #expect(try store.duplicate("Why?.md") == "Why- copy.md")
+    }
+
+    @Test func portableNameRules() {
+        #expect(NoteStore.portableName(" ..a/b\u{1}c*?. ") == "a-b-c--")
+        #expect(NoteStore.portableName("...") == "")
+        #expect(NoteStore.portableName(String(repeating: "🙂", count: 100)).utf8.count <= 200)
+        #expect(NoteStore.portableName("abcdef", maxCharacters: 3) == "abc")
+        #expect(NoteStore.portableFileName("NUL.txt", isFolder: false) == "NUL_.txt")
+        #expect(NoteStore.portableFileName("v1.2", isFolder: true) == "v1.2")
+        #expect(NoteStore.portableFileName("???.md", isFolder: false) == "---.md")
+    }
+
     @Test func copyInRejectsHiddenAndOwnAncestor() throws {
         try put("Parent/Child/x.md")
         #expect(throws: NoteStoreError.self) { try store.copyIn(root.appendingPathComponent("Parent"), to: "Parent/Child") }

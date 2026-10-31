@@ -68,7 +68,8 @@ extension NoteStore {
             throw CocoaError(.fileNoSuchFile, userInfo: [NSFilePathErrorKey: source.path])
         }
         let dir = source.deletingLastPathComponent()
-        let name = Self.uniqueItemName(Self.lastComponent(path), isFolder: isDirectory.boolValue,
+        let name = Self.uniqueItemName(Self.portableFileName(Self.lastComponent(path), isFolder: isDirectory.boolValue),
+                                       isFolder: isDirectory.boolValue,
                                        marker: NamingLanguage.current.copyMarker, in: dir)
         try FileManager.default.copyItem(at: source, to: dir.appendingPathComponent(name))
         return Self.join(Self.parent(path), name)
@@ -87,7 +88,8 @@ extension NoteStore {
         guard !name.isEmpty, name.unicodeScalars.first != "." else { throw NoteStoreError.invalidName(name) }
         let dir = try existingFolder(folder)
         guard !Self.isInside(dir, source) else { throw NoteStoreError.invalidName(name) }
-        let finalName = Self.uniqueItemName(name, isFolder: isDirectory.boolValue, in: dir)
+        let finalName = Self.uniqueItemName(Self.portableFileName(name, isFolder: isDirectory.boolValue),
+                                            isFolder: isDirectory.boolValue, in: dir)
         try fm.copyItem(at: source, to: dir.appendingPathComponent(finalName))
         return Self.join(folder, finalName)
     }

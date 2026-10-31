@@ -360,12 +360,28 @@ public enum MarkdownHTML {
 
     private static func inline(_ source: String) -> String {
         var held: [String] = []
-        func hold(_ html: String) -> String {
+        var plain: Set<Int> = []
+        func hold(_ html: String, plainText: Bool = false) -> String {
             held.append(html)
+            if plainText { plain.insert(held.count - 1) }
             return "\(holdOpen)\(held.count - 1)\(holdClose)"
         }
+        /// An attribute value from a destination or title: placeholders for escaped text expand to that text; any
+        /// other placeholder (an autolink or code span, which holds markup) makes the value unusable.
+        func attribute(_ value: String) -> String? {
+            guard value.contains(holdOpen) || value.contains(holdClose) else { return value }
+            var usable = true
+            let expanded = placeholder.replacing(in: value) {
+                guard let index = Int($0[1]), plain.contains(index) else {
+                    usable = false
+                    return ""
+                }
+                return held[index]
+            }
+            return usable && !expanded.contains(holdOpen) && !expanded.contains(holdClose) ? expanded : nil
+        }
         var s = source.filter { $0 != holdOpen && $0 != holdClose }
-        s = backslashEscape.replacing(in: s) { hold(escape($0[1])) }
+        s = backslashEscape.replacing(in: s) { hold(escape($0[1]), plainText: true) }
         s = codeSpan.replacing(in: s) {
             var code = $0[2].replacingOccurrences(of: "\n", with: " ")
             if code.count > 2, code.hasPrefix(" "), code.hasSuffix(" "), !code.allSatisfy({ $0 == " " }) {
@@ -376,13 +392,15 @@ public enum MarkdownHTML {
         s = autolink.replacing(in: s) { hold("<a href=\"\(escape($0[1]))\">\(escape($0[1]))</a>") }
         s = escape(s)
         s = image.replacing(in: s) {
+            guard let destination = attribute($0[2]), let title = attribute($0[3]) else { return $0[0] }
             let alt = placeholder.replacing(in: $0[1]) { _ in "" }
-            let title = $0[3].isEmpty ? "" : " title=\"\($0[3])\""
-            return hold("<img src=\"\(safeURL($0[2]))\" alt=\"\(alt)\"\(title)>")
+            let titleAttribute = title.isEmpty ? "" : " title=\"\(title)\""
+            return hold("<img src=\"\(safeURL(destination))\" alt=\"\(alt)\"\(titleAttribute)>")
         }
         s = link.replacing(in: s) {
-            let title = $0[3].isEmpty ? "" : " title=\"\($0[3])\""
-            return hold("<a href=\"\(safeURL($0[2]))\"\(title)>") + $0[1] + hold("</a>")
+            guard let destination = attribute($0[2]), let title = attribute($0[3]) else { return $0[0] }
+            let titleAttribute = title.isEmpty ? "" : " title=\"\(title)\""
+            return hold("<a href=\"\(safeURL(destination))\"\(titleAttribute)>") + $0[1] + hold("</a>")
         }
         s = bareURL.replacing(in: s) { hold("<a href=\"\($0[0])\">\($0[0])</a>") }
         s = boldItalic.replacing(in: s) { "<strong><em>\($0[1])</em></strong>" }
@@ -398,11 +416,22 @@ public enum MarkdownHTML {
         return s
     }
 
-    /// `javascript:`, `vbscript:` and `data:` links become `#`. The URL is already HTML-escaped.
-    private static func safeURL(_ url: String) -> String {
-        let lowered = url.lowercased().filter { !$0.isWhitespace && !$0.isNewline }
-        for scheme in ["javascript:", "vbscript:", "data:"] where lowered.hasPrefix(scheme) { return "#" }
-        return url
+    /// Only `http`, `https`, `mailto` and scheme-less (relative) targets survive; anything else becomes `#`. Like a
+    /// browser, leading and trailing C0 controls and spaces are ignored and TAB, LF and CR inside are removed before
+    /// the scheme is read. The URL is already HTML-escaped; the returned value is the cleaned one.
+    static func safeURL(_ url: String) -> String {
+        var scalars = Array(url.unicodeScalars).filter { $0 != "\t" && $0 != "\n" && $0 != "\r" }
+        while let first = scalars.first, first.value <= 0x20 { scalars.removeFirst() }
+        while let last = scalars.last, last.value <= 0x20 { scalars.removeLast() }
+        let cleaned = String(String.UnicodeScalarView(scalars))
+        guard let colon = scalars.firstIndex(of: ":") else { return cleaned }
+        let scheme = scalars[..<colon]
+        func isSchemeScalar(_ scalar: Unicode.Scalar) -> Bool {
+            scalar.isASCII && (scalar.properties.isAlphabetic || ("0"..."9").contains(scalar) || "+-.".unicodeScalars.contains(scalar))
+        }
+        // Anything else before the first colon (a "/", "?" or "#", say) makes the whole target relative.
+        guard let head = scheme.first, head.isASCII, head.properties.isAlphabetic, scheme.allSatisfy(isSchemeScalar) else { return cleaned }
+        return ["http", "https", "mailto"].contains(String(String.UnicodeScalarView(scheme)).lowercased()) ? cleaned : "#"
     }
 
     // MARK: Regex helpers

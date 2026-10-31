@@ -234,6 +234,7 @@ final class NotesModel {
     func togglePin(_ url: URL) {
         if isPinned(url) { pins.remove(Self.key(url)) } else { pins.append(Self.key(url)) }
         write(pins, as: "pins.json")
+        workspaces.forEach { $0.updatePinnedItems() }
     }
 
     /// Notes opened by the user, newest first; files that no longer exist are skipped by the menu.
@@ -253,7 +254,10 @@ final class NotesModel {
         let before = (pins, recents)
         pins.moved(from: Self.key(old), to: Self.key(new))
         recents.moved(from: Self.key(old), to: Self.key(new))
-        if pins != before.0 { write(pins, as: "pins.json") }
+        if pins != before.0 {
+            write(pins, as: "pins.json")
+            workspaces.forEach { $0.updatePinnedItems() }
+        }
         if recents != before.1 { write(recents, as: "recents.json") }
     }
 
@@ -261,7 +265,10 @@ final class NotesModel {
     func itemTrashed(_ url: URL) {
         let before = pins
         pins.removeItem(at: Self.key(url))
-        if pins != before { write(pins, as: "pins.json") }
+        if pins != before {
+            write(pins, as: "pins.json")
+            workspaces.forEach { $0.updatePinnedItems() }
+        }
     }
 
     // MARK: Opening files from Finder

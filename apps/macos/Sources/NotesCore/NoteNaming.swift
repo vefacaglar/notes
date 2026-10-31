@@ -148,6 +148,38 @@ extension NoteStore {
         return avoidingReservedName(result)
     }
 
+    /// `name` made valid under the portable name rules (docs/format.md, "Paths and names"): `/`, the forbidden
+    /// characters and control characters become `-`, the result is NFC, leading `.` and spaces and trailing `.` and
+    /// spaces go (as whole Characters), it is cut to `maxCharacters` Characters if given and to `maxBytes` UTF-8
+    /// bytes at a Character boundary. Empty when nothing is left. Reserved device names are not handled here: they
+    /// depend on the whole file name (`avoidingReservedName`).
+    public static func portableName(_ name: String, maxCharacters: Int? = nil, maxBytes: Int = 200) -> String {
+        var scalars = String.UnicodeScalarView()
+        for scalar in name.unicodeScalars {
+            let control = scalar.value < 0x20 || (0x7F...0x9F).contains(scalar.value)
+            scalars.append(scalar == "/" || control || forbidden.contains(scalar) ? "-" : scalar)
+        }
+        var text = Substring(String(scalars).precomposedStringWithCanonicalMapping)
+        text = text.drop { $0.unicodeScalars.first == "." || $0.unicodeScalars.first == " " }
+        if let maxCharacters { text = text.prefix(maxCharacters) }
+        while text.utf8.count > maxBytes { text.removeLast() }
+        var result = String(text)
+        while let last = result.unicodeScalars.last, last == "." || last == " " { result.unicodeScalars.removeLast() }
+        return result
+    }
+
+    /// A file or folder name made portable for copying in or duplicating: stem and extension each pass through
+    /// `portableName`, the whole name is at most 200 UTF-8 bytes (the extension is kept), and a reserved device name
+    /// gets "_". A name that leaves no stem becomes "item".
+    public static func portableFileName(_ name: String, isFolder: Bool) -> String {
+        let ext = isFolder ? "" : portableName((name as NSString).pathExtension, maxBytes: 20)
+        let rawStem = isFolder ? name : (name as NSString).deletingPathExtension
+        let suffix = ext.isEmpty ? "" : "." + ext
+        var stem = portableName(rawStem, maxBytes: maxTitleBytes - suffix.utf8.count)
+        if stem.isEmpty { stem = "item" }
+        return avoidingReservedName(stem + suffix)
+    }
+
     /// `name` with "_" after its stem when Windows reserves it ("CON" → "CON_", "nul.txt" → "nul_.txt").
     static func avoidingReservedName(_ name: String) -> String {
         guard isReservedName(name) else { return name }

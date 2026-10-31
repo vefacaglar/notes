@@ -27,4 +27,11 @@ struct TextStatisticsTests {
     @Test func wordsSplitOnAnyWhitespace() {
         #expect(TextStatistics("a\tb  c\u{00A0}d\n\ne").words == 5)
     }
+
+    @Test func onlyDocumentedLineBreaksCount() {
+        #expect(TextStatistics("a\rb") == TextStatistics(words: 2, characters: 2, lines: 2))
+        #expect(TextStatistics("a\u{2028}b\u{2029}c") == TextStatistics(words: 3, characters: 3, lines: 3))
+        // VT, FF and NEL are characters, not line breaks.
+        #expect(TextStatistics("a\u{0B}b\u{0C}c\u{85}d") == TextStatistics(words: 4, characters: 7, lines: 1))
+    }
 }

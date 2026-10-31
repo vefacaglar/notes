@@ -719,6 +719,57 @@
         }
       }
     },
+    "Couldn't export \"%@\": it is the open file. Choose another name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't export \"%@\": it is the open file. Choose another name."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” dışa aktarılamadı: bu, açık olan dosya. Başka bir ad seçin."
+          }
+        }
+      }
+    },
+    "Copying…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copying…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalanıyor…"
+          }
+        }
+      }
+    },
+    "Copying was cancelled.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copying was cancelled."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalama iptal edildi."
+          }
+        }
+      }
+    },
     "Couldn't format": {
       "extractionState": "manual",
       "localizations": {

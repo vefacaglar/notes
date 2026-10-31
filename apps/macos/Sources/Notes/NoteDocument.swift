@@ -50,9 +50,14 @@ final class NoteDocument {
     var text: String {
         didSet {
             if NoteFile.needsNormalizing(text) { text = NoteFile.normalized(text) }
-            if text != oldValue { scheduleSave() }
+            if text != oldValue {
+                revision &+= 1
+                scheduleSave()
+            }
         }
     }
+    /// Counts changes of `text`: a cheap change token for views that would otherwise compare the whole text.
+    private(set) var revision = 0
     /// A failed save or a resolved conflict, shown in the window that shows the document.
     var error: String?
     /// Nothing is ever saved for a read-only file; `readOnlyReason` says why it is one.

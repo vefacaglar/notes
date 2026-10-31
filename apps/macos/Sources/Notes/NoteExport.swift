@@ -10,6 +10,9 @@ enum NoteExport {
     /// An error message for the workspace's alert, `nil` on success or cancel.
     static func exportHTML(_ document: NoteDocument, settings: AppSettings, window: NSWindow?) -> String? {
         guard let url = askForURL(for: document, type: .html, window: window) else { return nil }
+        if !document.isDraft, NoteDocument.canonical(url) == NoteDocument.canonical(document.url) {
+            return L("Couldn't export \"\(url.lastPathComponent)\": it is the open file. Choose another name.")
+        }
         do {
             try Data(html(document, settings).utf8).write(to: url, options: .atomic)
             return nil
@@ -20,11 +23,11 @@ enum NoteExport {
 
     static func exportPDF(_ document: NoteDocument, settings: AppSettings, window: NSWindow?, failed: @escaping @MainActor (String) -> Void) {
         guard let url = askForURL(for: document, type: .pdf, window: window) else { return }
-        PrintJob.start(html: html(document, settings), window: window, saveTo: url, failed: failed)
+        PrintJob.start(html: printableHTML(document, settings), window: window, saveTo: url, failed: failed)
     }
 
     static func print(_ document: NoteDocument, settings: AppSettings, window: NSWindow?, failed: @escaping @MainActor (String) -> Void) {
-        PrintJob.start(html: html(document, settings), window: window, saveTo: nil, failed: failed)
+        PrintJob.start(html: printableHTML(document, settings), window: window, saveTo: nil, failed: failed)
     }
 
     static func html(_ document: NoteDocument, _ settings: AppSettings) -> String {
@@ -36,12 +39,62 @@ enum NoteExport {
             : MarkdownHTML.document(code: text, title: document.name, style: style)
     }
 
+    /// The HTML for PDF and printing. The offscreen web view has no access to the note's folder, so relative images
+    /// are embedded as data URIs (image files only, up to 25 MB each); anything else is left as written.
+    private static func printableHTML(_ document: NoteDocument, _ settings: AppSettings) -> String {
+        let page = html(document, settings)
+        guard !document.isDraft else { return page }
+        return inlineImages(in: page, folder: document.url.deletingLastPathComponent())
+    }
+
+    private static let imageTypes = ["png": "image/png", "jpg": "image/jpeg", "jpeg": "image/jpeg", "gif": "image/gif",
+                                      "webp": "image/webp", "bmp": "image/bmp", "tif": "image/tiff", "tiff": "image/tiff",
+                                      "heic": "image/heic"]
+    // The converter always writes `<img src="…" alt="…"`; the value is HTML-escaped, so it holds no quote.
+    private static let imageSource = try! NSRegularExpression(pattern: #"<img src="([^"]*)""#)
+
+    static func inlineImages(in page: String, folder: URL) -> String {
+        let ns = page as NSString
+        var result = ""
+        var last = 0
+        for match in imageSource.matches(in: page, range: NSRange(location: 0, length: ns.length)) {
+            let source = ns.substring(with: match.range(at: 1))
+            result += ns.substring(with: NSRange(location: last, length: match.range.location - last))
+            last = NSMaxRange(match.range)
+            if let uri = dataURI(forSource: source, in: folder) {
+                result += "<img src=\"\(uri)\""
+            } else {
+                result += ns.substring(with: match.range)
+            }
+        }
+        return result + ns.substring(from: last)
+    }
+
+    private static func dataURI(forSource source: String, in folder: URL) -> String? {
+        let plain = source.replacingOccurrences(of: "&amp;", with: "&")
+        guard !plain.hasPrefix("/"), !plain.hasPrefix("#"), !plain.contains(":") else { return nil }
+        let bare = plain.prefix { $0 != "#" && $0 != "?" }
+        guard let path = String(bare).removingPercentEncoding else { return nil }
+        let file = folder.appending(path: path, directoryHint: .notDirectory).standardizedFileURL
+        guard let type = imageTypes[file.pathExtension.lowercased()],
+              let size = (try? file.resourceValues(forKeys: [.fileSizeKey]))?.fileSize, size <= 25_000_000,
+              let data = try? Data(contentsOf: file)
+        else { return nil }
+        return "data:\(type);base64,\(data.base64EncodedString())"
+    }
+
     private static func askForURL(for document: NoteDocument, type: UTType, window: NSWindow?) -> URL? {
         let panel = NSSavePanel()
         panel.allowedContentTypes = [type]
         panel.canCreateDirectories = true
-        panel.nameFieldStringValue = ((document.name as NSString).deletingPathExtension as NSString)
-            .appendingPathExtension(type.preferredFilenameExtension ?? "html") ?? document.name
+        // Notes and drafts: `document.name` has no extension (dots in it are part of the name). Other files lose
+        // their own extension, and the open file's own name is never suggested.
+        let ext = type.preferredFilenameExtension ?? "html"
+        var stem = document.isNote ? document.name : document.url.deletingPathExtension().lastPathComponent
+        if !document.isDraft, "\(stem).\(ext)".caseInsensitiveCompare(document.url.lastPathComponent) == .orderedSame {
+            stem += "-export"
+        }
+        panel.nameFieldStringValue = "\(stem).\(ext)"
         if !document.isDraft { panel.directoryURL = document.url.deletingLastPathComponent() }
         return panel.runModal() == .OK ? panel.url : nil
     }
@@ -57,6 +110,8 @@ private final class PrintJob: NSObject, WKNavigationDelegate {
     private let saveTo: URL?
     private let parent: NSWindow?
     private let failed: @MainActor (String) -> Void
+    /// The PDF target's date before the job, to tell a replaced file from an untouched one.
+    private let targetStamp: Date?
 
     static func start(html: String, window: NSWindow?, saveTo: URL?, failed: @escaping @MainActor (String) -> Void) {
         let job = PrintJob(window: window, saveTo: saveTo, failed: failed)
@@ -68,6 +123,7 @@ private final class PrintJob: NSObject, WKNavigationDelegate {
         self.saveTo = saveTo
         self.parent = window
         self.failed = failed
+        targetStamp = saveTo.flatMap(Self.modified)
         let info = Self.printInfo(saveTo: saveTo)
         let size = NSSize(width: info.paperSize.width - info.leftMargin - info.rightMargin,
                           height: info.paperSize.height - info.topMargin - info.bottomMargin)
@@ -78,6 +134,10 @@ private final class PrintJob: NSObject, WKNavigationDelegate {
         host.contentView = webView
         super.init()
         webView.navigationDelegate = self
+    }
+
+    private static func modified(_ url: URL) -> Date? {
+        (try? url.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
     }
 
     private static func printInfo(saveTo: URL?) -> NSPrintInfo {
@@ -109,6 +169,10 @@ private final class PrintJob: NSObject, WKNavigationDelegate {
         MainActor.assumeIsolated { finish(error: error.localizedDescription) }
     }
 
+    nonisolated func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
+        MainActor.assumeIsolated { finish(error: L("Couldn't print.")) }
+    }
+
     private func run() {
         let operation = webView.printOperation(with: Self.printInfo(saveTo: saveTo))
         operation.showsPrintPanel = saveTo == nil
@@ -122,9 +186,10 @@ private final class PrintJob: NSObject, WKNavigationDelegate {
     }
 
     @objc private func printOperationDidRun(_ operation: NSPrintOperation, success: Bool, contextInfo: UnsafeMutableRawPointer?) {
-        // Cancelling the print panel also reports no success; a failed PDF is told apart by the missing file.
-        let missing = saveTo.map { !FileManager.default.fileExists(atPath: $0.path) } ?? false
-        finish(error: !success && missing ? L("Couldn't export \"\(saveTo?.lastPathComponent ?? "")\".") : nil)
+        // Cancelling the print panel also reports no success; a failed PDF is told apart by a target that is missing
+        // or not rewritten (an existing file the job could not replace keeps its old date).
+        let untouched = saveTo.map { Self.modified($0).map { $0 == targetStamp } ?? true } ?? false
+        finish(error: !success && untouched ? L("Couldn't export \"\(saveTo?.lastPathComponent ?? "")\".") : nil)
     }
 
     private func finish(error: String?) {

@@ -157,6 +157,14 @@ enum FilePaths {
         NoteStore.components(relative).filter { !$0.isEmpty }.reduce(folder) { $0.appendingPathComponent($1) }
     }
 
+    /// Whether both items live on the same volume (so a move between them is a rename).
+    static func sameVolume(_ a: URL, _ b: URL) -> Bool {
+        guard let x = try? a.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier,
+              let y = try? b.resourceValues(forKeys: [.volumeIdentifierKey]).volumeIdentifier
+        else { return true }
+        return x.isEqual(y)
+    }
+
     static func isFolder(_ url: URL) -> Bool {
         var isFolder: ObjCBool = false
         return FileManager.default.fileExists(atPath: url.path, isDirectory: &isFolder) && isFolder.boolValue
@@ -211,6 +219,12 @@ final class Workspace: Identifiable {
 
     var prompt: NamePrompt?
     var promptName = ""
+    /// The pinned files that are in this workspace's roots and still exist, in pin order (main window only). Kept up
+    /// to date by `updatePinnedItems`, so drawing the sidebar does no file system work.
+    private(set) var pinnedItems: [SidebarItem] = []
+    /// Long copies and cross-volume moves running in the background (the sidebar shows a progress indicator).
+    private(set) var activeOperations = 0
+    @ObservationIgnored private var busyPaths: Set<String> = []
     var trashCandidate: ItemID?
     var errorMessage: String?
     /// ⌘P: the Quick Open sheet.
@@ -362,6 +376,7 @@ final class Workspace: Identifiable {
                 root.items = SidebarItem.items(tree, root: root.id)
             }
             self?.dropStaleSelection(in: root)
+            self?.updatePinnedItems()
             if root.rescanPending {
                 root.rescanPending = false
                 self?.scan(root)
@@ -985,20 +1000,56 @@ final class Workspace: Identifiable {
         guard let path = saveDocuments(in: source, inside: item.path, cancelled: L("The move was cancelled.")) else { return false }
         do {
             let oldURL = try source.store.url(for: path)
+            guard !busyPaths.contains(oldURL.standardizedFileURL.path) else { return false }
             // Before the move: afterwards the old URL no longer resolves.
             let affected = NoteDocument.all.compactMap { document in
                 document.isDraft ? nil : FilePaths.relative(document.url, to: oldURL).map { (document, $0) }
             }
-            let newPath = try source.store.move(path, to: folder.isRoot ? nil : folder.path, in: target.store)
-            let newURL = try target.store.url(for: newPath)
-            for (document, relative) in affected { document.moved(to: FilePaths.resolve(relative, in: newURL)) }
-            relocate(from: ItemID(root: source.id, path: path), to: ItemID(root: target.id, path: newPath))
-            model?.itemMoved(from: oldURL, to: newURL)
-            model?.itemsChanged(by: self)
+            let destination = folder.isRoot ? nil : folder.path
+            func complete(_ newPath: String) throws {
+                let newURL = try target.store.url(for: newPath)
+                for (document, relative) in affected { document.moved(to: FilePaths.resolve(relative, in: newURL)) }
+                relocate(from: ItemID(root: source.id, path: path), to: ItemID(root: target.id, path: newPath))
+                model?.itemMoved(from: oldURL, to: newURL)
+                model?.itemsChanged(by: self)
+            }
+            // Within one volume a move is a rename. A copy and delete across volumes can take long, so it runs off
+            // the main thread, unless an open document is inside (its saves must not race the copy).
+            if affected.isEmpty, !FilePaths.sameVolume(oldURL, folderURL) {
+                let key = oldURL.standardizedFileURL.path
+                let store = source.store, targetStore = target.store
+                runInBackground(key) {
+                    Result { try store.move(path, to: destination, in: targetStore) }
+                } completion: { [self] result in
+                    do { try complete(try result.get()) } catch { report(error.localizedDescription) }
+                }
+                return true
+            }
+            try complete(try source.store.move(path, to: destination, in: target.store))
             return true
         } catch {
             report(error.localizedDescription)
             return false
+        }
+    }
+
+    /// Runs a long file operation off the main thread. `key` (the item's path) is busy meanwhile, so the same item
+    /// is not moved or copied twice; the sidebar shows `activeOperations`. `completion` runs on the main actor, then
+    /// the trees are refreshed.
+    private func runInBackground<T: Sendable>(
+        _ key: String, _ work: @escaping @Sendable () -> Result<T, any Error>,
+        completion: @escaping (Result<T, any Error>) -> Void
+    ) {
+        busyPaths.insert(key)
+        activeOperations += 1
+        Task { [weak self] in
+            let result = await Task.detached { work() }.value
+            guard let self else { return }
+            busyPaths.remove(key)
+            activeOperations -= 1
+            completion(result)
+            refresh()
+            model?.itemsChanged(by: self)
         }
     }
 
@@ -1028,12 +1079,26 @@ final class Workspace: Identifiable {
                 continue
             }
             guard FilePaths.isFolder(url) || NoteStore.isListed(url.lastPathComponent) else { continue }
-            do {
-                try root.store.copyIn(url, to: folder.isRoot ? nil : folder.path)
-                done = true
-            } catch {
-                report(error.localizedDescription)
+            let key = url.standardizedFileURL.path
+            guard !busyPaths.contains(key) else { continue }
+            // Another window may hold unsaved edits of the file (or of files in the folder): copy what the user sees.
+            var saved = true
+            for document in NoteDocument.all where !document.isDraft && FilePaths.isInside(document.url, url) {
+                if !document.flush() {
+                    report([document.error, L("Copying was cancelled.")].compactMap { $0 }.joined(separator: " "))
+                    saved = false
+                    break
+                }
             }
+            guard saved else { continue }
+            let store = root.store
+            let destination = folder.isRoot ? nil : folder.path
+            runInBackground(key) {
+                Result { try store.copyIn(url, to: destination) }
+            } completion: { [self] result in
+                if case .failure(let error) = result { report(error.localizedDescription) }
+            }
+            done = true
         }
         if done {
             refresh()
@@ -1042,16 +1107,20 @@ final class Workspace: Identifiable {
         return done
     }
 
-    /// The pinned files that are in this workspace's roots and still exist, in pin order (main window only).
-    var pinnedItems: [SidebarItem] {
-        guard isMain, let model else { return [] }
-        return model.pins.paths.compactMap { path in
+    /// Recomputes `pinnedItems` from the model's pins; after a scan and whenever the pins change.
+    func updatePinnedItems() {
+        guard isMain, let model else {
+            if !pinnedItems.isEmpty { pinnedItems = [] }
+            return
+        }
+        let items: [SidebarItem] = model.pins.paths.compactMap { path in
             let url = URL(fileURLWithPath: path)
             guard let item = locate(url), !item.isRoot, !FilePaths.isFolder(url),
                   let root = root(item.root), let modified = root.store.modificationDate(item.path)
             else { return nil }
             return SidebarItem(id: item, name: NoteStore.displayName(item.path), isFolder: false, children: nil, modified: modified)
         }
+        if items != pinnedItems { pinnedItems = items }
     }
 
     func revealInFinder(_ item: ItemID) {

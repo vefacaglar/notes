@@ -3,10 +3,18 @@ import NotesCore
 import SwiftUI
 
 /// The workspace's roots, each a top-level folder row, with their trees; or the search results.
+/// A sidebar row's selection tag. A pinned file is drawn twice, so each place needs its own.
+private enum SidebarSelection: Hashable {
+    case item(ItemID)
+    case pinned(ItemID)
+}
+
 struct SidebarView: View {
     @Bindable var workspace: Workspace
     let model: NotesModel
     @State private var hitSelection: WorkspaceHit.ID?
+    /// The pinned row the selection came from, if it was chosen there.
+    @State private var pinnedSelection: ItemID?
     @State private var collapsedRoots: Set<UUID> = []
     /// The search field: ⇧⌘F focuses it, Esc clears it (and Return must not rename while it has the keys).
     @FocusState private var searchFocused: Bool
@@ -30,18 +38,18 @@ struct SidebarView: View {
                     if searchRows.isEmpty { noResults }
                 }
             } else {
-                List(selection: $workspace.selection) {
+                List(selection: listSelection) {
                     let pinned = workspace.pinnedItems
                     if !pinned.isEmpty {
                         Section {
-                            ForEach(pinned) { item in row(item) }
+                            ForEach(pinned) { item in row(item, pinned: true) }
                         } header: {
                             Text(loc: "Pinned")
                         }
                     }
                     ForEach(workspace.roots) { root in
                         DisclosureGroup(isExpanded: expanded(root)) {
-                            OutlineGroup(root.items, children: \.children) { item in row(item) }
+                            OutlineGroup(root.items, children: \.children) { item in row(item, pinned: false) }
                         } label: {
                             Label(root.name, systemImage: "folder")
                                 .fontWeight(.semibold)
@@ -49,7 +57,7 @@ struct SidebarView: View {
                                 .dropTarget(ItemID(root: root.id, path: ""), in: $dropTarget) { workspace.drop($0, onto: $1) }
                                 .contextMenu { rootMenu(for: root) }
                         }
-                        .tag(ItemID(root: root.id, path: ""))
+                        .tag(SidebarSelection.item(ItemID(root: root.id, path: "")))
                     }
                     ForEach(workspace.unavailableRoots) { root in
                         VStack(alignment: .leading, spacing: 2) {
@@ -80,6 +88,19 @@ struct SidebarView: View {
                 }
             }
         }
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if workspace.activeOperations > 0 {
+                HStack(spacing: 8) {
+                    ProgressView().controlSize(.small)
+                    Text(loc: "Copying…")
+                    Spacer(minLength: 0)
+                }
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+            }
+        }
         .searchable(text: $workspace.query, placement: .sidebar, prompt: Text(loc: "Search"))
         .searchFocus($searchFocused)
         .onKeyPress(phases: .down, action: handleKey)
@@ -108,16 +129,32 @@ struct SidebarView: View {
     }
 
     /// A file or folder row: draggable, and a folder accepts drops.
-    @ViewBuilder private func row(_ item: SidebarItem) -> some View {
+    @ViewBuilder private func row(_ item: SidebarItem, pinned: Bool) -> some View {
         let url = workspace.url(for: item.id) ?? URL(fileURLWithPath: "/")
         let content = ItemRow(item: item, url: url, previews: model.previews)
             .contextMenu { menu(for: item) }
+            .tag(pinned ? SidebarSelection.pinned(item.id) : SidebarSelection.item(item.id))
         if item.isFolder {
             content
                 .dropTarget(item.id, in: $dropTarget) { workspace.drop($0, onto: $1) }
                 .draggable(url)
         } else {
             content.draggable(url)
+        }
+    }
+
+    /// The list's selection: a pinned row has its own tag (the same item also appears in the tree), and both map to
+    /// the workspace's selection.
+    private var listSelection: Binding<SidebarSelection?> {
+        Binding {
+            guard let item = workspace.selection else { return nil }
+            return pinnedSelection == item ? .pinned(item) : .item(item)
+        } set: { selection in
+            switch selection {
+            case .pinned(let item)?: pinnedSelection = item; workspace.selection = item
+            case .item(let item)?: pinnedSelection = nil; workspace.selection = item
+            case nil: pinnedSelection = nil; workspace.selection = nil
+            }
         }
     }
 
