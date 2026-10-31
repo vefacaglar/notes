@@ -64,11 +64,13 @@ struct SidebarItem: Identifiable, Hashable, Sendable {
     let isFolder: Bool
     /// `nil` for files, so `List(children:)` shows no disclosure triangle.
     let children: [SidebarItem]?
+    /// The file's modification date; `nil` for folders.
+    var modified: Date?
 
     static func items(_ nodes: [NoteNode], root: UUID) -> [SidebarItem] {
         nodes.map {
             SidebarItem(id: ItemID(root: root, path: $0.path), name: $0.name, isFolder: $0.isFolder,
-                        children: $0.children.map { items($0, root: root) })
+                        children: $0.children.map { items($0, root: root) }, modified: $0.modified)
         }
     }
 }
@@ -211,6 +213,8 @@ final class Workspace: Identifiable {
     var promptName = ""
     var trashCandidate: ItemID?
     var errorMessage: String?
+    /// ⌘P: the Quick Open sheet.
+    var isQuickOpenVisible = false
 
     /// Shows `message` in the error alert after any message already waiting there.
     func report(_ message: String) {
@@ -332,7 +336,7 @@ final class Workspace: Identifiable {
     }
 
     /// The listing settings for `root`; an outside file's window rooted at a huge folder (home) lists only a few levels.
-    private func listingOptions(for root: RootFolder) -> ListingOptions {
+    func listingOptions(for root: RootFolder) -> ListingOptions {
         var options = model?.listingOptions ?? ListingOptions()
         if !isMain, FilePaths.isBroad(root.url) { options.maxDepth = 4 }
         return options
@@ -458,7 +462,10 @@ final class Workspace: Identifiable {
     /// empty draft in the active tab is replaced; a draft with text is never replaced.
     @discardableResult
     func open(_ url: URL, newTab: Bool, focus: Bool = false) -> Bool {
-        if let tab = tab(showing: url) { return activate(tab, focus: focus) }
+        if let tab = tab(showing: url) {
+            model?.recordRecent(url)
+            return activate(tab, focus: focus)
+        }
         let document: NoteDocument
         do {
             document = try NoteDocument.open(url)
@@ -476,10 +483,13 @@ final class Workspace: Identifiable {
             current.showsSource = false
             current.focusOnShow = focus
             syncSelection()
+            model?.recordRecent(url)
             model?.sessionChanged()
             return true
         }
-        return insert(EditorTab(document: document), focus: focus)
+        guard insert(EditorTab(document: document), focus: focus) else { return false }
+        model?.recordRecent(url)
+        return true
     }
 
     /// Adds `tab` after the active one and shows it; `false` when the active tab's file couldn't be saved.
@@ -886,6 +896,7 @@ final class Workspace: Identifiable {
                     if relative.isEmpty { document.renamedByHand(to: newURL) } else { document.moved(to: FilePaths.resolve(relative, in: newURL)) }
                 }
                 itemMoved(in: root, from: path, to: newPath)
+                model?.itemMoved(from: oldURL, to: newURL)
                 model?.itemsChanged(by: self)
             }
         } catch {
@@ -895,9 +906,14 @@ final class Workspace: Identifiable {
 
     /// Rewrites the selection and the paths held by open dialogs after `old` became `new` in `root`.
     func itemMoved(in root: RootFolder, from old: String, to new: String) {
+        relocate(from: ItemID(root: root.id, path: old), to: ItemID(root: root.id, path: new))
+    }
+
+    /// The same for an item that may have changed root.
+    private func relocate(from old: ItemID, to new: ItemID) {
         func moved(_ item: ItemID?) -> ItemID? {
-            guard let item, item.root == root.id, let path = NoteStore.moved(item.path, from: old, to: new) else { return nil }
-            return ItemID(root: root.id, path: path)
+            guard let item, item.root == old.root, let path = NoteStore.moved(item.path, from: old.path, to: new.path) else { return nil }
+            return ItemID(root: new.root, path: path)
         }
         if let item = moved(selection) { setSelectionQuietly(item) }
         if case .rename(let target)? = prompt, let item = moved(target) { prompt = .rename(item) }
@@ -913,6 +929,7 @@ final class Workspace: Identifiable {
             let url = try root.store.url(for: path)
             let affected = NoteDocument.all.filter { !$0.isDraft && FilePaths.isInside($0.url, url) }
             try root.store.trash(path)
+            model?.itemTrashed(url)
             model?.documentsRemoved(affected)
             if let selection, selection.root == root.id, NoteStore.moved(selection.path, from: path, to: path) != nil {
                 setSelectionQuietly(nil)
@@ -946,6 +963,95 @@ final class Workspace: Identifiable {
             return nil
         }
         return path
+    }
+
+    // MARK: Moving, duplicating, dropping
+
+    /// Moves `item` into `folder`, possibly into another root, with the safety of a rename: unsaved edits are saved
+    /// first, open documents follow the file, a taken name gets a number and nothing is overwritten. `false` when
+    /// nothing moved (same folder, into itself, a save that needs the user, an error shown in the alert).
+    @discardableResult
+    func move(_ item: ItemID, into folder: ItemID) -> Bool {
+        guard !item.isRoot, let source = root(item.root), let target = root(folder.root),
+              let sourceURL = url(for: item), let folderURL = url(for: folder)
+        else { return false }
+        if item.root == folder.root, NoteStore.parent(item.path).unicodeScalars.elementsEqual(folder.path.unicodeScalars) {
+            return false
+        }
+        if FilePaths.isInside(folderURL, sourceURL) {
+            report(L("“\(NoteStore.displayName(item.path))” can't be moved into itself."))
+            return false
+        }
+        guard let path = saveDocuments(in: source, inside: item.path, cancelled: L("The move was cancelled.")) else { return false }
+        do {
+            let oldURL = try source.store.url(for: path)
+            // Before the move: afterwards the old URL no longer resolves.
+            let affected = NoteDocument.all.compactMap { document in
+                document.isDraft ? nil : FilePaths.relative(document.url, to: oldURL).map { (document, $0) }
+            }
+            let newPath = try source.store.move(path, to: folder.isRoot ? nil : folder.path, in: target.store)
+            let newURL = try target.store.url(for: newPath)
+            for (document, relative) in affected { document.moved(to: FilePaths.resolve(relative, in: newURL)) }
+            relocate(from: ItemID(root: source.id, path: path), to: ItemID(root: target.id, path: newPath))
+            model?.itemMoved(from: oldURL, to: newURL)
+            model?.itemsChanged(by: self)
+            return true
+        } catch {
+            report(error.localizedDescription)
+            return false
+        }
+    }
+
+    /// Context menu "Duplicate": a copy next to the file ("<name> copy"), with its unsaved edits saved first. Opens nothing.
+    func duplicate(_ item: ItemID) {
+        guard !item.isRoot, let root = root(item.root), let url = url(for: item), !FilePaths.isFolder(url),
+              let path = saveDocuments(in: root, inside: item.path, cancelled: L("Duplicating was cancelled."))
+        else { return }
+        do {
+            try root.store.duplicate(path)
+            refresh()
+            model?.itemsChanged(by: self)
+        } catch {
+            report(error.localizedDescription)
+        }
+    }
+
+    /// Files or folders dropped on `folder` (a folder row or a root): items of this workspace move there, anything
+    /// else (from Finder, another window) is copied in. Returns whether anything was done.
+    @discardableResult
+    func drop(_ urls: [URL], onto folder: ItemID) -> Bool {
+        guard let root = root(folder.root) else { return false }
+        var done = false
+        for url in urls where url.isFileURL {
+            if let item = locate(url), !item.isRoot {
+                if move(item, into: folder) { done = true }
+                continue
+            }
+            guard FilePaths.isFolder(url) || NoteStore.isListed(url.lastPathComponent) else { continue }
+            do {
+                try root.store.copyIn(url, to: folder.isRoot ? nil : folder.path)
+                done = true
+            } catch {
+                report(error.localizedDescription)
+            }
+        }
+        if done {
+            refresh()
+            model?.itemsChanged(by: self)
+        }
+        return done
+    }
+
+    /// The pinned files that are in this workspace's roots and still exist, in pin order (main window only).
+    var pinnedItems: [SidebarItem] {
+        guard isMain, let model else { return [] }
+        return model.pins.paths.compactMap { path in
+            let url = URL(fileURLWithPath: path)
+            guard let item = locate(url), !item.isRoot, !FilePaths.isFolder(url),
+                  let root = root(item.root), let modified = root.store.modificationDate(item.path)
+            else { return nil }
+            return SidebarItem(id: item, name: NoteStore.displayName(item.path), isFolder: false, children: nil, modified: modified)
+        }
     }
 
     func revealInFinder(_ item: ItemID) {

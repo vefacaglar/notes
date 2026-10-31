@@ -358,6 +358,23 @@
         }
       }
     },
+    "Clear Menu": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Clear Menu"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Menüyü Temizle"
+          }
+        }
+      }
+    },
     "Close": {
       "extractionState": "manual",
       "localizations": {
@@ -630,6 +647,40 @@
         }
       }
     },
+    "Duplicate": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicate"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çoğalt"
+          }
+        }
+      }
+    },
+    "Duplicating was cancelled.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Duplicating was cancelled."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çoğaltma iptal edildi."
+          }
+        }
+      }
+    },
     "Editor": {
       "extractionState": "manual",
       "localizations": {
@@ -851,6 +902,23 @@
         }
       }
     },
+    "Loading…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Loading…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yükleniyor…"
+          }
+        }
+      }
+    },
     "Markdown syntax": {
       "extractionState": "manual",
       "localizations": {
@@ -1038,6 +1106,23 @@
         }
       }
     },
+    "No Matching Notes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No Matching Notes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Eşleşen not yok"
+          }
+        }
+      }
+    },
     "No folders in the workspace.": {
       "extractionState": "manual",
       "localizations": {
@@ -1123,6 +1208,40 @@
         }
       }
     },
+    "Open Note…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Note…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not aç…"
+          }
+        }
+      }
+    },
+    "Open Recent": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Open Recent"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Son Kullanılanlar"
+          }
+        }
+      }
+    },
     "Open Themes Folder": {
       "extractionState": "manual",
       "localizations": {
@@ -1157,6 +1276,40 @@
         }
       }
     },
+    "Pin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pin"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sabitle"
+          }
+        }
+      }
+    },
+    "Pinned": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Pinned"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sabitlenenler"
+          }
+        }
+      }
+    },
     "Plain text, ": {
       "extractionState": "manual",
       "localizations": {
@@ -1170,6 +1323,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Düz metin, "
+          }
+        }
+      }
+    },
+    "Quick Open…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quick Open…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hızlı Aç…"
           }
         }
       }
@@ -1565,6 +1735,23 @@
         }
       }
     },
+    "Show preview in sidebar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show preview in sidebar"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kenar çubuğunda önizlemeyi göster"
+          }
+        }
+      }
+    },
     "Sidebar": {
       "extractionState": "manual",
       "localizations": {
@@ -1701,6 +1888,40 @@
         }
       }
     },
+    "The link “%@” couldn't be opened.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The link “%@” couldn't be opened."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” bağlantısı açılamadı."
+          }
+        }
+      }
+    },
+    "The move was cancelled.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The move was cancelled."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Taşıma iptal edildi."
+          }
+        }
+      }
+    },
     "The rename was cancelled.": {
       "extractionState": "manual",
       "localizations": {
@@ -1769,6 +1990,23 @@
         }
       }
     },
+    "There is no note named “%@” in the workspace.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is no note named “%@” in the workspace."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalışma alanında “%@” adlı bir not yok."
+          }
+        }
+      }
+    },
     "This file changed on disk and is now too large to open; the last version read is shown.": {
       "extractionState": "manual",
       "localizations": {
@@ -1833,6 +2071,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tekrar Dene"
+          }
+        }
+      }
+    },
+    "Unpin": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unpin"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sabitlemeyi Kaldır"
           }
         }
       }
@@ -1918,6 +2173,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "bir bağlantı"
+          }
+        }
+      }
+    },
+    "“%@” can't be moved into itself.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” can't be moved into itself."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” kendi içine taşınamaz."
           }
         }
       }
@@ -2054,40 +2326,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@” başka bir uygulamada değiştirildi."
-          }
-        }
-      }
-    },
-    "The link “%@” couldn't be opened.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "The link “%@” couldn't be opened."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "“%@” bağlantısı açılamadı."
-          }
-        }
-      }
-    },
-    "There is no note named “%@” in the workspace.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "There is no note named “%@” in the workspace."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Çalışma alanında “%@” adlı bir not yok."
           }
         }
       }

@@ -10,6 +10,8 @@ struct SidebarView: View {
     @State private var collapsedRoots: Set<UUID> = []
     /// The search field: ⇧⌘F focuses it, Esc clears it (and Return must not rename while it has the keys).
     @FocusState private var searchFocused: Bool
+    /// The folder row a drag is over, highlighted.
+    @State private var dropTarget: ItemID?
 
     var body: some View {
         Group {
@@ -29,16 +31,22 @@ struct SidebarView: View {
                 }
             } else {
                 List(selection: $workspace.selection) {
+                    let pinned = workspace.pinnedItems
+                    if !pinned.isEmpty {
+                        Section {
+                            ForEach(pinned) { item in row(item) }
+                        } header: {
+                            Text(loc: "Pinned")
+                        }
+                    }
                     ForEach(workspace.roots) { root in
                         DisclosureGroup(isExpanded: expanded(root)) {
-                            OutlineGroup(root.items, children: \.children) { item in
-                                Label(item.name, systemImage: item.isFolder ? "folder" : Self.icon(for: item.id.path))
-                                    .contextMenu { menu(for: item) }
-                            }
+                            OutlineGroup(root.items, children: \.children) { item in row(item) }
                         } label: {
                             Label(root.name, systemImage: "folder")
                                 .fontWeight(.semibold)
                                 .help(root.url.path)
+                                .dropTarget(ItemID(root: root.id, path: ""), in: $dropTarget) { workspace.drop($0, onto: $1) }
                                 .contextMenu { rootMenu(for: root) }
                         }
                         .tag(ItemID(root: root.id, path: ""))
@@ -96,6 +104,20 @@ struct SidebarView: View {
         ) { item in
             Button(loc: "Move to Trash", role: .destructive) { workspace.trash(item) }
             Button(loc: "Cancel", role: .cancel) {}
+        }
+    }
+
+    /// A file or folder row: draggable, and a folder accepts drops.
+    @ViewBuilder private func row(_ item: SidebarItem) -> some View {
+        let url = workspace.url(for: item.id) ?? URL(fileURLWithPath: "/")
+        let content = ItemRow(item: item, url: url, previews: model.previews)
+            .contextMenu { menu(for: item) }
+        if item.isFolder {
+            content
+                .dropTarget(item.id, in: $dropTarget) { workspace.drop($0, onto: $1) }
+                .draggable(url)
+        } else {
+            content.draggable(url)
         }
     }
 
@@ -200,6 +222,8 @@ struct SidebarView: View {
             }
         } else if let url = workspace.url(for: item.id) {
             Button(loc: "Open in New Tab") { workspace.open(url, newTab: true) }
+            Button(loc: model.isPinned(url) ? "Unpin" : "Pin") { model.togglePin(url) }
+            Button(loc: "Duplicate") { workspace.duplicate(item.id) }
         }
         Divider()
         Button(loc: "Rename Item…") { workspace.rename(item.id) }
@@ -252,6 +276,66 @@ private enum SearchRow: Identifiable {
         case .header(let id, _): return "root:\(id.uuidString)"
         case .hit(let hit): return hit.id
         }
+    }
+}
+
+/// A row of the tree: icon and name, and for files (with "Show preview in sidebar") the modified date and the first line
+/// after the title.
+private struct ItemRow: View {
+    let item: SidebarItem
+    let url: URL
+    let previews: PreviewCache
+    @Environment(AppSettings.self) private var settings
+
+    var body: some View {
+        if settings.showSidebarPreview, !item.isFolder {
+            Label {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(verbatim: item.name)
+                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        if let modified = item.modified {
+                            Text(verbatim: Self.dateText(modified))
+                                .layoutPriority(1)
+                        }
+                        if let preview = previews.preview(for: url) {
+                            Text(verbatim: preview)
+                        }
+                    }
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+                }
+            } icon: {
+                Image(systemName: SidebarView.icon(for: item.id.path))
+            }
+            .task(id: item.modified) { await previews.load(url, modified: item.modified) }
+        } else {
+            Label(item.name, systemImage: item.isFolder ? "folder" : SidebarView.icon(for: item.id.path))
+        }
+    }
+
+    /// The time today, else the date, in the app's language.
+    static func dateText(_ date: Date) -> String {
+        let locale = Locale(identifier: Localization.code)
+        if Calendar.current.isDateInToday(date) {
+            return date.formatted(Date.FormatStyle(date: .omitted, time: .shortened, locale: locale))
+        }
+        return date.formatted(Date.FormatStyle(date: .numeric, time: .omitted, locale: locale))
+    }
+}
+
+private extension View {
+    /// Accepts dropped files and folders on `item`, highlighting it while a drag is over.
+    func dropTarget(_ item: ItemID, in target: Binding<ItemID?>,
+                    perform: @escaping @MainActor ([URL], ItemID) -> Bool) -> some View {
+        dropDestination(for: URL.self) { urls, _ in
+            target.wrappedValue = nil
+            return perform(urls, item)
+        } isTargeted: { isTargeted in
+            if isTargeted { target.wrappedValue = item } else if target.wrappedValue == item { target.wrappedValue = nil }
+        }
+        .background(target.wrappedValue == item ? Color.accentColor.opacity(0.25) : .clear, in: RoundedRectangle(cornerRadius: 4))
     }
 }
 

@@ -19,6 +19,12 @@ final class NotesModel {
     /// Windows the views should open; consumed by `WindowRequestHandler`.
     var windowRequests: [WindowRequest] = []
 
+    /// Pinned files (`pins.json`) and the last opened ones (`recents.json`), absolute paths.
+    private(set) var pins = PathList()
+    private(set) var recents = PathList()
+    static let recentLimit = 10
+    let previews = PreviewCache()
+
     @ObservationIgnored private var draftStore: DraftStore?
     /// Another process owns the draft store, so this one keeps its drafts in a pending store of its own.
     @ObservationIgnored private(set) var draftsArePending = false
@@ -52,6 +58,7 @@ final class NotesModel {
         settings.addRoot = { [weak self] in self?.chooseRoot() }
         settings.removeRoot = { [weak self] path in self?.removeRoot(path: path) }
         setUpDrafts()
+        loadLists()
         restore()
     }
 
@@ -181,8 +188,10 @@ final class NotesModel {
         guard let newPath = try? root.store.rename(path, to: root.store.uniqueNoteName(title, in: folder, ignoring: path) + ".md"),
               newPath != path, let url = try? root.store.url(for: newPath)
         else { return }
+        let oldURL = (try? root.store.url(for: path)) ?? url
         document.moved(to: url)
         main.itemMoved(in: root, from: path, to: newPath)
+        itemMoved(from: oldURL, to: url)
         itemsChanged(by: main)
     }
 
@@ -200,6 +209,59 @@ final class NotesModel {
     func documentsRemoved(_ documents: [NoteDocument]) {
         let removed = Set(documents.map(ObjectIdentifier.init))
         workspaces.forEach { $0.removeTabs { removed.contains(ObjectIdentifier($0)) } }
+    }
+
+    // MARK: Pins and recents
+
+    private func listURL(_ name: String) -> URL? { LaunchOptions.supportFolder?.appendingPathComponent(name) }
+
+    /// Reads both lists; a run without a support folder (a test run) keeps them in memory only.
+    private func loadLists() {
+        if let url = listURL("pins.json"), let list = PathList.read(url) { pins = list }
+        if let url = listURL("recents.json"), let list = PathList.read(url) { recents = list }
+    }
+
+    /// Writes a list atomically, only from the process that owns the app state (like `session.json`).
+    private func write(_ list: PathList, as name: String) {
+        guard ownsDraftStore, !hasQuit, let url = listURL(name) else { return }
+        try? list.write(to: url)
+    }
+
+    private static func key(_ url: URL) -> String { url.standardizedFileURL.path }
+
+    func isPinned(_ url: URL) -> Bool { pins.contains(Self.key(url)) }
+
+    func togglePin(_ url: URL) {
+        if isPinned(url) { pins.remove(Self.key(url)) } else { pins.append(Self.key(url)) }
+        write(pins, as: "pins.json")
+    }
+
+    /// Notes opened by the user, newest first; files that no longer exist are skipped by the menu.
+    func recordRecent(_ url: URL) {
+        guard NoteStore.isListed(url.lastPathComponent) else { return }
+        recents.push(Self.key(url), limit: Self.recentLimit)
+        write(recents, as: "recents.json")
+    }
+
+    func clearRecents() {
+        recents = PathList()
+        write(recents, as: "recents.json")
+    }
+
+    /// An item was renamed or moved: pins and recents follow it.
+    func itemMoved(from old: URL, to new: URL) {
+        let before = (pins, recents)
+        pins.moved(from: Self.key(old), to: Self.key(new))
+        recents.moved(from: Self.key(old), to: Self.key(new))
+        if pins != before.0 { write(pins, as: "pins.json") }
+        if recents != before.1 { write(recents, as: "recents.json") }
+    }
+
+    /// An item went to the Trash: its pin goes (recents are skipped by the menu while the file is missing).
+    func itemTrashed(_ url: URL) {
+        let before = pins
+        pins.removeItem(at: Self.key(url))
+        if pins != before { write(pins, as: "pins.json") }
     }
 
     // MARK: Opening files from Finder

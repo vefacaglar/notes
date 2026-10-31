@@ -32,6 +32,14 @@ public enum NamingLanguage: Sendable, CaseIterable {
         case .turkish: "çakışma"
         }
     }
+
+    /// The word Duplicate appends to a copy's name (`Plan copy.md`).
+    public var copyMarker: String {
+        switch self {
+        case .english: "copy"
+        case .turkish: "kopya"
+        }
+    }
 }
 
 private final class NamingLanguageStorage: @unchecked Sendable {

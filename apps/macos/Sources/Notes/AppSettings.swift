@@ -45,6 +45,8 @@ final class AppSettings {
     var restoreTabs: Bool { didSet { save(restoreTabs, .restoreTabs) } }
     var sidebarSort: SidebarSort { didSet { save(sidebarSort.rawValue, .sidebarSort) } }
     var showNonMarkdownFiles: Bool { didSet { save(showNonMarkdownFiles, .showNonMarkdownFiles) } }
+    /// The modified date and a one-line preview under each note's name in the sidebar.
+    var showSidebarPreview: Bool { didSet { save(showSidebarPreview, .showSidebarPreview) } }
     var autoNaming: Bool { didSet { save(autoNaming, .autoNaming) } }
     /// Stored as `AppleLanguages`; applies after a restart (`needsRestart`).
     var language: LanguageChoice { didSet { LanguageSetting.store(language) } }
@@ -87,6 +89,7 @@ final class AppSettings {
         restoreTabs = bool(.restoreTabs, true)
         sidebarSort = string(.sidebarSort).flatMap(SidebarSort.init(rawValue:)) ?? .name
         showNonMarkdownFiles = bool(.showNonMarkdownFiles, true)
+        showSidebarPreview = bool(.showSidebarPreview, true)
         autoNaming = bool(.autoNaming, true)
         let stored = LanguageSetting.stored
         language = stored
@@ -162,6 +165,7 @@ final class AppSettings {
     private enum Key: String {
         case appearanceMode, lightThemeID, darkThemeID, textFont, codeFont, lineSpacing, limitLineWidth, markerStyle
         case spellCheck, codeLineNumbers, codeWrap, restoreTabs, sidebarSort, showNonMarkdownFiles, autoNaming
+        case showSidebarPreview
 
         var name: String { "settings." + rawValue }
     }

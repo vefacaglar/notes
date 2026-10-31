@@ -28,6 +28,8 @@ public struct NoteNode: Identifiable, Hashable, Sendable {
     public let isFolder: Bool
     /// `nil` for notes so that `List(children:)` shows no disclosure triangle.
     public let children: [NoteNode]?
+    /// The file's modification date; `nil` for folders.
+    public let modified: Date?
 
     public var id: String { path }
     public var isNote: Bool { !isFolder && NoteStore.isNote(path) }
@@ -186,7 +188,7 @@ public struct NoteStore: Sendable {
         return (path, try url(for: path))
     }
 
-    private static func join(_ folder: String?, _ name: String) -> String {
+    static func join(_ folder: String?, _ name: String) -> String {
         guard let folder, !folder.isEmpty else { return name }
         return folder + "/" + name
     }
@@ -220,11 +222,12 @@ public struct NoteStore: Sendable {
             let values = try? url.resourceValues(forKeys: Set(keys))
             if values?.isDirectory == true {
                 let children = children(of: url, prefix: path + "/", depth: depth + 1, options: options, shouldContinue: shouldContinue)
-                return (NoteNode(path: path, name: name, isFolder: true, children: children), .distantPast)
+                return (NoteNode(path: path, name: name, isFolder: true, children: children, modified: nil), .distantPast)
             }
             guard Self.isShown(name, options) else { return nil }
-            let node = NoteNode(path: path, name: Self.displayName(name), isFolder: false, children: nil)
-            return (node, values?.contentModificationDate ?? .distantPast)
+            let modified = values?.contentModificationDate
+            let node = NoteNode(path: path, name: Self.displayName(name), isFolder: false, children: nil, modified: modified)
+            return (node, modified ?? .distantPast)
         }
         return entries.sorted { a, b in
             if a.node.isFolder != b.node.isFolder { return a.node.isFolder }
@@ -358,7 +361,7 @@ public struct NoteStore: Sendable {
     }
 
     /// `.diacriticInsensitive` leaves Turkish ı/İ alone, so "toplanti" would miss "Toplantı".
-    private static func foldDotlessI(_ text: String) -> String {
+    static func foldDotlessI(_ text: String) -> String {
         guard text.contains(where: { $0 == "ı" || $0 == "İ" }) else { return text }
         return text.replacingOccurrences(of: "ı", with: "i").replacingOccurrences(of: "İ", with: "i")
     }

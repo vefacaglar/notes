@@ -1,4 +1,5 @@
 import AppKit
+import NotesCore
 import SwiftUI
 
 /// Entry point: the UI language is fixed before any window, bundle lookup or model exists.
@@ -173,7 +174,32 @@ struct NotesCommands: Commands {
             Button(loc: "Add Folder to Workspace…", action: model.chooseRoot)
                 .keyboardShortcut("o", modifiers: [.command, .shift])
         }
+        // ⌘P is Quick Open here; nothing in this app prints.
+        CommandGroup(replacing: .printItem) {}
         CommandGroup(after: .newItem) {
+            Divider()
+            Button(loc: "Quick Open…") {
+                if let workspace {
+                    workspace.isQuickOpenVisible = true
+                } else {
+                    model.main.isQuickOpenVisible = true
+                    model.windowRequests.append(.main)
+                }
+            }
+            .keyboardShortcut("p")
+            Menu {
+                let urls = model.recents.paths.map { URL(fileURLWithPath: $0) }
+                    .filter { FileManager.default.fileExists(atPath: $0.path) }
+                ForEach(Array(urls.enumerated()), id: \.offset) { _, url in
+                    Button(NoteStore.displayName(url.lastPathComponent)) { model.open([url]) }
+                }
+                Divider()
+                Button(loc: "Clear Menu") { model.clearRecents() }
+                    .disabled(urls.isEmpty)
+            } label: {
+                Text(loc: "Open Recent")
+            }
+            .disabled(model.recents.paths.isEmpty)
             Divider()
             Button(loc: "Close Tab") {
                 if let workspace { workspace.closeActiveTabOrWindow() } else { NSApp.keyWindow?.performClose(nil) }

@@ -81,6 +81,7 @@ private struct GeneralSettingsView: View {
                     Text(loc: "Date Modified").tag(SidebarSort.modified)
                 }
                 Toggle(loc: "Show other text and code files", isOn: $settings.showNonMarkdownFiles)
+                Toggle(loc: "Show preview in sidebar", isOn: $settings.showSidebarPreview)
             } header: {
                 Text(loc: "Sidebar")
             }

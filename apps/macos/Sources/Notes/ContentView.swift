@@ -33,6 +33,7 @@ struct WorkspaceView: View {
             }
         }
         .errorAlert($workspace.errorMessage)
+        .sheet(isPresented: $workspace.isQuickOpenVisible) { QuickOpenView(workspace: workspace, model: model) }
         .focusedSceneValue(\.workspace, workspace)
         .background(WindowBridge(workspace: workspace, representedURL: representedURL))
         .background(TabNumberShortcuts(workspace: workspace))

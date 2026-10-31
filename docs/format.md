@@ -100,6 +100,18 @@ Each is one undo step. Ranges are UTF-16 offsets; text in the editor has LF line
 - **⌘K (Ctrl+K)** turns the selection into `[selection](|)` with the caret in the parentheses; an empty selection gives `[|]()`; a selected `http(s)` address becomes `[|](address)`.
 - **Clicking a task box** `[ ]` / `[x]` (`[X]` counts as checked) flips it to `[x]` / `[ ]` when the file is editable; the caret does not move. Boxes in fenced code are not task items.
 
+## Moving, duplicating and copying in
+
+None of these ever overwrites an item, and none changes a note's content.
+
+- **Move** (drag and drop in the sidebar): an item goes into another folder or root, or into a root folder itself. Moving it to the folder it is already in does nothing; moving a folder into itself or a descendant is refused. Unsaved edits of the item (or of files inside a folder) are saved first; if that fails the move is cancelled. Open files follow the move. If the destination has an entry by that name (in its own case/Unicode folding), the moved item gets a number: `Plan.md` → `Plan 2.md`, `Plan 3.md`, …; a folder `Plans` → `Plans 2` (the number goes before the extension, folders have none). The name is otherwise kept, even if it breaks the portable name rules (it is an existing item). A move across roots on different volumes copies and then deletes, as the OS does.
+- **Duplicate** (a file's context menu): a copy next to the file named `<name> copy.<ext>` (`Plan copy.md`; `Plan kopya.md` in Turkish: the marker follows the app's UI language like the untitled name), then `<name> copy 2.<ext>`, `<name> copy 3.<ext>`, …. Unsaved edits are saved first. The copy is a hand-named note (it does not follow its first line) and nothing is opened.
+- **Copy in** (dropping files or folders from outside the roots, e.g. from Finder): the item is copied into the target folder with a number added as for a move when the name is taken. Only folders and listed files are copied; hidden names (leading `.`) are refused. A folder can not be copied into itself.
+
+## Sidebar preview
+
+With the sidebar preview on (app preference, default on), a file row shows its modification date and a one-line preview under the name. The preview exists for Markdown files and reads only the first 2,048 bytes (a cut inside a UTF-8 sequence is dropped). It is the first non-blank line after the title, that is after the first non-blank line, skipping thematic breaks and fenced code blocks, with the Markdown syntax removed as for titles (heading `#`s, quote and list markers, task boxes, emphasis and code delimiters, link syntax), runs of whitespace collapsed to one space, trimmed of leftover `*`, `_`, `~`, `` ` `` and whitespace, and cut to 200 characters. A file without such a line has no preview.
+
 ## Deleting
 
 Deleting a note or folder moves it to the OS trash (macOS Trash / Windows Recycle Bin) so it can be restored. Apps never delete permanently on their own; where the volume has no trash (e.g. some network shares on Windows), the OS asks the user before deleting permanently, and declining cancels the delete.
@@ -120,3 +132,5 @@ A file that is not inside any root of the main window (opened from Finder, "Open
 ## App state (not part of the format)
 
 Besides drafts, apps keep their own state outside the notes folders; none of it is shared or needed to read a folder. The macOS app keeps the list of roots of the main window in its preferences (a root that can't be opened, e.g. an unmounted volume, stays in the list and is shown as unavailable; only the default `~/Documents/Notes` is created when missing, and only on the first run) and the open windows in `~/Library/Application Support/Notes/session.json` (written atomically, only by the process that owns the draft store): per window its outside folder (the main window has none, its roots live in the preferences), the open files by absolute path and drafts by draft file name, the active tab, the source-view toggle, the selection (UTF-16 offsets) and scroll position of each tab, and whether the sidebar is shown. Files and folders that are gone are skipped silently on restore.
+
+**Pinned and recent files** are app state too, never stored in a notes folder. The macOS app keeps them next to `session.json` in `pins.json` (pinned files, in pin order) and `recents.json` (the last 10 opened files, newest first), each `{"version": 1, "paths": [absolute paths]}`, written atomically and only by the process that owns the draft store. A pin follows its file when the app renames or moves it (folders included) and is dropped when the app moves it to the Trash; a path that is missing is hidden, not deleted, so a pin on an unmounted volume comes back with it. The pinned files show in a "Pinned" section at the top of the main window's sidebar; the recent files in File > Open Recent. A run without a support folder (a test run) keeps both in memory only.
