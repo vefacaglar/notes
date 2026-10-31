@@ -2708,6 +2708,40 @@
         }
       }
     },
+    "Show Markdown Syntax": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Markdown Syntax"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown İşaretlerini Göster"
+          }
+        }
+      }
+    },
+    "Show Markdown Syntax (⇧⌘M)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Markdown Syntax (⇧⌘M)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Markdown İşaretlerini Göster (⇧⌘M)"
+          }
+        }
+      }
+    },
     "Show Next Tab": {
       "extractionState": "manual",
       "localizations": {

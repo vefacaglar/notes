@@ -32,7 +32,9 @@ struct WorkspaceView: View {
                 let language = document.language
                 if language == .markdown, settings.showFormattingBar {
                     FormattingToolbar(editor: tab.editor, isReadOnly: document.isReadOnly, column: detailFrame,
-                                      trailingRoom: workspace.isMain ? 105 : 8) {
+                                      trailingRoom: workspace.isMain ? 105 : 8,
+                                      showsSyntax: Binding(get: { settings.markerStyle == .dimmed },
+                                                           set: { settings.markerStyle = $0 ? .dimmed : .hidden })) {
                         OutlineButton(editor: tab.editor, document: document)
                     }
                 }

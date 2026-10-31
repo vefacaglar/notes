@@ -10,6 +10,8 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
     var column: ClosedRange<CGFloat> = 0...0
     /// Room the items after this one (the folder actions) take at the column's right end.
     var trailingRoom: CGFloat = 0
+    /// Markdown syntax shown (dimmed) or hidden away from the cursor line: the app's `markerStyle`.
+    @Binding var showsSyntax: Bool
     /// The outline button, last in the group.
     @ViewBuilder var trailing: Trailing
 
@@ -22,6 +24,7 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
                 HStack(spacing: 2) { formatting(format) }
                     .disabled(isReadOnly)
                 separator
+                button("number", "Show Markdown Syntax (⇧⌘M)", active: showsSyntax) { showsSyntax.toggle() }
                 trailing
                     .buttonStyle(BarButtonStyle(active: editor.isOutlineShown))
                     .labelStyle(.iconOnly)
