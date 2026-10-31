@@ -1,6 +1,7 @@
 import AppKit
 import NotesCore
 import SwiftUI
+import UniformTypeIdentifiers
 
 /// Plain-text Markdown editor with live syntax styling. With `showsSource` the same text (and undo stack) is shown
 /// unstyled in the code font.
@@ -14,10 +15,16 @@ struct MarkdownEditor: NSViewRepresentable {
     var isEditable = true
     /// Called with the destination (as written) of a link that was clicked; see `NoteLinks.classify`.
     var onOpenLink: ((String) -> Void)?
+    /// The note's file, which relative image paths and pasted images are relative to; nil for a draft.
+    var noteURL: URL?
+    /// Dims all but the caret's paragraph and keeps the caret line centred.
+    var focusMode = false
 
     init(text: Binding<String>, style: EditorStyle = .standard, showsSource: Bool = false, focusOnAppear: Bool = false,
          proxy: TextEditorProxy? = nil, undoManager: UndoManager? = nil, isEditable: Bool = true,
-         onOpenLink: ((String) -> Void)? = nil) {
+         onOpenLink: ((String) -> Void)? = nil, noteURL: URL? = nil, focusMode: Bool = false) {
+        self.noteURL = noteURL
+        self.focusMode = focusMode
         _text = text
         self.style = style
         self.showsSource = showsSource
@@ -37,10 +44,18 @@ struct MarkdownEditor: NSViewRepresentable {
         textView.configureAsPlainTextEditor()
         textView.isEditable = isEditable
         textView.onOpenLink = onOpenLink
+        textView.noteURL = noteURL
+        textView.registerImageDragTypes()
 
         let coordinator = context.coordinator
         textView.delegate = coordinator
         textView.textStorage?.delegate = coordinator
+        textView.onLayoutWidthChange = { [weak coordinator, weak textView] in
+            if let coordinator, let textView { coordinator.layoutWidthChanged(in: textView) }
+        }
+        textView.onWindowBecameKey = { [weak coordinator, weak textView] in
+            if let coordinator, let textView { coordinator.windowBecameKey(in: textView) }
+        }
         textView.onMouseUp = { [weak coordinator, weak textView] in
             if let coordinator, let textView { coordinator.selectionSettled(in: textView) }
         }
@@ -51,6 +66,7 @@ struct MarkdownEditor: NSViewRepresentable {
         coordinator.observeScrolling(of: scrollView, textView: textView)
         coordinator.configure(textView, style: style, showsSource: showsSource, initial: true)
         coordinator.load(text, into: textView)
+        coordinator.setFocusMode(focusMode, in: textView)
         if focusOnAppear { textView.requestFocus() }
         return scrollView
     }
@@ -63,6 +79,11 @@ struct MarkdownEditor: NSViewRepresentable {
         proxy?.language = .markdown
         context.coordinator.configure(textView, style: style, showsSource: showsSource, initial: false)
         context.coordinator.update($text, in: textView)
+        if textView.noteURL != noteURL {
+            textView.noteURL = noteURL
+            context.coordinator.applyImageSpacing(in: textView)
+        }
+        context.coordinator.setFocusMode(focusMode, in: textView)
     }
 
     static func dismantleNSView(_ scrollView: NSScrollView, coordinator: Coordinator) {
@@ -80,6 +101,13 @@ struct MarkdownEditor: NSViewRepresentable {
         /// The lines (through their line break) whose markers stay visible while markers are hidden elsewhere:
         /// the lines with the cursor or selection. nil when markers are not hidden.
         private var revealed: NSRange?
+        /// The image lines of the current text (empty in source mode and for plain-text fallbacks).
+        private var imageSlots: [InlineImageSlot] = []
+        private var focusMode = false
+        /// The paragraph range and text length the focus dimming was last computed for.
+        private var dimmedFor: (paragraph: NSRange, length: Int)?
+        private var isImageSyncScheduled = false
+        private var isCenterScheduled = false
 
         init(text: Binding<String>, undoManager: UndoManager?, style: EditorStyle, showsSource: Bool) {
             palette = EditorPalette(style)
@@ -93,7 +121,7 @@ struct MarkdownEditor: NSViewRepresentable {
         /// Applies a new style or source mode by restyling in place: the text, selection and undo stack stay.
         func configure(_ textView: MarkdownTextView, style: EditorStyle, showsSource: Bool, initial: Bool) {
             guard initial || style != palette.style || showsSource != self.showsSource else { return }
-            if style != palette.style { palette = EditorPalette(style) }
+            if style != palette.style { palette = EditorPalette(style); dimmedFor = nil }
             self.showsSource = showsSource
             textView.apply(palette, spellCheck: style.spellCheck)
             textView.limitsLineWidth = style.limitLineWidth
@@ -105,6 +133,7 @@ struct MarkdownEditor: NSViewRepresentable {
             } else {
                 needsFullRestyle = true
                 restyle(textView)
+                updateFocus(in: textView)
             }
         }
 
@@ -127,8 +156,12 @@ struct MarkdownEditor: NSViewRepresentable {
                 pendingEdit = nil
                 needsFullRestyle = false
                 textView.typingAttributes = base
+                imageSlots = []
+                (textView as? MarkdownTextView)?.imageSlots = []
+                textView.needsDisplay = true
                 return
             }
+            if needsFullRestyle { dimmedFor = nil }
             let spans = MarkdownStyler.spans(in: storage.string)
             let blocks = spans.filter { $0.kind == .codeBlock }.map(\.range)
             let reveal = hidesMarkers ? revealRange(in: textView, string: storage.mutableString) : nil
@@ -157,9 +190,19 @@ struct MarkdownEditor: NSViewRepresentable {
             for target in Self.merged(targets) { apply(in: target, to: storage) }
             storage.endEditing()
             textView.typingAttributes = base
+            updateImageSlots(in: textView, storage: storage, spans: spans)
+            if focusMode, !textView.hasMarkedText() {
+                updateFocus(in: textView)
+                scheduleCentering(textView)
+            }
         }
 
         override func selectionDidChange(in textView: NSTextView) {
+            // An edit is followed by a restyle, which takes care of focus mode.
+            if focusMode, pendingEdit == nil, !needsFullRestyle {
+                updateFocus(in: textView)
+                if (textView as? MarkdownTextView)?.isTrackingMouse != true { scheduleCentering(textView) }
+            }
             // While the mouse is down the reveal waits for mouse-up, so the text doesn't shift under the pointer.
             if (textView as? MarkdownTextView)?.isTrackingMouse == true { return }
             selectionSettled(in: textView)
@@ -185,6 +228,137 @@ struct MarkdownEditor: NSViewRepresentable {
             storage.beginEditing()
             for line in Self.coalesced(lines) { apply(in: line, to: storage) }
             storage.endEditing()
+            // Restyling a line resets its paragraph style, which holds the room reserved for its images.
+            if !imageSlots.isEmpty { applyImageSpacing(in: textView) }
+        }
+
+        // MARK: Images
+
+        /// Finds the `![](…)` lines of the text (after a restyle) and reserves room under them.
+        private func updateImageSlots(in textView: NSTextView, storage: NSTextStorage, spans: [MarkdownSpan]) {
+            let references = MarkdownImages.references(in: storage.string, excluding: MarkdownImages.codeRanges(in: spans))
+            var slots: [InlineImageSlot] = []
+            let string = storage.mutableString
+            for reference in references {
+                let line = RangeMath.lineRange(reference.range, in: string)
+                if slots.last?.paragraph == line {
+                    slots[slots.count - 1].destinations.append(reference.destination)
+                } else {
+                    let end = NSMaxRange(line)
+                    let endsWithBreak = end > line.location && string.character(at: end - 1) == 0x0A
+                    slots.append(InlineImageSlot(paragraph: line, anchor: max(line.location, end - (endsWithBreak ? 2 : 1)),
+                                                 destinations: [reference.destination]))
+                }
+            }
+            guard !slots.isEmpty || !imageSlots.isEmpty else { return }
+            imageSlots = slots
+            applyImageSpacing(in: textView)
+        }
+
+        /// Resolves the images (decoding them in the background), reserves their height as paragraph spacing under
+        /// their lines and hands the slots to the text view for drawing. Only paragraph attributes change; the text
+        /// and undo stack are untouched.
+        func applyImageSpacing(in textView: NSTextView) {
+            guard let view = textView as? MarkdownTextView, let storage = textView.textStorage,
+                  let container = textView.textContainer else { return }
+            let width = container.size.width - 2 * container.lineFragmentPadding
+            let folder = view.noteURL?.deletingLastPathComponent()
+            let cache = InlineImageCache.shared
+            let reload: @MainActor () -> Void = { [weak self, weak view] in
+                if let self, let view { self.applyImageSpacing(in: view) }
+            }
+            let baseStyle = base[.paragraphStyle] as? NSParagraphStyle
+            var changes: [(range: NSRange, spacing: CGFloat)] = []
+            for index in imageSlots.indices {
+                let urls = imageSlots[index].destinations.map { MarkdownImages.fileURL(for: $0, noteFolder: folder) }
+                imageSlots[index].urls = urls
+                let sizes = urls.map { url -> NSSize in
+                    guard let url, let image = cache.image(for: url, onUpdate: reload) else { return .zero }
+                    return InlineImageLayout.size(of: image.size, fitting: width)
+                }
+                let paragraph = imageSlots[index].paragraph
+                guard NSMaxRange(paragraph) <= storage.length else { continue }
+                let spacing = (baseStyle?.paragraphSpacing ?? 0) + InlineImageLayout.reservedHeight(sizes)
+                let current = (storage.attribute(.paragraphStyle, at: paragraph.location, effectiveRange: nil) as? NSParagraphStyle)?.paragraphSpacing
+                if current != spacing { changes.append((paragraph, spacing)) }
+            }
+            view.imageSlots = imageSlots
+            view.needsDisplay = true
+            guard !changes.isEmpty, !textView.hasMarkedText() else { return }
+            storage.beginEditing()
+            for change in changes {
+                let style = (baseStyle?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+                style.paragraphSpacing = change.spacing
+                storage.addAttribute(.paragraphStyle, value: style, range: change.range)
+            }
+            storage.endEditing()
+        }
+
+        func layoutWidthChanged(in textView: NSTextView) {
+            guard !imageSlots.isEmpty, !isImageSyncScheduled else { return }
+            isImageSyncScheduled = true
+            DispatchQueue.main.async { [weak self, weak textView] in
+                MainActor.assumeIsolated {
+                    guard let self else { return }
+                    self.isImageSyncScheduled = false
+                    if let textView { self.applyImageSpacing(in: textView) }
+                }
+            }
+        }
+
+        /// Images that changed on disk while another app was in front are decoded again.
+        func windowBecameKey(in textView: NSTextView) {
+            guard !imageSlots.isEmpty else { return }
+            InlineImageCache.shared.expireChecks()
+            applyImageSpacing(in: textView)
+        }
+
+        // MARK: Focus mode
+
+        func setFocusMode(_ on: Bool, in textView: NSTextView) {
+            guard on != focusMode, let view = textView as? MarkdownTextView else { return }
+            focusMode = on
+            view.centersCaret = on
+            dimmedFor = nil
+            if on {
+                updateFocus(in: textView)
+                scheduleCentering(textView)
+            } else {
+                let full = NSRange(location: 0, length: textView.textStorage?.length ?? 0)
+                textView.layoutManager?.removeTemporaryAttribute(.foregroundColor, forCharacterRange: full)
+            }
+        }
+
+        /// Dims everything except the paragraphs the selection touches, with temporary attributes (the text storage
+        /// is not touched). Skipped while the paragraph and length are unchanged.
+        private func updateFocus(in textView: NSTextView) {
+            guard focusMode, let layout = textView.layoutManager, let storage = textView.textStorage else { return }
+            let length = storage.length
+            let paragraph = Self.revealRange(of: textView.selectedRanges, in: storage.mutableString)
+            if let dimmedFor, dimmedFor.paragraph == paragraph, dimmedFor.length == length { return }
+            dimmedFor = (paragraph, length)
+            layout.removeTemporaryAttribute(.foregroundColor, forCharacterRange: NSRange(location: 0, length: length))
+            let dim = palette.colors.text.nsColor.withAlphaComponent(0.3)
+            if paragraph.location > 0 {
+                layout.addTemporaryAttribute(.foregroundColor, value: dim, forCharacterRange: NSRange(location: 0, length: paragraph.location))
+            }
+            if NSMaxRange(paragraph) < length {
+                layout.addTemporaryAttribute(.foregroundColor, value: dim,
+                                             forCharacterRange: NSRange(location: NSMaxRange(paragraph), length: length - NSMaxRange(paragraph)))
+            }
+        }
+
+        /// After AppKit's own scrolling for the edit or selection change, so the caret line has the last word.
+        private func scheduleCentering(_ textView: NSTextView) {
+            guard !isCenterScheduled else { return }
+            isCenterScheduled = true
+            DispatchQueue.main.async { [weak self, weak textView] in
+                MainActor.assumeIsolated {
+                    self?.isCenterScheduled = false
+                    guard let self, self.focusMode, let view = textView as? MarkdownTextView else { return }
+                    view.centerCaret()
+                }
+            }
         }
 
         /// A selection longer than this reveals only the lines around the viewport (see `revealRange`).
@@ -456,18 +630,230 @@ final class MarkdownTextView: EditorTextView {
     private(set) var isTrackingMouse = false
     var onMouseUp: (() -> Void)?
     var onOpenLink: ((String) -> Void)?
+    /// The note's file (nil for a draft): where relative images are found and pasted images are saved.
+    var noteURL: URL?
+    /// The lines with images under them, in document order; set by the coordinator.
+    var imageSlots: [InlineImageSlot] = []
+    var onLayoutWidthChange: (() -> Void)?
+    var onWindowBecameKey: (() -> Void)?
+    private var keyObserver: NSObjectProtocol?
+    /// Focus mode: room above and below the text (half the viewport) lets the first and last lines reach the centre.
+    var centersCaret = false {
+        didSet { if centersCaret != oldValue { updateInsets(for: frame.size) } }
+    }
 
     override func setFrameSize(_ newSize: NSSize) {
+        let widthChanged = newSize.width != frame.width
         updateInsets(for: newSize)
         super.setFrameSize(newSize)
+        if widthChanged { onLayoutWidthChange?() }
     }
 
     private func updateInsets(for size: NSSize) {
         let centered = ((size.width - Self.maxLineWidth) / 2).rounded()
         let horizontal = limitsLineWidth ? max(Self.minInset.width, centered) : Self.minInset.width
-        if textContainerInset.width != horizontal {
-            textContainerInset = NSSize(width: horizontal, height: Self.minInset.height)
+        let vertical = centersCaret ? max(Self.minInset.height, ((enclosingScrollView?.contentView.bounds.height ?? 0) / 2).rounded()) : Self.minInset.height
+        if textContainerInset.width != horizontal || textContainerInset.height != vertical {
+            textContainerInset = NSSize(width: horizontal, height: vertical)
         }
+    }
+
+    override func viewDidMoveToWindow() {
+        super.viewDidMoveToWindow()
+        if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
+        keyObserver = nil
+        guard let window else { return }
+        keyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) {
+            [weak self] _ in
+            MainActor.assumeIsolated { self?.onWindowBecameKey?() }
+        }
+    }
+
+    // MARK: Images and caret position
+
+    /// Draws the images under their lines, in the room the coordinator reserved as paragraph spacing.
+    override func draw(_ dirtyRect: NSRect) {
+        super.draw(dirtyRect)
+        guard !imageSlots.isEmpty, let layout = layoutManager, let container = textContainer else { return }
+        let origin = textContainerOrigin
+        let width = container.size.width - 2 * container.lineFragmentPadding
+        let cache = InlineImageCache.shared
+        let length = textStorage?.length ?? 0
+        // Slots whose line is above the dirty rect can still reach into it: look back by the tallest stack.
+        let probe = dirtyRect.insetBy(dx: 0, dy: -InlineImageLayout.maxHeight * 3).offsetBy(dx: -origin.x, dy: -origin.y)
+        let glyphs = layout.glyphRange(forBoundingRect: probe, in: container)
+        let chars = layout.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        var lo = 0, hi = imageSlots.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if NSMaxRange(imageSlots[mid].paragraph) <= chars.location { lo = mid + 1 } else { hi = mid }
+        }
+        for slot in imageSlots[lo...] {
+            if slot.paragraph.location >= NSMaxRange(chars) { break }
+            guard slot.anchor < length, slot.urls.count == slot.destinations.count else { continue }
+            let glyph = layout.glyphIndexForCharacter(at: slot.anchor)
+            var y = layout.lineFragmentUsedRect(forGlyphAt: glyph, effectiveRange: nil).maxY + origin.y + InlineImageLayout.gap
+            for url in slot.urls {
+                guard let url, let image = cache.cachedImage(for: url) else { continue }
+                let size = InlineImageLayout.size(of: image.size, fitting: width)
+                guard size.height > 0 else { continue }
+                let rect = NSRect(x: origin.x, y: y, width: size.width, height: size.height)
+                y += size.height + InlineImageLayout.gap
+                guard rect.intersects(dirtyRect) else { continue }
+                NSGraphicsContext.saveGraphicsState()
+                NSBezierPath(roundedRect: rect, xRadius: 4, yRadius: 4).addClip()
+                image.draw(in: rect, from: .zero, operation: .sourceOver, fraction: 1, respectFlipped: true, hints: [.interpolation: NSImageInterpolation.high])
+                NSGraphicsContext.restoreGraphicsState()
+            }
+        }
+    }
+
+    /// The rectangle of the line with the caret, in the text container's coordinates.
+    private func caretLineRect() -> NSRect? {
+        guard let layout = layoutManager, let storage = textStorage else { return nil }
+        let length = storage.length
+        let location = min(selectedRange().location, length)
+        layout.ensureLayout(for: textContainer ?? NSTextContainer())
+        if length == 0 || (location == length && storage.string.hasSuffix("\n")) {
+            let extra = layout.extraLineFragmentRect
+            return extra.isEmpty ? nil : extra
+        }
+        let glyph = layout.glyphIndexForCharacter(at: min(location, length - 1))
+        return layout.lineFragmentRect(forGlyphAt: glyph, effectiveRange: nil)
+    }
+
+    /// Scrolls so the line with the caret is in the vertical middle of the viewport (typewriter scrolling).
+    func centerCaret() {
+        guard let rect = caretLineRect(), let clip = enclosingScrollView?.contentView else { return }
+        scrollClip(toY: rect.midY + textContainerOrigin.y - clip.bounds.height / 2)
+    }
+
+    private func scrollClip(toY y: CGFloat) {
+        guard let scrollView = enclosingScrollView else { return }
+        let clip = scrollView.contentView
+        let target = min(max(0, y), max(0, frame.height - clip.bounds.height)).rounded()
+        guard abs(target - clip.bounds.origin.y) > 0.5 else { return }
+        clip.scroll(to: NSPoint(x: clip.bounds.origin.x, y: target))
+        scrollView.reflectScrolledClipView(clip)
+    }
+
+    /// Puts the caret at `location` (UTF-16) and brings that line into view: centred in focus mode, else near the top.
+    func reveal(location: Int) {
+        let length = (string as NSString).length
+        setSelectedRange(NSRange(location: min(max(location, 0), length), length: 0))
+        window?.makeFirstResponder(self)
+        if centersCaret {
+            centerCaret()
+        } else if let rect = caretLineRect() {
+            scrollClip(toY: rect.minY + textContainerOrigin.y - 60)
+        }
+    }
+
+    // MARK: Pasting and dropping images
+
+    private enum ImageSource {
+        case file(URL)
+        /// Image data on the pasteboard (a screenshot, a copied picture).
+        case data(NSPasteboard)
+    }
+
+    func registerImageDragTypes() {
+        registerForDraggedTypes(registeredDraggedTypes + [.fileURL, .png, .tiff])
+    }
+
+    /// What the pasteboard offers as images to add to the note, or nil when it should be handled as text/files as
+    /// before: image files from Finder (only when all items are images), or image data without any text.
+    private func imageSources(in pasteboard: NSPasteboard) -> [ImageSource]? {
+        let urls = pasteboard.readObjects(forClasses: [NSURL.self], options: [.urlReadingFileURLsOnly: true]) as? [URL] ?? []
+        if !urls.isEmpty {
+            let images = urls.filter { UTType(filenameExtension: $0.pathExtension)?.conforms(to: .image) == true }
+            return images.count == urls.count ? images.map(ImageSource.file) : nil
+        }
+        guard pasteboard.string(forType: .string) == nil,
+              pasteboard.canReadObject(forClasses: [NSImage.self], options: nil) else { return nil }
+        return [.data(pasteboard)]
+    }
+
+    /// PNG data and the file extension to store it under. PNG, JPEG and GIF files keep their bytes; everything else
+    /// (TIFF, HEIC, screenshots on the pasteboard…) becomes PNG.
+    private func imageFile(for source: ImageSource) -> (data: Data, fileExtension: String)? {
+        switch source {
+        case .file(let url):
+            let ext = url.pathExtension.lowercased()
+            if ["png", "jpg", "jpeg", "gif"].contains(ext), let data = try? Data(contentsOf: url) {
+                return (data, ext == "jpeg" ? "jpg" : ext)
+            }
+            guard let image = NSImage(contentsOf: url) else { return nil }
+            return Self.pngData(image).map { ($0, "png") }
+        case .data(let pasteboard):
+            if let png = pasteboard.data(forType: .png) { return (png, "png") }
+            guard let image = (pasteboard.readObjects(forClasses: [NSImage.self], options: nil) as? [NSImage])?.first else { return nil }
+            return Self.pngData(image).map { ($0, "png") }
+        }
+    }
+
+    private static func pngData(_ image: NSImage) -> Data? {
+        guard let tiff = image.tiffRepresentation, let rep = NSBitmapImageRep(data: tiff) else { return nil }
+        return rep.representation(using: .png, properties: [:])
+    }
+
+    /// Saves each image into the note's `assets` folder and inserts `![](assets/…)` for them at `range`, one per
+    /// line, as a single undo step. A draft has no folder yet: nothing is saved and a neutral message says so.
+    private func insertImages(_ sources: [ImageSource], at range: NSRange) {
+        guard let noteURL else {
+            showImageMessage(L("Save the note first to add images."))
+            return
+        }
+        var lines: [String] = []
+        var failure: String?
+        for source in sources {
+            guard let file = imageFile(for: source) else {
+                failure = L("The image couldn't be read.")
+                continue
+            }
+            do {
+                lines.append("![](\(try NoteAssets.save(file.data, forNoteAt: noteURL, fileExtension: file.fileExtension)))")
+            } catch {
+                failure = error.localizedDescription
+            }
+        }
+        if !lines.isEmpty {
+            let text = lines.joined(separator: "\n")
+            let end = range.location + (text as NSString).length
+            apply(TextEdit(range: range, replacement: text, selection: NSRange(location: end, length: 0)))
+        }
+        if let failure { showImageMessage(failure) }
+    }
+
+    private func showImageMessage(_ message: String) {
+        let alert = NSAlert()
+        alert.messageText = L("Couldn't add the image")
+        alert.informativeText = message
+        if let window { alert.beginSheetModal(for: window) } else { alert.runModal() }
+    }
+
+    override func paste(_ sender: Any?) {
+        guard isEditable, let sources = imageSources(in: .general) else { return super.paste(sender) }
+        insertImages(sources, at: selectedRange())
+    }
+
+    override func draggingEntered(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        isEditable && imageSources(in: sender.draggingPasteboard) != nil ? .copy : super.draggingEntered(sender)
+    }
+
+    override func draggingUpdated(_ sender: any NSDraggingInfo) -> NSDragOperation {
+        isEditable && imageSources(in: sender.draggingPasteboard) != nil ? .copy : super.draggingUpdated(sender)
+    }
+
+    override func prepareForDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        isEditable && imageSources(in: sender.draggingPasteboard) != nil ? true : super.prepareForDragOperation(sender)
+    }
+
+    override func performDragOperation(_ sender: any NSDraggingInfo) -> Bool {
+        guard isEditable, let sources = imageSources(in: sender.draggingPasteboard) else { return super.performDragOperation(sender) }
+        let index = characterIndexForInsertion(at: convert(sender.draggingLocation, from: nil))
+        insertImages(sources, at: NSRange(location: min(index, (string as NSString).length), length: 0))
+        return true
     }
 
     /// Clicks without modifiers (or with only ⌘) act on task boxes and links: a click on a box flips it, a click

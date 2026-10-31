@@ -668,6 +668,23 @@
         }
       }
     },
+    "Couldn't add the image": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't add the image"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görsel eklenemedi"
+          }
+        }
+      }
+    },
     "Couldn't export \"%@\".": {
       "extractionState": "manual",
       "localizations": {
@@ -974,6 +991,23 @@
         }
       }
     },
+    "Focus Mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Focus Mode"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Odak Kipi"
+          }
+        }
+      }
+    },
     "Fonts": {
       "extractionState": "manual",
       "localizations": {
@@ -1055,6 +1089,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Gizli, imleç satırında görünür"
+          }
+        }
+      }
+    },
+    "Hide Outline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hide Outline"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anahatı Gizle"
           }
         }
       }
@@ -1399,6 +1450,23 @@
         }
       }
     },
+    "No headings": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "No headings"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başlık yok"
+          }
+        }
+      }
+    },
     "No note selected": {
       "extractionState": "manual",
       "localizations": {
@@ -1531,6 +1599,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yeni Sekmede Aç"
+          }
+        }
+      }
+    },
+    "Outline (⌃⌘O)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Outline (⌃⌘O)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anahat (⌃⌘O)"
           }
         }
       }
@@ -1807,6 +1892,23 @@
         }
       }
     },
+    "Save the note first to add images.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Save the note first to add images."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görsel eklemek için önce notu kaydedin."
+          }
+        }
+      }
+    },
     "Save “%@”?": {
       "extractionState": "manual",
       "localizations": {
@@ -1905,6 +2007,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sonraki Sekmeyi Göster"
+          }
+        }
+      }
+    },
+    "Show Outline": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Outline"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Anahatı Göster"
           }
         }
       }
@@ -2177,6 +2296,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Taslaklar klasörü kullanılamıyor (%@). Yeni sekmeler ayrı bir klasörde tutulur ve klasör yeniden çalışınca oraya taşınır."
+          }
+        }
+      }
+    },
+    "The image couldn't be read.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The image couldn't be read."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Görsel okunamadı."
           }
         }
       }

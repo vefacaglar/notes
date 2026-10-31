@@ -26,7 +26,8 @@ struct NoteEditorView: View {
 
     var body: some View {
         let language = document.language
-        let style = EditorStyle(settings: environmentSettings ?? .shared, colorScheme: colorScheme)
+        let settings = environmentSettings ?? .shared
+        let style = EditorStyle(settings: settings, colorScheme: colorScheme)
         VStack(spacing: 0) {
             if language.canFormat {
                 HStack(spacing: 0) {
@@ -43,7 +44,9 @@ struct NoteEditorView: View {
             Group {
                 if language == .markdown {
                     MarkdownEditor(text: $document.text, style: style, showsSource: showsSource, focusOnAppear: focusOnAppear,
-                                   proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly, onOpenLink: onOpenLink)
+                                   proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly, onOpenLink: onOpenLink,
+                                   noteURL: document.isDraft ? nil : document.url, focusMode: settings.focusMode)
+                        .overlay(alignment: .topTrailing) { outlineButton }
                 } else {
                     CodeEditor(text: $document.text, language: language, style: style, focusOnAppear: focusOnAppear, proxy: editor,
                                undoManager: document.undoManager, isEditable: !document.isReadOnly)
@@ -52,6 +55,24 @@ struct NoteEditorView: View {
             .background(Color(nsColor: style.theme.colors.background.nsColor))
         }
         .focusedSceneValue(\.textEditor, language.canFormat && !document.isReadOnly ? editor : nil)
+        .focusedSceneValue(\.markdownEditor, language == .markdown ? editor : nil)
         .onAppear { document.attach(editor) }
+    }
+
+    /// Markdown only: opens the list of headings (⌃⌘O), small and out of the text's way in the top-right corner.
+    private var outlineButton: some View {
+        Button { editor.toggleOutline() } label: { Image(systemName: "list.bullet.indent") }
+            .buttonStyle(.borderless)
+            .controlSize(.small)
+            .foregroundStyle(.secondary)
+            .padding(.top, 6)
+            .padding(.trailing, 16)
+            .help(loc: "Outline (⌃⌘O)")
+            .popover(isPresented: Bindable(editor).isOutlineShown, arrowEdge: .bottom) {
+                OutlineView(text: document.text) { heading in
+                    editor.isOutlineShown = false
+                    editor.reveal(location: heading.location)
+                }
+            }
     }
 }

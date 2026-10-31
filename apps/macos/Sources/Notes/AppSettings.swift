@@ -57,6 +57,8 @@ final class AppSettings {
     /// The modified date and a one-line preview under each note's name in the sidebar.
     var showSidebarPreview: Bool { didSet { save(showSidebarPreview, .showSidebarPreview) } }
     var autoNaming: Bool { didSet { save(autoNaming, .autoNaming) } }
+    /// Markdown editor: dims every paragraph but the one with the caret and keeps that line centred.
+    var focusMode: Bool { didSet { save(focusMode, .focusMode) } }
     /// Stored as `AppleLanguages`; applies after a restart (`needsRestart`).
     var language: LanguageChoice { didSet { LanguageSetting.store(language) } }
     /// What was stored when the app started, i.e. what the running UI language was chosen from.
@@ -106,6 +108,7 @@ final class AppSettings {
         showNonMarkdownFiles = bool(.showNonMarkdownFiles, true)
         showSidebarPreview = bool(.showSidebarPreview, true)
         autoNaming = bool(.autoNaming, true)
+        focusMode = bool(.focusMode, false)
         let stored = LanguageSetting.stored
         language = stored
         launchLanguage = stored
@@ -196,7 +199,7 @@ final class AppSettings {
     private enum Key: String {
         case appearanceMode, lightThemeID, darkThemeID, textFont, codeFont, lineSpacing, limitLineWidth, markerStyle
         case spellCheck, codeLineNumbers, codeWrap, restoreTabs, sidebarSort, showNonMarkdownFiles, autoNaming
-        case showSidebarPreview, zoom, showStatusBar
+        case showSidebarPreview, zoom, showStatusBar, focusMode
 
         var name: String { "settings." + rawValue }
     }

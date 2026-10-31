@@ -228,13 +228,26 @@ class TextEditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate
 ///     Button("Format") { editor?.format() }.disabled(editor == nil)
 ///
 /// Writing to the binding instead counts as an outside change: the editor reloads and clears undo.
-@MainActor
+@MainActor @Observable
 final class TextEditorProxy {
-    weak var textView: NSTextView?
+    @ObservationIgnored weak var textView: NSTextView?
     /// Language of the open file, set by the editor.
-    var language: CodeLanguage = .plainText
+    @ObservationIgnored var language: CodeLanguage = .plainText
+    /// Markdown only: whether the outline popover is open.
+    var isOutlineShown = false
 
     var canFormat: Bool { language.canFormat }
+
+    /// Opens or closes the outline of the headings (Markdown only).
+    func toggleOutline() {
+        guard language == .markdown else { return }
+        isOutlineShown.toggle()
+    }
+
+    /// Puts the caret at `location` (UTF-16) and scrolls there; used by the outline.
+    func reveal(location: Int) {
+        (textView as? MarkdownTextView)?.reveal(location: location)
+    }
 
     /// Replaces the whole text as one undoable step named `actionName` in the Edit menu.
     @discardableResult
@@ -256,7 +269,7 @@ final class TextEditorProxy {
     /// Format: reformats the text as one undoable step. On invalid input it puts the caret
     /// at the error and shows the reason in a sheet.
     func format() {
-        guard let textView else { return }
+        guard let textView, textView.isEditable else { return }
         do {
             replaceAll(with: try language.format(textView.string), actionName: L("Format"))
         } catch {

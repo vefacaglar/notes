@@ -100,6 +100,21 @@ Each is one undo step. Ranges are UTF-16 offsets; text in the editor has LF line
 - **⌘K (Ctrl+K)** turns the selection into `[selection](|)` with the caret in the parentheses; an empty selection gives `[|]()`; a selected `http(s)` address becomes `[|](address)`.
 - **Clicking a task box** `[ ]` / `[x]` (`[X]` counts as checked) flips it to `[x]` / `[ ]` when the file is editable; the caret does not move. Boxes in fenced code are not task items.
 
+## Images
+
+- **Display**: in the live Markdown editor (not in the source view) `![alt](destination)` shows the image under its line, scaled down to the text width (never up), at most 420 pt tall, aspect kept. The text itself is unchanged; nothing is inserted into it. The destination is a relative path (resolved against the note's folder, percent-decoded, `<…>` form allowed, optional title ignored), an absolute path or a `file:` URL. Remote (`http:`) images are not loaded. A missing or unreadable file shows nothing. Images inside code spans and fenced code are not shown. A file that changes on disk is shown again.
+- **Pasting or dropping an image** (image data, or image files from Finder) into a Markdown note that has a file saves it in an `assets` folder next to the note (created if missing) and inserts `![](assets/<name>)` at the caret (one per line for several images), as one undo step. The name is `<note name> <n>.png` with the smallest `n` ≥ 1 that is free (the note name made valid under the portable rules: forbidden characters become `-`, capped at 60 characters, `image` if nothing is left). PNG, JPEG and GIF files keep their bytes and use `.png`, `.jpg`, `.gif`; any other image becomes PNG. The destination is percent-encoded (everything but ASCII letters, digits and `-._~`). The file is written to a hidden temporary file in `assets` and moved into place, so an existing file is never replaced. Undoing the insertion leaves the file in `assets`.
+- **Drafts** (notes without a file yet) refuse images with a neutral message ("Save the note first to add images."); nothing is saved. Dropping a file that is not an image behaves as before.
+- The `assets` folder is an ordinary folder (listed like any other); its image files are not listed because they have no listed extension.
+
+## Outline
+
+The outline of a Markdown note lists its ATX headings (`#` to `######`, up to 3 spaces of indentation, a space after the `#`s) in document order, with level, text and the UTF-16 offset of the line. The closing `#`s of `## Title ##` and surrounding whitespace are not part of the text; headings without text and lines inside fenced code are left out. Choosing a heading puts the caret at the start of its line and scrolls to it.
+
+## Focus mode
+
+An app setting (not stored in notes). In the Markdown editor every paragraph (text between line breaks) except those the selection touches is dimmed, without changing the text or its styling, and the caret line is kept in the vertical middle of the viewport while typing or moving the caret (not on mouse clicks).
+
 ## Moving, duplicating and copying in
 
 None of these ever overwrites an item, and none changes a note's content.
