@@ -19,6 +19,7 @@ struct WorkspaceView: View {
             // On the column, not the editor, so it stays up whatever happens to the editor.
             .errorAlert(documentError)
         }
+        .appFont()
         .navigationTitle(title)
         .toolbar {
             if workspace.isMain {
@@ -54,7 +55,7 @@ struct WorkspaceView: View {
             VStack(spacing: 0) {
                 if let reason = document.readOnlyReason {
                     Label(reason, systemImage: "lock")
-                        .font(.callout)
+                        .appFont(.callout)
                         .foregroundStyle(.secondary)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .padding(.horizontal, 12)

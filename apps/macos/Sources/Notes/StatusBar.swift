@@ -23,7 +23,7 @@ struct StatusBar: View {
                 }
                 Spacer(minLength: 0)
             }
-            .font(.caption)
+            .appFont(.caption)
             .monospacedDigit()
             .foregroundStyle(.secondary)
             .padding(.horizontal, 12)

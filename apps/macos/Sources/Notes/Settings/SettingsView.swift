@@ -17,6 +17,7 @@ struct SettingsView: View {
                 .tabItem { Label(loc: "Editor", systemImage: "character.cursor.ibeam") }
         }
         .frame(width: 580)
+        .appFont()
     }
 }
 
@@ -140,7 +141,7 @@ private struct AppearanceSettingsView: View {
                                 VStack(alignment: .leading, spacing: 2) {
                                     Text(verbatim: issue.file.lastPathComponent)
                                     Text(verbatim: issue.error.localizedDescription)
-                                        .font(.caption)
+                                        .appFont(.caption)
                                         .foregroundStyle(.secondary)
                                         .textSelection(.enabled)
                                 }
@@ -234,10 +235,12 @@ private struct EditorSettingsView: View {
     var body: some View {
         Form {
             Section {
-                FontSettingRow(title: "Text font", choice: $settings.baseTextFont, monospaced: false)
+                FontSettingRow(title: "App and text font", choice: $settings.baseTextFont, monospaced: false)
                 FontSettingRow(title: "Code font", choice: $settings.baseCodeFont, monospaced: true)
             } header: {
                 Text(loc: "Fonts")
+            } footer: {
+                Text(loc: "The text font applies to the whole app and to Markdown text. The code font applies to code.")
             }
 
             Section {

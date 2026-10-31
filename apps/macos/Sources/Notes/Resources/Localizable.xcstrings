@@ -2317,19 +2317,36 @@
         }
       }
     },
-    "Text font": {
+    "App and text font": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "Text font"
+            "value": "App and text font"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Metin yazı tipi"
+            "value": "Uygulama ve metin yazı tipi"
+          }
+        }
+      }
+    },
+    "The text font applies to the whole app and to Markdown text. The code font applies to code.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The text font applies to the whole app and to Markdown text. The code font applies to code."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metin yazı tipi uygulamanın tamamına ve Markdown metnine uygulanır. Kod yazı tipi yalnızca kodda kullanılır."
           }
         }
       }

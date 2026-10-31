@@ -20,7 +20,7 @@ struct OutlineView: View {
                         ForEach(Array(headings.enumerated()), id: \.offset) { _, heading in
                             Button { onSelect(heading) } label: {
                                 Text(heading.title)
-                                    .font(heading.level == top ? .body.weight(.semibold) : .body)
+                                    .appFont(.body, weight: heading.level == top ? .semibold : nil)
                                     .foregroundStyle(heading.level <= top + 1 ? .primary : .secondary)
                                     .lineLimit(1)
                                     .truncationMode(.tail)
@@ -39,5 +39,6 @@ struct OutlineView: View {
             }
         }
         .frame(width: 280)
+        .appFont()
     }
 }

@@ -63,7 +63,7 @@ struct SidebarView: View {
                         VStack(alignment: .leading, spacing: 2) {
                             Label(root.name, systemImage: "folder.badge.questionmark")
                             Text(verbatim: root.reason)
-                                .font(.callout)
+                                .appFont(.callout)
                                 .lineLimit(3)
                         }
                         .foregroundStyle(.secondary)
@@ -95,7 +95,7 @@ struct SidebarView: View {
                     Text(loc: "Copying…")
                     Spacer(minLength: 0)
                 }
-                .font(.caption)
+                .appFont(.caption)
                 .foregroundStyle(.secondary)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 6)
@@ -339,7 +339,7 @@ private struct ItemRow: View {
                             Text(verbatim: preview)
                         }
                     }
-                    .font(.caption)
+                    .appFont(.caption)
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                 }
@@ -385,12 +385,12 @@ private struct HitRow: View {
             Label(NoteStore.displayName(path), systemImage: SidebarView.icon(for: path))
             if let line = hit.hit.line, let snippet = hit.hit.snippet {
                 Text(verbatim: "\(line): \(snippet)")
-                    .font(.callout)
+                    .appFont(.callout)
                     .foregroundStyle(.secondary)
                     .lineLimit(2)
             } else if let folder = location(of: path) {
                 Text(verbatim: folder)
-                    .font(.callout)
+                    .appFont(.callout)
                     .foregroundStyle(.secondary)
             }
         }

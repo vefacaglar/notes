@@ -32,7 +32,7 @@ struct QuickOpenView: View {
         VStack(spacing: 0) {
             TextField(text: $query) { Text(loc: "Open Note…") }
                 .textFieldStyle(.plain)
-                .font(.title3)
+                .appFont(.title3)
                 .padding(12)
                 .focused($isFocused)
                 .onSubmit { open(results, newTab: false) }
@@ -68,6 +68,7 @@ struct QuickOpenView: View {
             }
         }
         .frame(width: 520, height: 360)
+        .appFont()
         .onExitCommand { workspace.isQuickOpenVisible = false }
         .onChange(of: query) { selected = 0 }
         .task {
@@ -83,7 +84,7 @@ struct QuickOpenView: View {
             Text(verbatim: entry.name)
                 .lineLimit(1)
             Text(verbatim: entry.location)
-                .font(.callout)
+                .appFont(.callout)
                 .foregroundStyle(.secondary)
                 .lineLimit(1)
                 .truncationMode(.head)

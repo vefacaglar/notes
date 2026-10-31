@@ -115,7 +115,7 @@ private struct TabItem: View {
             }
             .frame(width: 16, height: 16)
         }
-        .font(.callout)
+        .appFont(.callout)
         .foregroundStyle(isActive ? .primary : .secondary)
         .padding(.leading, 10)
         .padding(.trailing, 6)
