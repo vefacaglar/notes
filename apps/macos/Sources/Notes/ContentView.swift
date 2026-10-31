@@ -22,12 +22,22 @@ struct WorkspaceView: View {
         .appFont()
         .navigationTitle(title)
         .toolbar {
-            // The title is drawn here, in the app font; AppKit's own title stays hidden (it keeps naming the window).
-            ToolbarItem(placement: .navigation) {
-                Text(verbatim: title)
-                    .appFont(.title3, weight: .semibold)
-                    .lineLimit(1)
-                    .help(title)
+            if let tab = workspace.activeTab {
+                let document = tab.document
+                let language = document.language
+                if language == .markdown, settings.showFormattingBar {
+                    FormattingToolbar(editor: tab.editor, isReadOnly: document.isReadOnly)
+                }
+                if language.canFormat {
+                    ToolbarItem {
+                        Button(loc: "Format") { tab.editor.format() }
+                            .disabled(document.isReadOnly)
+                            .help(loc: "Format (⇧⌥F)")
+                    }
+                }
+                if language == .markdown {
+                    ToolbarItem { OutlineButton(editor: tab.editor, document: document) }
+                }
             }
             if workspace.isMain {
                 ToolbarItemGroup(placement: .primaryAction) {
@@ -70,7 +80,7 @@ struct WorkspaceView: View {
                         .background(.bar)
                     Divider()
                 }
-                NoteEditorView(document: document, showsSource: tab.showsSource,
+                NoteEditorView(document: document, editor: tab.editor, showsSource: tab.showsSource,
                                onOpenLink: { workspace.openLink($0, from: document) })
                     // Keyed by tab and document, not the URL, so a rename keeps the editor (cursor, undo).
                     .id(EditorKey(tab: tab.id, document: document.id))
@@ -176,7 +186,6 @@ private struct WindowBridge: NSViewRepresentable {
             workspace.window = window
             window.isRestorable = workspace.isMain && LaunchOptions.isPersistent
             window.tabbingMode = .disallowed
-            window.titleVisibility = .hidden
             if let frame = workspace.pendingFrame {
                 workspace.pendingFrame = nil
                 window.setFrame(frame, display: true)
@@ -305,5 +314,22 @@ extension Optional {
     var isPresent: Bool {
         get { self != nil }
         set { if !newValue { self = nil } }
+    }
+}
+
+/// Markdown only: opens the list of headings (⌃⌘O).
+private struct OutlineButton: View {
+    let editor: TextEditorProxy
+    let document: NoteDocument
+
+    var body: some View {
+        Button { editor.toggleOutline() } label: { Label(loc: "Outline (⌃⌘O)", systemImage: "list.bullet.indent") }
+            .help(loc: "Outline (⌃⌘O)")
+            .popover(isPresented: Bindable(editor).isOutlineShown, arrowEdge: .bottom) {
+                OutlineView(text: document.text) { heading in
+                    editor.isOutlineShown = false
+                    editor.reveal(location: heading.location)
+                }
+            }
     }
 }

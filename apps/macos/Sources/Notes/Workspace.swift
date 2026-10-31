@@ -40,6 +40,8 @@ final class EditorTab: Identifiable {
     fileprivate(set) var document: NoteDocument
     /// "Show Source": Markdown as plain text.
     var showsSource = false
+    /// The tab's editor handle, shared with the window toolbar (formatting, outline, Format).
+    let editor = TextEditorProxy()
     /// Saved when the tab stops being shown, applied when its editor appears again.
     @ObservationIgnored var viewState: EditorViewState?
     @ObservationIgnored var focusOnShow = false

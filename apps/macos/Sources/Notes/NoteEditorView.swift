@@ -11,14 +11,15 @@ struct NoteEditorView: View {
     var focusOnAppear = false
     /// Follows a clicked link (its destination as written); the workspace window passes `Workspace.openLink`.
     var onOpenLink: ((String) -> Void)?
-    /// Lets the "Format" command and the document reach this window's editor; see `TextEditorProxy`.
-    @State private var editor = TextEditorProxy()
+    /// Lets the "Format" command, the toolbar and the document reach this editor; see `TextEditorProxy`.
+    let editor: TextEditorProxy
     @Environment(AppSettings.self) private var environmentSettings: AppSettings?
     @Environment(\.colorScheme) private var colorScheme
 
-    init(document: NoteDocument, showsSource: Bool = false, focusOnAppear: Bool = false,
+    init(document: NoteDocument, editor: TextEditorProxy, showsSource: Bool = false, focusOnAppear: Bool = false,
          onOpenLink: ((String) -> Void)? = nil) {
         self.document = document
+        self.editor = editor
         self.onOpenLink = onOpenLink
         self.showsSource = showsSource
         self.focusOnAppear = focusOnAppear
@@ -29,29 +30,11 @@ struct NoteEditorView: View {
         let settings = environmentSettings ?? .shared
         let style = EditorStyle(settings: settings, colorScheme: colorScheme)
         VStack(spacing: 0) {
-            if language.canFormat {
-                HStack(spacing: 0) {
-                    Spacer(minLength: 0)
-                    Button(loc: "Format") { editor.format() }
-                        .buttonStyle(.bordered)
-                        .controlSize(.small)
-                        .disabled(document.isReadOnly)
-                        .help(loc: "Format (⇧⌥F)")
-                }
-                .padding(.horizontal, 12)
-                .padding(.top, 8)
-            }
-            if language == .markdown, settings.showFormattingBar {
-                FormattingBar(editor: editor, isReadOnly: document.isReadOnly) { outlineButton }
-            }
             Group {
                 if language == .markdown {
                     MarkdownEditor(text: $document.text, style: style, showsSource: showsSource, focusOnAppear: focusOnAppear,
                                    proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly, onOpenLink: onOpenLink,
                                    noteURL: document.isDraft ? nil : document.url, focusMode: settings.focusMode)
-                        .overlay(alignment: .topTrailing) {
-                            if !settings.showFormattingBar { outlineButton.padding(.top, 6).padding(.trailing, 16) }
-                        }
                 } else {
                     CodeEditor(text: $document.text, language: language, style: style, focusOnAppear: focusOnAppear, proxy: editor,
                                undoManager: document.undoManager, isEditable: !document.isReadOnly)
@@ -63,20 +46,5 @@ struct NoteEditorView: View {
         .focusedSceneValue(\.markdownEditor, language == .markdown ? editor : nil)
         .onAppear { document.attach(editor) }
         .onChange(of: document.isReadOnly, initial: true) { _, readOnly in editor.isReadOnly = readOnly }
-    }
-
-    /// Markdown only: opens the list of headings (⌃⌘O), small and out of the text's way in the top-right corner.
-    private var outlineButton: some View {
-        Button { editor.toggleOutline() } label: { Image(systemName: "list.bullet.indent") }
-            .buttonStyle(.borderless)
-            .controlSize(.small)
-            .foregroundStyle(.secondary)
-            .help(loc: "Outline (⌃⌘O)")
-            .popover(isPresented: Bindable(editor).isOutlineShown, arrowEdge: .bottom) {
-                OutlineView(text: document.text) { heading in
-                    editor.isOutlineShown = false
-                    editor.reveal(location: heading.location)
-                }
-            }
     }
 }
