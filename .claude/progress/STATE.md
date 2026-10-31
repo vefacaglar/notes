@@ -5,8 +5,12 @@
 macOS app on main (local, 20+ commits ahead of origin, NOT pushed): core, live Markdown/code editors, auto-naming, JSON format, themes + settings window + fonts, multi-root workspace, tabs, drafts, session restore, outside-file windows, EN/TR localization with language setting, VS Code macOS tasks, muted palette (1b8fdb7).
 
 Windows-parity batch done and merged (Pi B: df63a8d, Pi C: dee1168): "+" tab button, Format button/menu, tab blending, Save(retry) on failed close; sidebar ⌘F/Esc/Return/⌘⌫, New Note in menus, Add Folder button, grouped search, repeatable -notesFolder, -theme.
-Batched review done; fixes in 99c49ce (⇧⌘F sidebar search, test-run prefs suite, close/quit retry, ownsDraftStore, restore fixes). Also 2bc572e: tab bar at top with no tab, no app-name title.
-Next: user looks at the app (relaunch needed); unverified by hand: ⇧⌘F focus (collapsed sidebar, macOS 14/15), Try Again loops, test-run prefs isolation.
+Feature phase 2 merged (2026-10-31, b212835..HEAD): full-width editor default; list continuation/indent/⌘K/task toggle/links ([[wiki]], relative .md; programs revealed not run); find shortcuts; sidebar drag-drop/copy-in (background), duplicate, pins (pins.json), recents (recents.json), Quick Open ⌘P, previews; status bar counts; HTML/PDF export, Print ⌥⌘P; zoom; app icon; About; inline images + paste/drop into assets/; outline ⌃⌘O; focus mode ⇧⌘J. Batched review workflow (28 confirmed) all fixed (8622922, 47c2e4d + asset naming).
+Next: user looks at the app (relaunch / bundle.sh). Unverified by hand: everything UI in this phase — esp. image at end of note, drag-drop, quick open keys, PDF/print output, focus mode, ⇧⌘F with collapsed sidebar.
+
+## Windows parity for phase 2 (docs/format.md sections added)
+
+Windows lacks all of phase 2: Links (incl. program rule), Editing helpers, Moving/duplicating/copying in + portable names for copies, pins/recents, Sidebar preview, Status bar counts, HTML export, Zoom, Images/assets, Outline, Focus mode. Also Windows bold is Ctrl+Shift+B vs macOS ⌘B; Windows Ctrl+F is sidebar search (macOS ⇧⌘F, ⌘F = in-note find).
 
 Working rules now in CLAUDE.md: Pi for bounded jobs (run in separate worktrees when parallel), explorer agent on Haiku for exploration, swift-dev/windows-dev on Sonnet medium, reviewer (Opus) only for risky changes or batched per phase, commit directly on main, never push unless asked.
 
