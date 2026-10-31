@@ -678,7 +678,9 @@ final class MarkdownTextView: EditorTextView {
     override func bandExtent() -> ClosedRange<CGFloat> {
         guard let container = textContainer else { return super.bandExtent() }
         let origin = textContainerOrigin.x
-        return max(bounds.minX, origin - 6)...min(bounds.maxX, origin + container.size.width + 6)
+        // Mid-layout (a tab being rebuilt) the container can lie outside the bounds; keep the range valid.
+        let low = min(max(bounds.minX, origin - 6), bounds.maxX)
+        return low...max(low, min(bounds.maxX, origin + container.size.width + 6))
     }
 
     override var bandCornerRadius: CGFloat { 4 }
