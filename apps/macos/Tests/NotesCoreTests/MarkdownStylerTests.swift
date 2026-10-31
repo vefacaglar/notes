@@ -96,6 +96,20 @@ struct MarkdownStylerTests {
         expectStyled("- [y] değil", [("-", .listMarker)])
     }
 
+    @Test func wikiLinks() {
+        expectStyled("bkz [[Alışveriş]] ve", [("[[", .marker), ("Alışveriş", .wikiLink(target: "Alışveriş")), ("]]", .marker)])
+        expectStyled("[[Not#Başlık]]", [("[[", .marker), ("Not#Başlık", .wikiLink(target: "Not")), ("]]", .marker)])
+        expectStyled("[[Not|takma ad]] 😀 [[İki]]", [
+            ("[[", .marker), ("Not|takma ad", .wikiLink(target: "Not")), ("]]", .marker),
+            ("[[", .marker), ("İki", .wikiLink(target: "İki")), ("]]", .marker),
+        ])
+        expectStyled("[[]]", [])
+        expectStyled("[[ ]]", [])
+        expectStyled("[[a [b]]", [])
+        expectStyled("[[açık", [])
+        expectStyled("`[[kod]]`", [("`", .marker), ("[[kod]]", .inlineCode), ("`", .marker)])
+    }
+
     @Test func links() {
         expectStyled("bak [Şu sayfa](https://ex.com/a_(b)) tamam", [
             ("[", .marker), ("Şu sayfa", .link(url: "https://ex.com/a_(b)")), ("](https://ex.com/a_(b))", .marker),

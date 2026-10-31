@@ -9,13 +9,17 @@ struct NoteEditorView: View {
     /// Markdown only: show the file as unstyled source in the code font (same text view and undo stack).
     var showsSource = false
     var focusOnAppear = false
+    /// Follows a clicked link (its destination as written); the workspace window passes `Workspace.openLink`.
+    var onOpenLink: ((String) -> Void)?
     /// Lets the "Format" command and the document reach this window's editor; see `TextEditorProxy`.
     @State private var editor = TextEditorProxy()
     @Environment(AppSettings.self) private var environmentSettings: AppSettings?
     @Environment(\.colorScheme) private var colorScheme
 
-    init(document: NoteDocument, showsSource: Bool = false, focusOnAppear: Bool = false) {
+    init(document: NoteDocument, showsSource: Bool = false, focusOnAppear: Bool = false,
+         onOpenLink: ((String) -> Void)? = nil) {
         self.document = document
+        self.onOpenLink = onOpenLink
         self.showsSource = showsSource
         self.focusOnAppear = focusOnAppear
     }
@@ -26,7 +30,7 @@ struct NoteEditorView: View {
         Group {
             if language == .markdown {
                 MarkdownEditor(text: $document.text, style: style, showsSource: showsSource, focusOnAppear: focusOnAppear,
-                               proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly)
+                               proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly, onOpenLink: onOpenLink)
             } else {
                 CodeEditor(text: $document.text, language: language, style: style, focusOnAppear: focusOnAppear, proxy: editor,
                            undoManager: document.undoManager, isEditable: !document.isReadOnly)

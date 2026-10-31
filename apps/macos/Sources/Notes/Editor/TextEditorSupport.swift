@@ -33,6 +33,19 @@ extension NSTextView {
         insertionPointColor = .controlAccentColor
     }
 
+    /// Applies `edit` as one undoable step, then places the selection if the edit says where it goes.
+    func apply(_ edit: TextEdit) {
+        guard isEditable, let storage = textStorage, NSMaxRange(edit.range) <= storage.length else { return }
+        breakUndoCoalescing()
+        guard shouldChangeText(in: edit.range, replacementString: edit.replacement) else { return }
+        storage.replaceCharacters(in: edit.range, with: edit.replacement)
+        didChangeText()
+        if let selection = edit.selection {
+            setSelectedRange(selection)
+            scrollRangeToVisible(selection)
+        }
+    }
+
     func embeddedInScrollView() -> NSScrollView {
         let scrollView = NSScrollView()
         scrollView.hasVerticalScroller = true
@@ -63,6 +76,25 @@ class EditorTextView: NSTextView {
         } else {
             super.insertText(string, replacementRange: replacementRange)
         }
+    }
+
+    /// Find shortcuts (⌘F, ⌥⌘F replace, ⌘G, ⇧⌘G, ⌘E) go straight to the find bar, so they work whether or not the
+    /// app's Edit menu lists them.
+    override func performKeyEquivalent(with event: NSEvent) -> Bool {
+        let flags = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        let action: NSTextFinder.Action? = switch (flags, event.charactersIgnoringModifiers?.lowercased()) {
+        case ([.command], "f"): .showFindInterface
+        case ([.command, .option], "f"): .showReplaceInterface
+        case ([.command], "g"): .nextMatch
+        case ([.command, .shift], "g"): .previousMatch
+        case ([.command], "e"): .setSearchString
+        default: nil
+        }
+        guard let action, window?.firstResponder === self else { return super.performKeyEquivalent(with: event) }
+        let item = NSMenuItem()
+        item.tag = action.rawValue
+        performTextFinderAction(item)
+        return true
     }
 
     /// Becomes first responder once SwiftUI has put the view in a window (New Note).
