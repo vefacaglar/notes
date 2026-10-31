@@ -379,6 +379,40 @@
         }
       }
     },
+    "Add Column Left": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Column Left"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sola Sütun Ekle"
+          }
+        }
+      }
+    },
+    "Add Column Right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Column Right"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sağa Sütun Ekle"
+          }
+        }
+      }
+    },
     "Add Folder to Workspace…": {
       "extractionState": "manual",
       "localizations": {
@@ -413,6 +447,40 @@
         }
       }
     },
+    "Add Row Above": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Row Above"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üste Satır Ekle"
+          }
+        }
+      }
+    },
+    "Add Row Below": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Add Row Below"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alta Satır Ekle"
+          }
+        }
+      }
+    },
     "Add a folder to the workspace to see its notes here.": {
       "extractionState": "manual",
       "localizations": {
@@ -426,6 +494,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notlarını burada görmek için çalışma alanına bir klasör ekleyin."
+          }
+        }
+      }
+    },
+    "Align Column Center": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Align Column Center"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sütunu Ortala"
+          }
+        }
+      }
+    },
+    "Align Column Left": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Align Column Left"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sütunu Sola Hizala"
+          }
+        }
+      }
+    },
+    "Align Column Right": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Align Column Right"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sütunu Sağa Hizala"
           }
         }
       }
@@ -464,6 +583,23 @@
         }
       }
     },
+    "App and text font": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "App and text font"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uygulama ve metin yazı tipi"
+          }
+        }
+      }
+    },
     "Appearance": {
       "extractionState": "manual",
       "localizations": {
@@ -477,6 +613,108 @@
           "stringUnit": {
             "state": "translated",
             "value": "Görünüm"
+          }
+        }
+      }
+    },
+    "Block Quote (⇧⌘')": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Block Quote (⇧⌘')"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alıntı (⇧⌘')"
+          }
+        }
+      }
+    },
+    "Body": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Body"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gövde metni"
+          }
+        }
+      }
+    },
+    "Bold": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bold"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kalın"
+          }
+        }
+      }
+    },
+    "Bold (⌘B)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bold (⌘B)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kalın (⌘B)"
+          }
+        }
+      }
+    },
+    "Bulleted List": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bulleted List"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Madde İşaretli Liste"
+          }
+        }
+      }
+    },
+    "Bulleted List (⇧⌘8)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bulleted List (⇧⌘8)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Madde İşaretli Liste (⇧⌘8)"
           }
         }
       }
@@ -511,6 +749,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yazarken yazımı denetle"
+          }
+        }
+      }
+    },
+    "Checklist": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checklist"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrol Listesi"
+          }
+        }
+      }
+    },
+    "Checklist (⇧⌘L)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Checklist (⇧⌘L)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kontrol Listesi (⇧⌘L)"
           }
         }
       }
@@ -634,6 +906,40 @@
         }
       }
     },
+    "Code Block": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code Block"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod Bloğu"
+          }
+        }
+      }
+    },
+    "Code Block (⌥⌘K)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Code Block (⌥⌘K)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kod Bloğu (⌥⌘K)"
+          }
+        }
+      }
+    },
     "Code Files": {
       "extractionState": "manual",
       "localizations": {
@@ -664,6 +970,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kod yazı tipi"
+          }
+        }
+      }
+    },
+    "Convert Selection to Table": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Convert Selection to Table"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Seçimi Tabloya Dönüştür"
+          }
+        }
+      }
+    },
+    "Copying was cancelled.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copying was cancelled."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalama iptal edildi."
+          }
+        }
+      }
+    },
+    "Copying…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copying…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalanıyor…"
           }
         }
       }
@@ -732,40 +1089,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@” dışa aktarılamadı: bu, açık olan dosya. Başka bir ad seçin."
-          }
-        }
-      }
-    },
-    "Copying…": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copying…"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kopyalanıyor…"
-          }
-        }
-      }
-    },
-    "Copying was cancelled.": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Copying was cancelled."
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kopyalama iptal edildi."
           }
         }
       }
@@ -885,6 +1208,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Değiştirilme Tarihi"
+          }
+        }
+      }
+    },
+    "Delete Column": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Column"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Sütunu Sil"
+          }
+        }
+      }
+    },
+    "Delete Row": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Delete Row"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satırı Sil"
           }
         }
       }
@@ -1127,6 +1484,74 @@
         }
       }
     },
+    "Heading": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heading"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başlık"
+          }
+        }
+      }
+    },
+    "Heading 1": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heading 1"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başlık 1"
+          }
+        }
+      }
+    },
+    "Heading 2": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heading 2"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başlık 2"
+          }
+        }
+      }
+    },
+    "Heading 3": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Heading 3"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başlık 3"
+          }
+        }
+      }
+    },
     "Hidden, shown on the cursor line": {
       "extractionState": "manual",
       "localizations": {
@@ -1174,6 +1599,125 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kenar Çubuğunu Gizle"
+          }
+        }
+      }
+    },
+    "Horizontal Rule": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontal Rule"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yatay Çizgi"
+          }
+        }
+      }
+    },
+    "Horizontal Rule (⇧⌘H)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Horizontal Rule (⇧⌘H)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yatay Çizgi (⇧⌘H)"
+          }
+        }
+      }
+    },
+    "Inline Code": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inline Code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satır İçi Kod"
+          }
+        }
+      }
+    },
+    "Inline Code (⌃⌘C)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Inline Code (⌃⌘C)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Satır İçi Kod (⌃⌘C)"
+          }
+        }
+      }
+    },
+    "Insert Table…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Insert Table…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Tablo Ekle…"
+          }
+        }
+      }
+    },
+    "Italic": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Italic"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İtalik"
+          }
+        }
+      }
+    },
+    "Italic (⌘I)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Italic (⌘I)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "İtalik (⌘I)"
           }
         }
       }
@@ -1259,6 +1803,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Satır aralığı"
+          }
+        }
+      }
+    },
+    "Link": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı"
+          }
+        }
+      }
+    },
+    "Link (⌘K)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Link (⌘K)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bağlantı (⌘K)"
           }
         }
       }
@@ -1569,6 +2147,40 @@
         }
       }
     },
+    "Numbered List": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numbered List"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numaralı Liste"
+          }
+        }
+      }
+    },
+    "Numbered List (⇧⌘7)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numbered List (⇧⌘7)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Numaralı Liste (⇧⌘7)"
+          }
+        }
+      }
+    },
     "OK": {
       "extractionState": "manual",
       "localizations": {
@@ -1769,6 +2381,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kaydetmeden Çık"
+          }
+        }
+      }
+    },
+    "Quote": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Quote"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Alıntı"
           }
         }
       }
@@ -2045,6 +2674,23 @@
         }
       }
     },
+    "Show Formatting Bar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Formatting Bar"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Biçimlendirme Çubuğunu Göster"
+          }
+        }
+      }
+    },
     "Show Next Tab": {
       "extractionState": "manual",
       "localizations": {
@@ -2300,6 +2946,40 @@
         }
       }
     },
+    "Strikethrough": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strikethrough"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üstü Çizili"
+          }
+        }
+      }
+    },
+    "Strikethrough (⇧⌘X)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Strikethrough (⇧⌘X)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Üstü Çizili (⇧⌘X)"
+          }
+        }
+      }
+    },
     "System": {
       "extractionState": "manual",
       "localizations": {
@@ -2317,36 +2997,36 @@
         }
       }
     },
-    "App and text font": {
+    "Table": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "App and text font"
+            "value": "Table"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Uygulama ve metin yazı tipi"
+            "value": "Tablo"
           }
         }
       }
     },
-    "The text font applies to the whole app and to Markdown text. The code font applies to code.": {
+    "Table (⇧⌘T)": {
       "extractionState": "manual",
       "localizations": {
         "en": {
           "stringUnit": {
             "state": "translated",
-            "value": "The text font applies to the whole app and to Markdown text. The code font applies to code."
+            "value": "Table (⇧⌘T)"
           }
         },
         "tr": {
           "stringUnit": {
             "state": "translated",
-            "value": "Metin yazı tipi uygulamanın tamamına ve Markdown metnine uygulanır. Kod yazı tipi yalnızca kodda kullanılır."
+            "value": "Tablo (⇧⌘T)"
           }
         }
       }
@@ -2432,6 +3112,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yeniden adlandırma iptal edildi."
+          }
+        }
+      }
+    },
+    "The text font applies to the whole app and to Markdown text. The code font applies to code.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The text font applies to the whole app and to Markdown text. The code font applies to code."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Metin yazı tipi uygulamanın tamamına ve Markdown metnine uygulanır. Kod yazı tipi yalnızca kodda kullanılır."
           }
         }
       }
@@ -2857,703 +3554,6 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@” başka bir uygulamada değiştirildi."
-          }
-        }
-      }
-    },
-    "Heading": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Heading"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başlık"
-          }
-        }
-      }
-    },
-    "Heading 1": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Heading 1"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başlık 1"
-          }
-        }
-      }
-    },
-    "Heading 2": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Heading 2"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başlık 2"
-          }
-        }
-      }
-    },
-    "Heading 3": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Heading 3"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Başlık 3"
-          }
-        }
-      }
-    },
-    "Body": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Body"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Gövde metni"
-          }
-        }
-      }
-    },
-    "Bold": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bold"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kalın"
-          }
-        }
-      }
-    },
-    "Italic": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Italic"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "İtalik"
-          }
-        }
-      }
-    },
-    "Strikethrough": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Strikethrough"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Üstü Çizili"
-          }
-        }
-      }
-    },
-    "Inline Code": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inline Code"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Satır İçi Kod"
-          }
-        }
-      }
-    },
-    "Link": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Link"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bağlantı"
-          }
-        }
-      }
-    },
-    "Bulleted List": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bulleted List"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Madde İşaretli Liste"
-          }
-        }
-      }
-    },
-    "Numbered List": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Numbered List"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Numaralı Liste"
-          }
-        }
-      }
-    },
-    "Checklist": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Checklist"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kontrol Listesi"
-          }
-        }
-      }
-    },
-    "Quote": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Quote"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alıntı"
-          }
-        }
-      }
-    },
-    "Code Block": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Code Block"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kod Bloğu"
-          }
-        }
-      }
-    },
-    "Horizontal Rule": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Horizontal Rule"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yatay Çizgi"
-          }
-        }
-      }
-    },
-    "Table": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Table"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tablo"
-          }
-        }
-      }
-    },
-    "Insert Table…": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Insert Table…"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tablo Ekle…"
-          }
-        }
-      }
-    },
-    "Convert Selection to Table": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Convert Selection to Table"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Seçimi Tabloya Dönüştür"
-          }
-        }
-      }
-    },
-    "Add Row Above": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Row Above"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Üste Satır Ekle"
-          }
-        }
-      }
-    },
-    "Add Row Below": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Row Below"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alta Satır Ekle"
-          }
-        }
-      }
-    },
-    "Add Column Left": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Column Left"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sola Sütun Ekle"
-          }
-        }
-      }
-    },
-    "Add Column Right": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Add Column Right"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sağa Sütun Ekle"
-          }
-        }
-      }
-    },
-    "Delete Row": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete Row"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Satırı Sil"
-          }
-        }
-      }
-    },
-    "Delete Column": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Delete Column"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sütunu Sil"
-          }
-        }
-      }
-    },
-    "Align Column Left": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Align Column Left"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sütunu Sola Hizala"
-          }
-        }
-      }
-    },
-    "Align Column Center": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Align Column Center"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sütunu Ortala"
-          }
-        }
-      }
-    },
-    "Align Column Right": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Align Column Right"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Sütunu Sağa Hizala"
-          }
-        }
-      }
-    },
-    "Show Formatting Bar": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Show Formatting Bar"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Biçimlendirme Çubuğunu Göster"
-          }
-        }
-      }
-    },
-    "Bold (⌘B)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bold (⌘B)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kalın (⌘B)"
-          }
-        }
-      }
-    },
-    "Italic (⌘I)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Italic (⌘I)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "İtalik (⌘I)"
-          }
-        }
-      }
-    },
-    "Strikethrough (⇧⌘X)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Strikethrough (⇧⌘X)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Üstü Çizili (⇧⌘X)"
-          }
-        }
-      }
-    },
-    "Inline Code (⌃⌘C)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Inline Code (⌃⌘C)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Satır İçi Kod (⌃⌘C)"
-          }
-        }
-      }
-    },
-    "Link (⌘K)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Link (⌘K)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bağlantı (⌘K)"
-          }
-        }
-      }
-    },
-    "Bulleted List (⇧⌘8)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Bulleted List (⇧⌘8)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Madde İşaretli Liste (⇧⌘8)"
-          }
-        }
-      }
-    },
-    "Numbered List (⇧⌘7)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Numbered List (⇧⌘7)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Numaralı Liste (⇧⌘7)"
-          }
-        }
-      }
-    },
-    "Checklist (⇧⌘L)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Checklist (⇧⌘L)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kontrol Listesi (⇧⌘L)"
-          }
-        }
-      }
-    },
-    "Code Block (⌥⌘K)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Code Block (⌥⌘K)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Kod Bloğu (⌥⌘K)"
-          }
-        }
-      }
-    },
-    "Table (⌥⌘T)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Table (⌥⌘T)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Tablo (⌥⌘T)"
-          }
-        }
-      }
-    },
-    "Horizontal Rule (⇧⌘H)": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Horizontal Rule (⇧⌘H)"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Yatay Çizgi (⇧⌘H)"
-          }
-        }
-      }
-    },
-    "Block Quote (⇧⌘')": {
-      "extractionState": "manual",
-      "localizations": {
-        "en": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Block Quote (⇧⌘')"
-          }
-        },
-        "tr": {
-          "stringUnit": {
-            "state": "translated",
-            "value": "Alıntı (⇧⌘')"
           }
         }
       }

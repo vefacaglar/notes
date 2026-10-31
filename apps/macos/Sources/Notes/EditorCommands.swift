@@ -50,7 +50,7 @@ struct EditorCommands: Commands {
                 Button(loc: "Horizontal Rule") { editor?.insertRule() }.keyboardShortcut("h", modifiers: [.command, .shift])
                 Divider()
                 Menu {
-                    Button(loc: "Insert Table…", action: insertTable).keyboardShortcut("t", modifiers: [.command, .option])
+                    Button(loc: "Insert Table…", action: insertTable).keyboardShortcut("t", modifiers: [.command, .shift])
                     Button(loc: "Convert Selection to Table") { editor?.convertToTable() }
                     Divider()
                     Button(loc: "Add Row Above") { editor?.tableCommand(.addRow(above: true)) }

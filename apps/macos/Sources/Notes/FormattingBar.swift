@@ -38,7 +38,7 @@ struct FormattingBar<Trailing: View>: View {
             button("text.quote", "Block Quote (⇧⌘')", active: format.quote) { editor.apply(.quote) }
             separator
             button("curlybraces", "Code Block (⌥⌘K)") { editor.insertCodeBlock() }
-            button("tablecells", "Table (⌥⌘T)") { editor.isTablePickerShown.toggle() }
+            button("tablecells", "Table (⇧⌘T)") { editor.isTablePickerShown.toggle() }
                 .popover(isPresented: Bindable(editor).isTablePickerShown, arrowEdge: .bottom) {
                     TablePicker(editor: editor)
                 }
