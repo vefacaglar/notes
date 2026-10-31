@@ -79,7 +79,7 @@ final class AppSettings {
         } else {
             lineSpacing = 1.2
         }
-        limitLineWidth = bool(.limitLineWidth, true)
+        limitLineWidth = bool(.limitLineWidth, false)
         markerStyle = string(.markerStyle).flatMap(MarkerStyle.init(rawValue:)) ?? .dimmed
         spellCheck = bool(.spellCheck, false)
         codeLineNumbers = bool(.codeLineNumbers, true)

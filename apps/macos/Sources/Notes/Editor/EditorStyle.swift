@@ -17,7 +17,7 @@ struct EditorStyle: Equatable, Sendable {
 
     static let standard = EditorStyle(
         theme: ThemeLibrary.baseTheme(for: .light), textFont: AppSettings.defaultTextFont, codeFont: AppSettings.defaultCodeFont,
-        lineSpacing: 1.2, limitLineWidth: true, markerStyle: .dimmed, spellCheck: false, codeLineNumbers: true, codeWrap: true
+        lineSpacing: 1.2, limitLineWidth: false, markerStyle: .dimmed, spellCheck: false, codeLineNumbers: true, codeWrap: true
     )
 
     init(theme: ResolvedTheme, textFont: FontChoice, codeFont: FontChoice, lineSpacing: Double, limitLineWidth: Bool,
