@@ -120,6 +120,129 @@
         }
       }
     },
+    "%lld characters": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld character"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld characters"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld karakter"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld karakter"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld lines": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld line"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld lines"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld satır"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld satır"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "%lld words": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld word"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld words"
+                }
+              }
+            }
+          }
+        },
+        "tr": {
+          "variations": {
+            "plural": {
+              "one": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld kelime"
+                }
+              },
+              "other": {
+                "stringUnit": {
+                  "state": "translated",
+                  "value": "%lld kelime"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
     "A file was changed elsewhere": {
       "extractionState": "manual",
       "localizations": {
@@ -133,6 +256,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Dosya başka yerde değişti"
+          }
+        }
+      }
+    },
+    "A minimal Markdown notes app for plain .md files.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A minimal Markdown notes app for plain .md files."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Düz .md dosyaları için sade bir Markdown not uygulaması."
           }
         }
       }
@@ -184,6 +324,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bir alıntı"
+          }
+        }
+      }
+    },
+    "About Notes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "About Notes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notlar Hakkında"
+          }
+        }
+      }
+    },
+    "Actual Size": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Actual Size"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Gerçek Boyut"
           }
         }
       }
@@ -494,6 +668,40 @@
         }
       }
     },
+    "Couldn't export \"%@\".": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't export \"%@\"."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” dışa aktarılamadı."
+          }
+        }
+      }
+    },
+    "Couldn't export \"%@\": %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't export \"%@\": %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” dışa aktarılamadı: %@"
+          }
+        }
+      }
+    },
     "Couldn't format": {
       "extractionState": "manual",
       "localizations": {
@@ -507,6 +715,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Biçimlendirilemedi"
+          }
+        }
+      }
+    },
+    "Couldn't print.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Couldn't print."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yazdırılamadı."
           }
         }
       }
@@ -711,6 +936,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hata"
+          }
+        }
+      }
+    },
+    "Export as HTML…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export as HTML…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "HTML Olarak Dışa Aktar…"
+          }
+        }
+      }
+    },
+    "Export as PDF…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export as PDF…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "PDF Olarak Dışa Aktar…"
           }
         }
       }
@@ -1327,6 +1586,23 @@
         }
       }
     },
+    "Print…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Print…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yazdır…"
+          }
+        }
+      }
+    },
     "Quick Open…": {
       "extractionState": "manual",
       "localizations": {
@@ -1680,6 +1956,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Kaynağı Göster"
+          }
+        }
+      }
+    },
+    "Show Status Bar": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Show Status Bar"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Durum Çubuğunu Göster"
           }
         }
       }
@@ -2156,6 +2449,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@” dosyasını kaydetme izniniz yok. Değişiklikleriniz bu pencerede tutuluyor."
+          }
+        }
+      }
+    },
+    "Zoom In": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom In"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yakınlaştır"
+          }
+        }
+      }
+    },
+    "Zoom Out": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Zoom Out"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Uzaklaştır"
           }
         }
       }

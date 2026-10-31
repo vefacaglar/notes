@@ -55,7 +55,10 @@ struct LocalizationTests {
         #expect(!strings.isEmpty)
         func value(_ entry: [String: Any], _ language: String) -> String? {
             let localizations = entry["localizations"] as? [String: [String: Any]]
-            return (localizations?[language]?["stringUnit"] as? [String: Any])?["value"] as? String
+            if let unit = localizations?[language]?["stringUnit"] as? [String: Any] { return unit["value"] as? String }
+            // Plural variations: the "other" form stands for the entry.
+            let plural = (localizations?[language]?["variations"] as? [String: Any])?["plural"] as? [String: [String: Any]]
+            return (plural?["other"]?["stringUnit"] as? [String: Any])?["value"] as? String
         }
         func placeholders(_ text: String) -> [String] {
             text.matches(of: /%(?:\d+\$)?(?:lld|@)/).map { String($0.output) }.sorted()

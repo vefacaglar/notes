@@ -38,6 +38,7 @@ struct WorkspaceView: View {
         .background(WindowBridge(workspace: workspace, representedURL: representedURL))
         .background(TabNumberShortcuts(workspace: workspace))
         .background(SearchShortcut(workspace: workspace))
+        .background(ZoomInAlternateShortcut(settings: settings))
         .handlesWindowRequests(model)
         .onChange(of: settings.sidebarSort) { workspace.rescan() }
         .onChange(of: settings.showNonMarkdownFiles) { workspace.rescan() }
@@ -66,6 +67,9 @@ struct WorkspaceView: View {
                     // Keyed by tab and document, not the URL, so a rename keeps the editor (cursor, undo).
                     .id(EditorKey(tab: tab.id, document: document.id))
                     .onAppear { workspace.editorAppeared(tab) }
+                if settings.showStatusBar {
+                    StatusBar(document: document).id(document.id)
+                }
             }
         } else {
             ContentUnavailableView {
@@ -129,6 +133,19 @@ private struct SearchShortcut: View {
     var body: some View {
         Button("") { workspace.requestSearchFocus() }
             .keyboardShortcut("f", modifiers: [.command, .shift])
+            .frame(width: 0, height: 0)
+            .opacity(0)
+            .accessibilityHidden(true)
+    }
+}
+
+/// ⌘= also zooms in (the menu item's own shortcut is ⌘+, which a US keyboard types with Shift).
+private struct ZoomInAlternateShortcut: View {
+    let settings: AppSettings
+
+    var body: some View {
+        Button("") { settings.zoomIn() }
+            .keyboardShortcut("=", modifiers: .command)
             .frame(width: 0, height: 0)
             .opacity(0)
             .accessibilityHidden(true)

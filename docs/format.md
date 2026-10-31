@@ -112,6 +112,18 @@ None of these ever overwrites an item, and none changes a note's content.
 
 With the sidebar preview on (app preference, default on), a file row shows its modification date and a one-line preview under the name. The preview exists for Markdown files and reads only the first 2,048 bytes (a cut inside a UTF-8 sequence is dropped). It is the first non-blank line after the title, that is after the first non-blank line, skipping thematic breaks and fenced code blocks, with the Markdown syntax removed as for titles (heading `#`s, quote and list markers, task boxes, emphasis and code delimiters, link syntax), runs of whitespace collapsed to one space, trimmed of leftover `*`, `_`, `~`, `` ` `` and whitespace, and cut to 200 characters. A file without such a line has no preview.
 
+## Status bar counts
+
+The status bar under the editor shows three counts of the document text (the text in the editor, not the file on disk). **Characters** are user-perceived characters (extended grapheme clusters, so an emoji with a skin tone or a family emoji is one, a precomposed and a decomposed `ş` are one each), not counting line breaks. **Words** are runs of characters that are not whitespace; Markdown syntax is not removed (`# Title` is two words). **Lines** are the line breaks (LF, CRLF, CR, and the Unicode line and paragraph separators) plus one: empty text and `a` are one line, `a\n` is two, and CRLF counts once. The counts are computed off the UI thread shortly after typing pauses. The bar can be turned off (View > Show Status Bar, default on).
+
+## HTML export
+
+File > Export as HTML… writes a self-contained UTF-8 HTML page (inline CSS, no scripts) of the active file; Export as PDF… and Print… render the same page. A Markdown note is converted: ATX and setext headings, paragraphs (a line ending in two spaces or a backslash is a `<br>`), `*`/`_` emphasis, `**`/`__` strong, `~~` strikethrough, code spans, fenced code blocks (`<pre><code class="language-x">`), bullet and ordered lists (nested; an ordered list starts at its first number; a list with blank lines between items is loose, with `<p>` per item), task items (`- [ ]` / `- [x]`, a disabled checkbox), block quotes (nested blocks), links, images, autolinks and bare `http(s)://` URLs, thematic breaks and pipe tables with alignment. Raw HTML in the source is escaped, never passed through; `javascript:`, `vbscript:` and `data:` link targets become `#`. Any other file is one `<pre>` of its text. The CSS uses the neutral greys, the user's text and code font families and base sizes (not the zoom), and a light or dark scheme following the viewer (always light when printing). Relative image paths are left as written, so images resolve only next to the exported file.
+
+## Zoom
+
+View > Zoom In / Zoom Out / Actual Size scale the editors' text and code font sizes by one factor from 50% to 300% in steps of 10% (default 100%). It is an app preference and not part of the format; the font sizes chosen in Settings stay as they are.
+
 ## Deleting
 
 Deleting a note or folder moves it to the OS trash (macOS Trash / Windows Recycle Bin) so it can be restored. Apps never delete permanently on their own; where the volume has no trash (e.g. some network shares on Windows), the OS asks the user before deleting permanently, and declining cancels the delete.

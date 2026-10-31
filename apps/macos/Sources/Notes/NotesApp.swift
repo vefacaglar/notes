@@ -155,6 +155,18 @@ struct NotesCommands: Commands {
     @FocusedValue(\.textEditor) private var editor
     /// The key window's workspace; `nil` while e.g. Settings is in front.
     @FocusedValue(\.workspace) private var workspace
+    private let settings = AppSettings.shared
+
+    /// The standard About panel; name, icon and version come from the bundle, the credits are a short description.
+    private static func showAboutPanel() {
+        let credits = NSMutableAttributedString(string: L("A minimal Markdown notes app for plain .md files."))
+        let style = NSMutableParagraphStyle()
+        style.alignment = .center
+        credits.addAttributes([.font: NSFont.systemFont(ofSize: NSFont.smallSystemFontSize), .foregroundColor: NSColor.secondaryLabelColor,
+                               .paragraphStyle: style], range: NSRange(location: 0, length: credits.length))
+        NSApp.orderFrontStandardAboutPanel(options: [.credits: credits])
+        NSApp.activate()
+    }
 
     var body: some Commands {
         CommandGroup(replacing: .newItem) {
@@ -174,8 +186,33 @@ struct NotesCommands: Commands {
             Button(loc: "Add Folder to Workspace…", action: model.chooseRoot)
                 .keyboardShortcut("o", modifiers: [.command, .shift])
         }
-        // ⌘P is Quick Open here; nothing in this app prints.
-        CommandGroup(replacing: .printItem) {}
+        CommandGroup(replacing: .appInfo) {
+            Button(loc: "About Notes", action: Self.showAboutPanel)
+        }
+        // ⌘P is Quick Open here, so Print is ⌥⌘P.
+        CommandGroup(replacing: .printItem) {
+            Divider()
+            Button(loc: "Export as HTML…") {
+                if let workspace, let document = workspace.activeDocument,
+                   let error = NoteExport.exportHTML(document, settings: settings, window: NSApp.keyWindow) {
+                    workspace.errorMessage = error
+                }
+            }
+            .disabled(workspace?.activeDocument == nil)
+            Button(loc: "Export as PDF…") {
+                if let workspace, let document = workspace.activeDocument {
+                    NoteExport.exportPDF(document, settings: settings, window: NSApp.keyWindow) { workspace.errorMessage = $0 }
+                }
+            }
+            .disabled(workspace?.activeDocument == nil)
+            Button(loc: "Print…") {
+                if let workspace, let document = workspace.activeDocument {
+                    NoteExport.print(document, settings: settings, window: NSApp.keyWindow) { workspace.errorMessage = $0 }
+                }
+            }
+            .keyboardShortcut("p", modifiers: [.command, .option])
+            .disabled(workspace?.activeDocument == nil)
+        }
         CommandGroup(after: .newItem) {
             Divider()
             Button(loc: "Quick Open…") {
@@ -233,6 +270,17 @@ struct NotesCommands: Commands {
             ))
             .keyboardShortcut("r", modifiers: [.command, .shift])
             .disabled(workspace?.activeDocument?.language != .markdown)
+            Toggle(loc: "Show Status Bar", isOn: Binding(get: { settings.showStatusBar }, set: { settings.showStatusBar = $0 }))
+            Divider()
+            Button(loc: "Zoom In", action: settings.zoomIn)
+                .keyboardShortcut("+", modifiers: .command)
+                .disabled(settings.zoom >= AppSettings.zoomRange.upperBound)
+            Button(loc: "Zoom Out", action: settings.zoomOut)
+                .keyboardShortcut("-", modifiers: .command)
+                .disabled(settings.zoom <= AppSettings.zoomRange.lowerBound)
+            Button(loc: "Actual Size", action: settings.resetZoom)
+                .keyboardShortcut("0", modifiers: .command)
+                .disabled(settings.zoom == 1)
             Divider()
         }
         CommandGroup(before: .windowList) {

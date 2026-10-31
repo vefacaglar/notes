@@ -19,6 +19,8 @@ cp "$BIN" "$APP/Contents/MacOS/Notes"
 for NAME in Notes_Notes Notes_NotesCore; do
     cp -R "$BIN_DIR/$NAME.bundle" "$APP/Contents/Resources/$NAME.bundle"
 done
+# The app icon (drawn by scripts/make-icon.swift, committed).
+cp Resources/AppIcon.icns "$APP/Contents/Resources/AppIcon.icns"
 # One .lproj per UI language so Bundle.main.preferredLocalizations (and AppKit's own texts) resolve to en or tr.
 mkdir -p "$APP/Contents/Resources/en.lproj" "$APP/Contents/Resources/tr.lproj"
 cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<'STRINGS'
@@ -40,6 +42,7 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
     <key>CFBundleInfoDictionaryVersion</key><string>6.0</string>
     <key>CFBundleExecutable</key><string>Notes</string>
     <key>CFBundleIdentifier</key><string>com.vefa.notes</string>
+    <key>CFBundleIconFile</key><string>AppIcon</string>
     <key>CFBundleName</key><string>Notes</string>
     <key>CFBundleDisplayName</key><string>Notes</string>
     <key>CFBundlePackageType</key><string>APPL</string>

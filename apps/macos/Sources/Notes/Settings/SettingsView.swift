@@ -202,8 +202,8 @@ struct ThemePreview: View {
 
     private var lines: [AttributedString] {
         let c = theme.colors, s = theme.syntax
-        let text = EditorPalette.font(settings.textFont, monospaced: false).withSize(12)
-        let code = EditorPalette.font(settings.codeFont, monospaced: true).withSize(11)
+        let text = EditorPalette.font(settings.baseTextFont, monospaced: false).withSize(12)
+        let code = EditorPalette.font(settings.baseCodeFont, monospaced: true).withSize(11)
         let heading = NSFontManager.shared.convert(text.withSize(15), toHaveTrait: .boldFontMask)
         let block = c.codeBlockBackground
         let run = Self.run
@@ -234,8 +234,8 @@ private struct EditorSettingsView: View {
     var body: some View {
         Form {
             Section {
-                FontSettingRow(title: "Text font", choice: $settings.textFont, monospaced: false)
-                FontSettingRow(title: "Code font", choice: $settings.codeFont, monospaced: true)
+                FontSettingRow(title: "Text font", choice: $settings.baseTextFont, monospaced: false)
+                FontSettingRow(title: "Code font", choice: $settings.baseCodeFont, monospaced: true)
             } header: {
                 Text(loc: "Fonts")
             }

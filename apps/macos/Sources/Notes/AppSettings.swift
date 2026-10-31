@@ -29,13 +29,22 @@ final class AppSettings {
 
     nonisolated static let defaultTextFont = FontChoice(family: nil, size: 15)
     nonisolated static let defaultCodeFont = FontChoice(family: nil, size: 13)
+    nonisolated static let zoomRange: ClosedRange<Double> = 0.5...3.0
+    nonisolated static let zoomStep = 0.1
     nonisolated static let lineSpacingRange: ClosedRange<Double> = 1.0...2.0
 
     var appearanceMode: AppearanceMode { didSet { save(appearanceMode.rawValue, .appearanceMode); applyAppearance() } }
     var lightThemeID: String { didSet { save(lightThemeID, .lightThemeID) } }
     var darkThemeID: String { didSet { save(darkThemeID, .darkThemeID) } }
-    var textFont: FontChoice { didSet { saveFont(textFont, .textFont) } }
-    var codeFont: FontChoice { didSet { saveFont(codeFont, .codeFont) } }
+    /// The fonts picked in Settings, before zoom.
+    var baseTextFont: FontChoice { didSet { saveFont(baseTextFont, .textFont) } }
+    var baseCodeFont: FontChoice { didSet { saveFont(baseCodeFont, .codeFont) } }
+    /// What the editors draw with: the picked fonts at the zoom factor. (`EditorStyle` reads these.)
+    var textFont: FontChoice { Self.zoomed(baseTextFont, by: zoom) }
+    var codeFont: FontChoice { Self.zoomed(baseCodeFont, by: zoom) }
+    /// View > Zoom: the editor font scale, 0.5 to 3.0 in steps of 0.1.
+    var zoom: Double { didSet { save(zoom, .zoom) } }
+    var showStatusBar: Bool { didSet { save(showStatusBar, .showStatusBar) } }
     var lineSpacing: Double { didSet { save(lineSpacing, .lineSpacing) } }
     var limitLineWidth: Bool { didSet { save(limitLineWidth, .limitLineWidth) } }
     var markerStyle: MarkerStyle { didSet { save(markerStyle.rawValue, .markerStyle) } }
@@ -74,8 +83,14 @@ final class AppSettings {
         appearanceMode = string(.appearanceMode).flatMap(AppearanceMode.init(rawValue:)) ?? .system
         lightThemeID = string(.lightThemeID).flatMap { $0.isEmpty ? nil : $0 } ?? ThemeLibrary.defaultLightID
         darkThemeID = string(.darkThemeID).flatMap { $0.isEmpty ? nil : $0 } ?? ThemeLibrary.defaultDarkID
-        textFont = Self.font(defaults.object(forKey: Key.textFont.name), fallback: Self.defaultTextFont)
-        codeFont = Self.font(defaults.object(forKey: Key.codeFont.name), fallback: Self.defaultCodeFont)
+        baseTextFont = Self.font(defaults.object(forKey: Key.textFont.name), fallback: Self.defaultTextFont)
+        baseCodeFont = Self.font(defaults.object(forKey: Key.codeFont.name), fallback: Self.defaultCodeFont)
+        if let value = defaults.object(forKey: Key.zoom.name) as? Double, value.isFinite {
+            zoom = Self.clampedZoom(value)
+        } else {
+            zoom = 1
+        }
+        showStatusBar = bool(.showStatusBar, true)
         if let spacing = defaults.object(forKey: Key.lineSpacing.name) as? Double, spacing.isFinite {
             lineSpacing = min(max(spacing, Self.lineSpacingRange.lowerBound), Self.lineSpacingRange.upperBound)
         } else {
@@ -96,6 +111,22 @@ final class AppSettings {
         launchLanguage = stored
         reloadThemes()
         applyAppearance()
+    }
+
+    // MARK: Zoom
+
+    func zoomIn() { zoom = Self.clampedZoom(zoom + Self.zoomStep) }
+    func zoomOut() { zoom = Self.clampedZoom(zoom - Self.zoomStep) }
+    func resetZoom() { zoom = 1 }
+
+    /// Clamped to the range and rounded to a step, so repeated steps never drift (0.7000000001).
+    nonisolated static func clampedZoom(_ value: Double) -> Double {
+        let clamped = min(max(value, zoomRange.lowerBound), zoomRange.upperBound)
+        return (clamped / zoomStep).rounded() * zoomStep
+    }
+
+    nonisolated private static func zoomed(_ font: FontChoice, by factor: Double) -> FontChoice {
+        FontChoice(family: font.family, size: font.size * factor)
     }
 
     var needsRestart: Bool { language != launchLanguage }
@@ -165,7 +196,7 @@ final class AppSettings {
     private enum Key: String {
         case appearanceMode, lightThemeID, darkThemeID, textFont, codeFont, lineSpacing, limitLineWidth, markerStyle
         case spellCheck, codeLineNumbers, codeWrap, restoreTabs, sidebarSort, showNonMarkdownFiles, autoNaming
-        case showSidebarPreview
+        case showSidebarPreview, zoom, showStatusBar
 
         var name: String { "settings." + rawValue }
     }
