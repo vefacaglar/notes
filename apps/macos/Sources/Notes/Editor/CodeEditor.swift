@@ -260,7 +260,7 @@ final class LineNumberRulerView: NSRulerView {
 
     func apply(_ palette: EditorPalette) {
         numberFont = .monospacedDigitSystemFont(ofSize: max(palette.codeFont.pointSize * 0.85, 8), weight: .regular)
-        numberColor = palette.colors.secondaryText.nsColor
+        numberColor = palette.colors.secondaryText.nsColor.withAlphaComponent(0.5)
         background = palette.colors.background.nsColor
         updateThickness(force: true)
         needsDisplay = true
