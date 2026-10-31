@@ -123,6 +123,7 @@ private struct TabItem: View {
         .background(isActive ? editorBackground : .clear)
         .contentShape(Rectangle())
         .onTapGesture { workspace.activate(tab, focus: true) }
+        .overlay(MiddleClick { workspace.close(tab) })
         .onHover { isHovering = $0 }
         .help(document.isDraft ? document.name : document.url.path)
         .contextMenu {
@@ -145,6 +146,40 @@ private struct TabItem: View {
         }
         .onDrop(of: [.notesTab], delegate: TabDropDelegate(target: tab, workspace: workspace))
     }
+}
+
+/// Calls `action` when the middle mouse button is clicked over the view (closing a tab, as in browsers). Every other
+/// event passes through to the views below.
+private struct MiddleClick: NSViewRepresentable {
+    let action: () -> Void
+
+    final class Catcher: NSView {
+        var action: () -> Void = {}
+
+        override func hitTest(_ point: NSPoint) -> NSView? {
+            switch NSApp.currentEvent?.type {
+            case .otherMouseDown, .otherMouseUp, .otherMouseDragged: super.hitTest(point)
+            default: nil
+            }
+        }
+
+        override func otherMouseDown(with event: NSEvent) {
+            if event.buttonNumber != 2 { super.otherMouseDown(with: event) }
+        }
+
+        override func otherMouseUp(with event: NSEvent) {
+            guard event.buttonNumber == 2 else { return super.otherMouseUp(with: event) }
+            if bounds.contains(convert(event.locationInWindow, from: nil)) { action() }
+        }
+    }
+
+    func makeNSView(context: Context) -> Catcher {
+        let view = Catcher()
+        view.action = action
+        return view
+    }
+
+    func updateNSView(_ view: Catcher, context: Context) { view.action = action }
 }
 
 private struct TabDropDelegate: DropDelegate {
