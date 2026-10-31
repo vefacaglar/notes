@@ -267,17 +267,21 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
         public var selection: ThemeColor?
         public var cursor: ThemeColor?
         public var accent: ThemeColor?
+        /// Band behind the line with the caret. Derived from `text` when missing, see `ResolvedTheme.derivedCurrentLine`.
+        public var currentLine: ThemeColor?
 
         public init(
             background: ThemeColor? = nil, text: ThemeColor? = nil, secondaryText: ThemeColor? = nil,
             marker: ThemeColor? = nil, heading: ThemeColor? = nil, link: ThemeColor? = nil,
             inlineCode: ThemeColor? = nil, inlineCodeBackground: ThemeColor? = nil, codeBlockBackground: ThemeColor? = nil,
-            blockquote: ThemeColor? = nil, selection: ThemeColor? = nil, cursor: ThemeColor? = nil, accent: ThemeColor? = nil
+            blockquote: ThemeColor? = nil, selection: ThemeColor? = nil, cursor: ThemeColor? = nil, accent: ThemeColor? = nil,
+            currentLine: ThemeColor? = nil
         ) {
             self.background = background; self.text = text; self.secondaryText = secondaryText
             self.marker = marker; self.heading = heading; self.link = link
             self.inlineCode = inlineCode; self.inlineCodeBackground = inlineCodeBackground; self.codeBlockBackground = codeBlockBackground
             self.blockquote = blockquote; self.selection = selection; self.cursor = cursor; self.accent = accent
+            self.currentLine = currentLine
         }
     }
 
@@ -366,15 +370,17 @@ public struct Theme: Codable, Hashable, Sendable, Identifiable {
     /// Fills every missing value from `base`. The editor background is always opaque (its alpha is ignored).
     public func resolved(over base: ResolvedTheme) -> ResolvedTheme {
         let c = colors, b = base.colors, s = syntax, bs = base.syntax
+        let text = c.text ?? b.text
         return ResolvedTheme(
             id: id, name: name, appearance: appearance,
             colors: .init(
-                background: (c.background ?? b.background).opaque, text: c.text ?? b.text,
+                background: (c.background ?? b.background).opaque, text: text,
                 secondaryText: c.secondaryText ?? b.secondaryText, marker: c.marker ?? b.marker,
                 heading: c.heading ?? b.heading, link: c.link ?? b.link,
                 inlineCode: c.inlineCode ?? b.inlineCode, inlineCodeBackground: c.inlineCodeBackground ?? b.inlineCodeBackground,
                 codeBlockBackground: c.codeBlockBackground ?? b.codeBlockBackground, blockquote: c.blockquote ?? b.blockquote,
-                selection: c.selection ?? b.selection, cursor: c.cursor ?? b.cursor, accent: c.accent ?? b.accent
+                selection: c.selection ?? b.selection, cursor: c.cursor ?? b.cursor, accent: c.accent ?? b.accent,
+                currentLine: c.currentLine ?? ResolvedTheme.derivedCurrentLine(text: text, appearance: appearance)
             ),
             syntax: .init(
                 keyword: s.keyword ?? bs.keyword, string: s.string ?? bs.string, number: s.number ?? bs.number,
@@ -429,7 +435,7 @@ public struct ResolvedTheme: Hashable, Sendable, Identifiable {
 
     public struct Colors: Hashable, Sendable {
         public var background, text, secondaryText, marker, heading, link: ThemeColor
-        public var inlineCode, inlineCodeBackground, codeBlockBackground, blockquote, selection, cursor, accent: ThemeColor
+        public var inlineCode, inlineCodeBackground, codeBlockBackground, blockquote, selection, cursor, accent, currentLine: ThemeColor
     }
 
     public struct Syntax: Hashable, Sendable {
@@ -447,6 +453,12 @@ public struct ResolvedTheme: Hashable, Sendable, Identifiable {
             case .tag: tag
             }
         }
+    }
+
+    /// The current-line band of a theme that does not set one: the text colour at 6% (light) or 8% (dark) opacity,
+    /// drawn over whatever lies beneath, so it is a neutral grey that follows the theme.
+    public static func derivedCurrentLine(text: ThemeColor, appearance: ThemeAppearance) -> ThemeColor {
+        ThemeColor(red: text.red, green: text.green, blue: text.blue, alpha: appearance == .light ? 0x0F : 0x14)
     }
 
     /// Contrast of `foreground` on `background` (default: the editor background) as drawn by this theme:
@@ -505,7 +517,8 @@ public struct ThemeLibrary: Sendable {
                 background: v(c.background), text: v(c.text), secondaryText: v(c.secondaryText), marker: v(c.marker),
                 heading: v(c.heading), link: v(c.link), inlineCode: v(c.inlineCode), inlineCodeBackground: v(c.inlineCodeBackground),
                 codeBlockBackground: v(c.codeBlockBackground), blockquote: v(c.blockquote), selection: v(c.selection),
-                cursor: v(c.cursor), accent: v(c.accent)
+                cursor: v(c.cursor), accent: v(c.accent),
+                currentLine: c.currentLine ?? ResolvedTheme.derivedCurrentLine(text: v(c.text), appearance: theme.appearance)
             ),
             syntax: .init(
                 keyword: v(s.keyword), string: v(s.string), number: v(s.number), comment: v(s.comment),

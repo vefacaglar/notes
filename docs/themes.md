@@ -56,7 +56,7 @@ Every color is a string `#RRGGBB` or `#RRGGBBAA` (sRGB, hex digits in either cas
 Alpha:
 
 - `background`: alpha is ignored; the editor background is always opaque.
-- Every other background (`selection`, `inlineCodeBackground`, `codeBlockBackground`) is drawn over `background` (source-over).
+- Every other background (`selection`, `inlineCodeBackground`, `codeBlockBackground`, `currentLine`) is drawn over `background` (source-over).
 - Text colors are drawn over whatever background they sit on.
 - Contrast is measured the same way: composite the backgrounds over `background` first, then the text color over that.
 
@@ -72,11 +72,12 @@ Alpha:
 | `link` | Link text |
 | `inlineCode` | Text of `` `inline code` `` |
 | `inlineCodeBackground` | Background behind inline code |
-| `codeBlockBackground` | Background of fenced code blocks and of code files |
+| `codeBlockBackground` | Band behind fenced code blocks: a full-width block behind every line of the block, fence lines included (Markdown view, not in Show Source mode) |
 | `blockquote` | Text inside `>` quotes |
 | `selection` | Selected text background (translucent values are drawn over `background`) |
 | `cursor` | Insertion point |
 | `accent` | Accent for controls (checkboxes, focus rings) |
+| `currentLine` | Full-width band behind the line with the caret (all its wrapped fragments), only while nothing is selected, in both editors; drawn over `background` and over a code block band. Optional: when missing it is derived from the resolved `text` colour as `text` with alpha `0F` (light) or `14` (dark), not taken from the base theme, so a custom `background`/`text` always gets a matching neutral band |
 
 `syntax` (code blocks and code files; one key per token kind):
 
@@ -93,7 +94,7 @@ Alpha:
 
 ## Fallback rules
 
-A theme may set any subset of `colors` and `syntax`. Every value it leaves out is taken from the **default built-in theme of the same appearance** (`default-light` for `"light"`, `default-dark` for `"dark"`), field by field. Values are never taken from another theme, so a partial theme only depends on its appearance.
+A theme may set any subset of `colors` and `syntax`. Every value it leaves out is taken from the **default built-in theme of the same appearance** (`default-light` for `"light"`, `default-dark` for `"dark"`), field by field. Values are never taken from another theme, so a partial theme only depends on its appearance. The one exception is `colors.currentLine`, derived as described above; the built-in themes leave it unset.
 
 ## Validation and errors
 

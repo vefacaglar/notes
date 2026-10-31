@@ -151,7 +151,9 @@ struct BuiltInThemeTests {
 
     @Test func everyBuiltInSetsEveryColor() {
         for theme in ThemeLibrary.builtInThemes {
-            let values = Mirror(reflecting: theme.colors).children.map(\.value) + Mirror(reflecting: theme.syntax).children.map(\.value)
+            // `currentLine` is optional everywhere: built-ins leave it to the derivation.
+            let colors = Mirror(reflecting: theme.colors).children.filter { $0.label != "currentLine" }.map(\.value)
+            let values = colors + Mirror(reflecting: theme.syntax).children.map(\.value)
             #expect(values.count == 21)
             #expect(values.allSatisfy { $0 as? ThemeColor != nil }, "\(theme.id) leaves a color unset")
         }
@@ -179,6 +181,33 @@ struct BuiltInThemeTests {
         }
     }
 
+    @Test func currentLineIsOptionalAndDerivedFromText() throws {
+        let library = ThemeLibrary()
+        let light = library.resolved(try Theme.decode(Data(##"{"name": "A", "appearance": "light", "colors": {"text": "#102030"}}"##.utf8), fallbackID: "a"))
+        #expect(light.colors.currentLine == ThemeColor(red: 0x10, green: 0x20, blue: 0x30, alpha: 0x0F))
+        let dark = library.resolved(try Theme.decode(Data(##"{"name": "B", "appearance": "dark", "colors": {"text": "#E0E0E0", "currentLine": null}}"##.utf8), fallbackID: "b"))
+        #expect(dark.colors.currentLine == ThemeColor(red: 0xE0, green: 0xE0, blue: 0xE0, alpha: 0x14))
+        for appearance in ThemeAppearance.allCases {
+            let base = ThemeLibrary.baseTheme(for: appearance)
+            #expect(base.colors.currentLine == ResolvedTheme.derivedCurrentLine(text: base.colors.text, appearance: appearance))
+        }
+    }
+
+    @Test func explicitCurrentLineWinsAndRoundTrips() throws {
+        let json = ##"{"name": "C", "appearance": "light", "colors": {"currentLine": "#00000014", "codeBlockBackground": "#EEEEEE"}}"##
+        let theme = try Theme.decode(Data(json.utf8), fallbackID: "c")
+        #expect(theme.colors.currentLine == ThemeColor(red: 0, green: 0, blue: 0, alpha: 0x14))
+        #expect(ThemeLibrary().resolved(theme).colors.currentLine == theme.colors.currentLine)
+        #expect(try Theme.decode(theme.encodedJSON()) == theme)
+    }
+
+    @Test func invalidCurrentLineIsRejected() {
+        let json = ##"{"name": "D", "appearance": "light", "colors": {"currentLine": "gray"}}"##
+        #expect(throws: ThemeError.invalidValue(field: "colors.currentLine", reason: L("must be a color like #RRGGBB or #RRGGBBAA."))) {
+            try Theme.decode(Data(json.utf8), fallbackID: "d")
+        }
+    }
+
     @Test func builtInJSONRoundTrips() throws {
         for theme in ThemeLibrary.builtInThemes {
             #expect(try Theme.decode(theme.encodedJSON()) == theme)
@@ -203,6 +232,8 @@ struct BuiltInThemeTests {
         check("text on selection", c.text, on: c.selection, atLeast: 4.5)
         check("inline code", c.inlineCode, on: c.inlineCodeBackground, atLeast: 4.5)
         check("text in code block", c.text, on: codeBlock, atLeast: 4.5)
+        check("text on current line", c.text, on: c.currentLine, atLeast: 4.5)
+        check("text on current line in code block", c.text, on: c.currentLine.composited(over: codeBlock), atLeast: 4.5)
         for (name, color) in [("secondaryText", c.secondaryText), ("marker", c.marker), ("cursor", c.cursor), ("accent", c.accent)] {
             check(name, color, on: c.background, atLeast: 3)
         }

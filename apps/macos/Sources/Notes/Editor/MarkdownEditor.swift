@@ -126,6 +126,7 @@ struct MarkdownEditor: NSViewRepresentable {
             self.showsSource = showsSource
             textView.apply(palette, spellCheck: style.spellCheck)
             textView.limitsLineWidth = style.limitLineWidth
+            textView.codeBlockColor = palette.colors.codeBlockBackground.nsColor
             textView.linkTextAttributes = [.foregroundColor: palette.colors.link.nsColor, .cursor: NSCursor.pointingHand]
             textView.defaultParagraphStyle = base[.paragraphStyle] as? NSParagraphStyle
             textView.typingAttributes = base
@@ -151,6 +152,7 @@ struct MarkdownEditor: NSViewRepresentable {
                     storage.setAttributes(base, range: MarkdownStyler.restyleRange(afterEditing: edit.range, in: storage.string))
                 }
                 codeBlocks = []
+                (textView as? MarkdownTextView)?.codeBlocks = []
                 spans = []
                 spanReach = []
                 revealed = nil
@@ -185,6 +187,7 @@ struct MarkdownEditor: NSViewRepresentable {
                 if let reveal { targets.append(reveal) }
             }
             codeBlocks = blocks
+            (textView as? MarkdownTextView)?.codeBlocks = blocks
             self.spans = spans
             spanReach = Self.reach(of: spans)
             pendingEdit = nil
@@ -499,13 +502,12 @@ struct MarkdownEditor: NSViewRepresentable {
                     let size = (value as? NSFont)?.pointSize ?? palette.textFont.pointSize
                     storage.addAttribute(.font, value: palette.codeFont(relativeTo: size), range: sub)
                 }
+                // Fenced blocks get a full-width band from the text view instead of a background behind the glyphs.
                 if kind == .inlineCode {
                     storage.addAttributes([
                         .foregroundColor: colors.inlineCode.nsColor,
                         .backgroundColor: colors.inlineCodeBackground.nsColor,
                     ], range: range)
-                } else {
-                    storage.addAttribute(.backgroundColor, value: colors.codeBlockBackground.nsColor, range: range)
                 }
             case .blockquote:
                 storage.addAttribute(.foregroundColor, value: colors.blockquote.nsColor, range: range)
@@ -662,6 +664,49 @@ final class MarkdownTextView: EditorTextView {
     /// Focus mode: room above and below the text (half the viewport) lets the first and last lines reach the centre.
     var centersCaret = false {
         didSet { if centersCaret != oldValue { updateInsets(for: frame.size) } }
+    }
+
+    /// Fenced code blocks (fence lines included) of the styled text, sorted; drawn as full-width bands under the text.
+    /// Empty in source mode and for text too long to style.
+    var codeBlocks: [NSRange] = [] {
+        didSet { if codeBlocks != oldValue { setNeedsDisplay(visibleRect) } }
+    }
+    var codeBlockColor: NSColor? {
+        didSet { if codeBlockColor != oldValue { needsDisplay = true } }
+    }
+
+    override func bandExtent() -> ClosedRange<CGFloat> {
+        guard let container = textContainer else { return super.bandExtent() }
+        let origin = textContainerOrigin.x
+        return max(bounds.minX, origin - 6)...min(bounds.maxX, origin + container.size.width + 6)
+    }
+
+    override var bandCornerRadius: CGFloat { 4 }
+
+    override func drawBands(in rect: NSRect) {
+        drawCodeBlocks(in: rect)
+        super.drawBands(in: rect)
+    }
+
+    private func drawCodeBlocks(in dirty: NSRect) {
+        guard let color = codeBlockColor, !codeBlocks.isEmpty, let layout = layoutManager, let container = textContainer else { return }
+        let origin = textContainerOrigin
+        // Widened past the paragraph spacing between two lines, so a dirty strip inside a block still finds it.
+        let probe = dirty.insetBy(dx: 0, dy: -16).offsetBy(dx: -origin.x, dy: -origin.y)
+        let glyphs = layout.glyphRange(forBoundingRect: probe, in: container)
+        guard glyphs.length > 0 else { return }
+        let chars = layout.characterRange(forGlyphRange: glyphs, actualGlyphRange: nil)
+        var lo = 0, hi = codeBlocks.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if NSMaxRange(codeBlocks[mid]) <= chars.location { lo = mid + 1 } else { hi = mid }
+        }
+        let length = textStorage?.length ?? 0
+        for block in codeBlocks[lo...] {
+            if block.location >= NSMaxRange(chars) { break }
+            guard NSMaxRange(block) <= length, let band = lineBand(forCharacters: block), band.intersects(dirty) else { continue }
+            fillBand(band, with: color, radius: bandCornerRadius)
+        }
     }
 
     /// Room for the images under a last line that has no line break (paragraph spacing needs one to take effect).

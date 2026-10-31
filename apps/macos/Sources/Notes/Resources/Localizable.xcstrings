@@ -1603,6 +1603,23 @@
         }
       }
     },
+    "Highlight current line": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Highlight current line"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Geçerli satırı vurgula"
+          }
+        }
+      }
+    },
     "Horizontal Rule": {
       "extractionState": "manual",
       "localizations": {

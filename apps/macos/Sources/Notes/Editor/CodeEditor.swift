@@ -95,6 +95,10 @@ struct CodeEditor: NSViewRepresentable {
             }
         }
 
+        override func selectionDidChange(in textView: NSTextView) {
+            (textView.enclosingScrollView?.verticalRulerView as? LineNumberRulerView)?.selectionDidChange()
+        }
+
         override func load(_ text: String, into textView: NSTextView) {
             (textView as? CodeTextView)?.indentUnit = language.indentUnit(for: text)
             super.load(text, into: textView)
@@ -234,6 +238,8 @@ final class CodeTextView: EditorTextView {
 final class LineNumberRulerView: NSRulerView {
     private var numberFont = NSFont.monospacedDigitSystemFont(ofSize: 11, weight: .regular)
     private var numberColor = NSColor.secondaryLabelColor
+    /// The caret line's number, undimmed; nil when the current-line highlight is off.
+    private var currentNumberColor: NSColor?
     private var background = NSColor.textBackgroundColor
     /// UTF-16 offsets where each line starts (after each LF); patched from each edit, rebuilt lazily when that is not possible.
     private var lineStarts: [Int] = [0]
@@ -261,6 +267,7 @@ final class LineNumberRulerView: NSRulerView {
     func apply(_ palette: EditorPalette) {
         numberFont = .monospacedDigitSystemFont(ofSize: max(palette.codeFont.pointSize * 0.85, 8), weight: .regular)
         numberColor = palette.colors.secondaryText.nsColor.withAlphaComponent(0.5)
+        currentNumberColor = palette.style.highlightCurrentLine ? palette.colors.secondaryText.nsColor : nil
         background = palette.colors.background.nsColor
         updateThickness(force: true)
         needsDisplay = true
@@ -279,6 +286,22 @@ final class LineNumberRulerView: NSRulerView {
     }
 
     @objc private func contentMoved() { needsDisplay = true }
+
+    /// The caret moved: the emphasised number may change.
+    func selectionDidChange() {
+        if currentNumberColor != nil { needsDisplay = true }
+    }
+
+    /// Index of the line holding the caret, nil unless the selection is empty and the highlight is on.
+    private func caretLineIndex() -> Int? {
+        guard currentNumberColor != nil, let selection = textView?.selectedRange(), selection.length == 0 else { return nil }
+        var lo = 0, hi = lineStarts.count
+        while lo < hi {
+            let mid = (lo + hi) / 2
+            if lineStarts[mid] <= selection.location { lo = mid + 1 } else { hi = mid }
+        }
+        return max(lo - 1, 0)
+    }
 
     private var textView: NSTextView? { clientView as? NSTextView }
 
@@ -311,12 +334,15 @@ final class LineNumberRulerView: NSRulerView {
         ensureLineStarts()
         let length = (textView.string as NSString).length
         let attributes: [NSAttributedString.Key: Any] = [.font: numberFont, .foregroundColor: numberColor]
+        let currentAttributes: [NSAttributedString.Key: Any] = [.font: numberFont, .foregroundColor: currentNumberColor ?? numberColor]
+        let caretLine = caretLineIndex()
         let origin = textView.textContainerOrigin
         let visible = textView.visibleRect
 
         func draw(_ number: Int, fragment: NSRect, baseline: CGFloat) {
             let y = convert(NSPoint(x: 0, y: fragment.minY + origin.y + baseline), from: textView).y
             let label = String(number) as NSString
+            let attributes = number - 1 == caretLine ? currentAttributes : attributes
             let size = label.size(withAttributes: attributes)
             label.draw(at: NSPoint(x: ruleThickness - Self.padding - size.width, y: y - numberFont.ascender), withAttributes: attributes)
         }

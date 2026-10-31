@@ -253,6 +253,7 @@ private struct EditorSettingsView: View {
                     }
                 }
                 Toggle(loc: "Limit line width", isOn: $settings.limitLineWidth)
+                Toggle(loc: "Highlight current line", isOn: $settings.highlightCurrentLine)
                 Picker(loc: "Markdown syntax", selection: $settings.markerStyle) {
                     Text(loc: "Dimmed").tag(MarkerStyle.dimmed)
                     Text(loc: "Hidden, shown on the cursor line").tag(MarkerStyle.hidden)

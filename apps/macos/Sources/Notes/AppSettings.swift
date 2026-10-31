@@ -53,6 +53,8 @@ final class AppSettings {
     var spellCheck: Bool { didSet { save(spellCheck, .spellCheck) } }
     var codeLineNumbers: Bool { didSet { save(codeLineNumbers, .codeLineNumbers) } }
     var codeWrap: Bool { didSet { save(codeWrap, .codeWrap) } }
+    /// A neutral band behind the caret's line in both editors.
+    var highlightCurrentLine: Bool { didSet { save(highlightCurrentLine, .highlightCurrentLine) } }
     var restoreTabs: Bool { didSet { save(restoreTabs, .restoreTabs) } }
     var sidebarSort: SidebarSort { didSet { save(sidebarSort.rawValue, .sidebarSort) } }
     var showNonMarkdownFiles: Bool { didSet { save(showNonMarkdownFiles, .showNonMarkdownFiles) } }
@@ -106,6 +108,7 @@ final class AppSettings {
         spellCheck = bool(.spellCheck, false)
         codeLineNumbers = bool(.codeLineNumbers, true)
         codeWrap = bool(.codeWrap, true)
+        highlightCurrentLine = bool(.highlightCurrentLine, true)
         restoreTabs = bool(.restoreTabs, true)
         sidebarSort = string(.sidebarSort).flatMap(SidebarSort.init(rawValue:)) ?? .name
         showNonMarkdownFiles = bool(.showNonMarkdownFiles, true)
@@ -203,6 +206,7 @@ final class AppSettings {
         case appearanceMode, lightThemeID, darkThemeID, textFont, codeFont, lineSpacing, limitLineWidth, markerStyle
         case spellCheck, codeLineNumbers, codeWrap, restoreTabs, sidebarSort, showNonMarkdownFiles, autoNaming
         case showSidebarPreview, zoom, showStatusBar, showFormattingBar, focusMode
+        case highlightCurrentLine
 
         var name: String { "settings." + rawValue }
     }

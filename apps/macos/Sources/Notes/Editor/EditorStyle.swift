@@ -14,14 +14,16 @@ struct EditorStyle: Equatable, Sendable {
     var spellCheck: Bool
     var codeLineNumbers: Bool
     var codeWrap: Bool
+    var highlightCurrentLine: Bool
 
     static let standard = EditorStyle(
         theme: ThemeLibrary.baseTheme(for: .light), textFont: AppSettings.defaultTextFont, codeFont: AppSettings.defaultCodeFont,
-        lineSpacing: 1.2, limitLineWidth: false, markerStyle: .dimmed, spellCheck: false, codeLineNumbers: true, codeWrap: true
+        lineSpacing: 1.2, limitLineWidth: false, markerStyle: .dimmed, spellCheck: false, codeLineNumbers: true, codeWrap: true,
+        highlightCurrentLine: true
     )
 
     init(theme: ResolvedTheme, textFont: FontChoice, codeFont: FontChoice, lineSpacing: Double, limitLineWidth: Bool,
-         markerStyle: MarkerStyle, spellCheck: Bool, codeLineNumbers: Bool, codeWrap: Bool) {
+         markerStyle: MarkerStyle, spellCheck: Bool, codeLineNumbers: Bool, codeWrap: Bool, highlightCurrentLine: Bool) {
         self.theme = theme
         self.textFont = textFont
         self.codeFont = codeFont
@@ -31,6 +33,7 @@ struct EditorStyle: Equatable, Sendable {
         self.spellCheck = spellCheck
         self.codeLineNumbers = codeLineNumbers
         self.codeWrap = codeWrap
+        self.highlightCurrentLine = highlightCurrentLine
     }
 
     @MainActor
@@ -38,7 +41,8 @@ struct EditorStyle: Equatable, Sendable {
         self.init(
             theme: settings.resolvedTheme(for: colorScheme), textFont: settings.textFont, codeFont: settings.codeFont,
             lineSpacing: settings.lineSpacing, limitLineWidth: settings.limitLineWidth, markerStyle: settings.markerStyle,
-            spellCheck: settings.spellCheck, codeLineNumbers: settings.codeLineNumbers, codeWrap: settings.codeWrap
+            spellCheck: settings.spellCheck, codeLineNumbers: settings.codeLineNumbers, codeWrap: settings.codeWrap,
+            highlightCurrentLine: settings.highlightCurrentLine
         )
     }
 }
@@ -152,6 +156,7 @@ extension NSTextView {
         backgroundColor = palette.colors.background.nsColor
         insertionPointColor = palette.colors.cursor.nsColor
         selectedTextAttributes = [.backgroundColor: palette.selectionColor]
+        (self as? EditorTextView)?.currentLineColor = palette.style.highlightCurrentLine ? palette.colors.currentLine.nsColor : nil
         isContinuousSpellCheckingEnabled = spellCheck
         isGrammarCheckingEnabled = spellCheck
         isAutomaticSpellingCorrectionEnabled = false

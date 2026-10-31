@@ -64,6 +64,82 @@ extension NSTextView {
 class EditorTextView: NSTextView {
     private var focusWhenInWindow = false
 
+    // MARK: Background bands
+
+    /// The band behind the caret's line while nothing is selected; nil switches it off.
+    var currentLineColor: NSColor? {
+        didSet { if currentLineColor != oldValue { needsDisplay = true } }
+    }
+    /// Where the current-line band was last drawn (view coordinates), so a selection change redraws only that and the new one.
+    private var drawnCurrentLine: NSRect?
+
+    /// Horizontal extent of full-width bands, in view coordinates.
+    func bandExtent() -> ClosedRange<CGFloat> { bounds.minX...bounds.maxX }
+    var bandCornerRadius: CGFloat { 0 }
+
+    /// Fills the rectangle with `color` as a band (rounded where the editor asks for it).
+    func fillBand(_ rect: NSRect, with color: NSColor, radius: CGFloat) {
+        color.setFill()
+        if radius > 0 {
+            NSBezierPath(roundedRect: rect, xRadius: radius, yRadius: radius).fill()
+        } else {
+            rect.fill()
+        }
+    }
+
+    /// Rect of `characters`' lines from the top of the first line fragment to the bottom of the last one's text,
+    /// excluding the paragraph spacing after it (which holds inline images), in view coordinates.
+    func lineBand(forCharacters characters: NSRange) -> NSRect? {
+        guard let layout = layoutManager, characters.length > 0 else { return nil }
+        let glyphs = layout.glyphRange(forCharacterRange: characters, actualCharacterRange: nil)
+        guard glyphs.length > 0 else { return nil }
+        let first = layout.lineFragmentRect(forGlyphAt: glyphs.location, effectiveRange: nil)
+        let last = layout.lineFragmentUsedRect(forGlyphAt: NSMaxRange(glyphs) - 1, effectiveRange: nil)
+        return bandRect(minY: first.minY, maxY: last.maxY)
+    }
+
+    private func bandRect(minY: CGFloat, maxY: CGFloat) -> NSRect {
+        let extent = bandExtent()
+        let top = minY + textContainerOrigin.y
+        return NSRect(x: extent.lowerBound, y: top, width: extent.upperBound - extent.lowerBound, height: maxY - minY)
+    }
+
+    /// The caret's logical line (all its wrapped fragments), nil when the selection is not empty or the feature is off.
+    func currentLineBand() -> NSRect? {
+        guard currentLineColor != nil, let layout = layoutManager, let storage = textStorage else { return nil }
+        let selection = selectedRange()
+        guard selection.length == 0 else { return nil }
+        let string = storage.mutableString
+        let length = string.length
+        let location = min(selection.location, length)
+        if length == 0 || (location == length && string.character(at: length - 1) == 0x0A) {
+            layout.ensureLayout(forCharacterRange: NSRange(location: max(0, length - 1), length: length == 0 ? 0 : 1))
+            let extra = layout.extraLineFragmentRect
+            return extra.isEmpty ? nil : bandRect(minY: extra.minY, maxY: extra.maxY)
+        }
+        return lineBand(forCharacters: string.paragraphRange(for: NSRange(location: location, length: 0)))
+    }
+
+    /// Call after the selection or the text changed: redraws the old and the new current-line rects, nothing else.
+    func refreshCurrentLine() {
+        let new = currentLineBand()
+        guard new != drawnCurrentLine else { return }
+        if let old = drawnCurrentLine { setNeedsDisplay(old.insetBy(dx: 0, dy: -2)) }
+        if let new { setNeedsDisplay(new.insetBy(dx: 0, dy: -2)) }
+        drawnCurrentLine = new
+    }
+
+    /// Bands go under the text, the selection and the glyph backgrounds.
+    override func drawBackground(in rect: NSRect) {
+        super.drawBackground(in: rect)
+        drawBands(in: rect)
+    }
+
+    func drawBands(in rect: NSRect) {
+        guard let color = currentLineColor, let band = currentLineBand(), band.intersects(rect) else { return }
+        fillBand(band, with: color, radius: bandCornerRadius)
+    }
+
     /// Pasted and dropped text enters in the document's normal form (no BOM, LF line breaks), so the text view and
     /// the binding never differ. `insertText` keeps it one undo step.
     override func readSelection(from pboard: NSPasteboard, type: NSPasteboard.PasteboardType) -> Bool {
@@ -194,6 +270,7 @@ class TextEditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate
 
     func textViewDidChangeSelection(_ notification: Notification) {
         guard let textView = notification.object as? NSTextView else { return }
+        (textView as? EditorTextView)?.refreshCurrentLine()
         selectionDidChange(in: textView)
     }
 
@@ -204,6 +281,7 @@ class TextEditorCoordinator: NSObject, NSTextViewDelegate, NSTextStorageDelegate
     func textDidChange(_ notification: Notification) {
         guard let textView = notification.object as? NSTextView else { return }
         if !textView.hasMarkedText() { restyle(textView) }
+        (textView as? EditorTextView)?.refreshCurrentLine()
         lastText = textView.string
         text.wrappedValue = lastText
     }
