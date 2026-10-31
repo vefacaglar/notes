@@ -28,6 +28,7 @@ struct SidebarView: View {
                     switch row {
                     case .header(_, let name):
                         Label(name, systemImage: "folder")
+                            .appFont()
                             .fontWeight(.semibold)
                             .selectionDisabled()
                     case .hit(let hit):
@@ -45,6 +46,7 @@ struct SidebarView: View {
                             ForEach(pinned) { item in row(item, pinned: true) }
                         } header: {
                             Text(loc: "Pinned")
+                                .appFont(.caption, weight: .semibold)
                         }
                     }
                     ForEach(workspace.roots) { root in
@@ -52,6 +54,7 @@ struct SidebarView: View {
                             OutlineGroup(root.items, children: \.children) { item in row(item, pinned: false) }
                         } label: {
                             Label(root.name, systemImage: "folder")
+                                .appFont()
                                 .fontWeight(.semibold)
                                 .help(root.url.path)
                                 .dropTarget(ItemID(root: root.id, path: ""), in: $dropTarget) { workspace.drop($0, onto: $1) }
@@ -62,6 +65,7 @@ struct SidebarView: View {
                     ForEach(workspace.unavailableRoots) { root in
                         VStack(alignment: .leading, spacing: 2) {
                             Label(root.name, systemImage: "folder.badge.questionmark")
+                                .appFont()
                             Text(verbatim: root.reason)
                                 .appFont(.callout)
                                 .lineLimit(3)
@@ -329,6 +333,7 @@ private struct ItemRow: View {
             Label {
                 VStack(alignment: .leading, spacing: 1) {
                     Text(verbatim: item.name)
+                        .appFont()
                         .lineLimit(1)
                     HStack(spacing: 6) {
                         if let modified = item.modified {
@@ -349,6 +354,7 @@ private struct ItemRow: View {
             .task(id: item.modified) { await previews.load(url, modified: item.modified) }
         } else {
             Label(item.name, systemImage: item.isFolder ? "folder" : SidebarView.icon(for: item.id.path))
+                .appFont()
         }
     }
 
@@ -383,6 +389,7 @@ private struct HitRow: View {
         let path = hit.hit.path
         VStack(alignment: .leading, spacing: 2) {
             Label(NoteStore.displayName(path), systemImage: SidebarView.icon(for: path))
+                .appFont()
             if let line = hit.hit.line, let snippet = hit.hit.snippet {
                 Text(verbatim: "\(line): \(snippet)")
                     .appFont(.callout)
