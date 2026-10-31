@@ -26,7 +26,9 @@ struct WorkspaceView: View {
                 let document = tab.document
                 let language = document.language
                 if language == .markdown, settings.showFormattingBar {
-                    FormattingToolbar(editor: tab.editor, isReadOnly: document.isReadOnly)
+                    FormattingToolbar(editor: tab.editor, isReadOnly: document.isReadOnly) {
+                        OutlineButton(editor: tab.editor, document: document)
+                    }
                 }
                 if language.canFormat {
                     ToolbarItem {
@@ -35,7 +37,7 @@ struct WorkspaceView: View {
                             .help(loc: "Format (⇧⌥F)")
                     }
                 }
-                if language == .markdown {
+                if language == .markdown, !settings.showFormattingBar {
                     ToolbarItem { OutlineButton(editor: tab.editor, document: document) }
                 }
             }
@@ -318,7 +320,7 @@ extension Optional {
 }
 
 /// Markdown only: opens the list of headings (⌃⌘O).
-private struct OutlineButton: View {
+struct OutlineButton: View {
     let editor: TextEditorProxy
     let document: NoteDocument
 

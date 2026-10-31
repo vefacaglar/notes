@@ -3,53 +3,64 @@ import SwiftUI
 
 /// The Markdown formatting controls of the window toolbar, for the active tab's editor. Every action is a
 /// `TextEditorProxy` method, the same ones the Format menu calls.
-struct FormattingToolbar: ToolbarContent {
+struct FormattingToolbar<Trailing: View>: ToolbarContent {
     let editor: TextEditorProxy
     let isReadOnly: Bool
+    /// The outline button, last in the group.
+    @ViewBuilder var trailing: Trailing
 
     var body: some ToolbarContent {
         let format = editor.activeFormat
         // One item in the middle of the toolbar, so the controls share one rounded (capsule) background.
         ToolbarItem(placement: .principal) {
             HStack(spacing: 2) {
-                Menu {
-                    headingItem("Heading 1", level: 1, format: format)
-                    headingItem("Heading 2", level: 2, format: format)
-                    headingItem("Heading 3", level: 3, format: format)
-                    Toggle(loc: "Body", isOn: Binding(get: { format.heading == 0 }, set: { _ in editor.apply(.body) }))
-                } label: {
-                    Image(systemName: "textformat.size")
-                }
-                .menuStyle(.borderlessButton)
-                .menuIndicator(.hidden)
-                .fixedSize()
-                .foregroundStyle(format.heading > 0 ? .primary : .secondary)
-                .padding(.horizontal, 5)
-                .help(loc: "Heading")
+                HStack(spacing: 2) { formatting(format) }
+                    .disabled(isReadOnly)
                 separator
-                button("bold", "Bold (⌘B)", active: format.inline.contains(.bold)) { editor.toggle(.bold) }
-                button("italic", "Italic (⌘I)", active: format.inline.contains(.italic)) { editor.toggle(.italic) }
-                button("strikethrough", "Strikethrough (⇧⌘X)", active: format.inline.contains(.strikethrough)) { editor.toggle(.strikethrough) }
-                button("chevron.left.forwardslash.chevron.right", "Inline Code (⌃⌘C)", active: format.inline.contains(.code)) { editor.toggle(.code) }
-                separator
-                button("list.bullet", "Bulleted List (⇧⌘8)", active: format.bullet) { editor.apply(.bullet) }
-                button("list.number", "Numbered List (⇧⌘7)", active: format.numbered) { editor.apply(.numbered) }
-                button("checklist", "Checklist (⇧⌘L)", active: format.task) { editor.apply(.task) }
-                button("text.quote", "Block Quote (⇧⌘')", active: format.quote) { editor.apply(.quote) }
-                separator
-                button("link", "Link (⌘K)") { editor.insertLink() }
-                button("curlybraces", "Code Block (⌥⌘K)") { editor.insertCodeBlock() }
-                button("tablecells", "Table (⇧⌘T)") { editor.isTablePickerShown.toggle() }
-                    .popover(isPresented: Bindable(editor).isTablePickerShown, arrowEdge: .bottom) {
-                        TablePicker(editor: editor)
-                    }
-                button("minus", "Horizontal Rule (⇧⌘H)") { editor.insertRule() }
+                trailing
+                    .buttonStyle(BarButtonStyle(active: editor.isOutlineShown))
+                    .labelStyle(.iconOnly)
             }
             .padding(.horizontal, 8)
             .frame(height: 32)
             .modifier(CapsuleBackground())
-            .disabled(isReadOnly)
         }
+    }
+
+    /// Everything but the outline button: disabled for read-only files.
+    @ViewBuilder private func formatting(_ format: ActiveFormat) -> some View {
+        Menu {
+            headingItem("Heading 1", level: 1, format: format)
+            headingItem("Heading 2", level: 2, format: format)
+            headingItem("Heading 3", level: 3, format: format)
+            Toggle(loc: "Body", isOn: Binding(get: { format.heading == 0 }, set: { _ in editor.apply(.body) }))
+        } label: {
+            Image(systemName: "textformat.size")
+        }
+        .menuStyle(.borderlessButton)
+        .menuIndicator(.hidden)
+        .fixedSize()
+        .foregroundStyle(format.heading > 0 ? .primary : .secondary)
+        .padding(.horizontal, 5)
+        .help(loc: "Heading")
+        separator
+        button("bold", "Bold (⌘B)", active: format.inline.contains(.bold)) { editor.toggle(.bold) }
+        button("italic", "Italic (⌘I)", active: format.inline.contains(.italic)) { editor.toggle(.italic) }
+        button("strikethrough", "Strikethrough (⇧⌘X)", active: format.inline.contains(.strikethrough)) { editor.toggle(.strikethrough) }
+        button("chevron.left.forwardslash.chevron.right", "Inline Code (⌃⌘C)", active: format.inline.contains(.code)) { editor.toggle(.code) }
+        separator
+        button("list.bullet", "Bulleted List (⇧⌘8)", active: format.bullet) { editor.apply(.bullet) }
+        button("list.number", "Numbered List (⇧⌘7)", active: format.numbered) { editor.apply(.numbered) }
+        button("checklist", "Checklist (⇧⌘L)", active: format.task) { editor.apply(.task) }
+        button("text.quote", "Block Quote (⇧⌘')", active: format.quote) { editor.apply(.quote) }
+        separator
+        button("link", "Link (⌘K)") { editor.insertLink() }
+        button("curlybraces", "Code Block (⌥⌘K)") { editor.insertCodeBlock() }
+        button("tablecells", "Table (⇧⌘T)") { editor.isTablePickerShown.toggle() }
+            .popover(isPresented: Bindable(editor).isTablePickerShown, arrowEdge: .bottom) {
+                TablePicker(editor: editor)
+            }
+        button("minus", "Horizontal Rule (⇧⌘H)") { editor.insertRule() }
     }
 
     private var separator: some View {
