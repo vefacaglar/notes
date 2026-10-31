@@ -60,7 +60,8 @@ struct WorkspaceView: View {
                         .background(.bar)
                     Divider()
                 }
-                NoteEditorView(document: document, showsSource: tab.showsSource)
+                NoteEditorView(document: document, showsSource: tab.showsSource,
+                               onOpenLink: { workspace.openLink($0, from: document) })
                     // Keyed by tab and document, not the URL, so a rename keeps the editor (cursor, undo).
                     .id(EditorKey(tab: tab.id, document: document.id))
                     .onAppear { workspace.editorAppeared(tab) }

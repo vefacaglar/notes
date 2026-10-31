@@ -12,9 +12,12 @@ struct MarkdownEditor: NSViewRepresentable {
     var proxy: TextEditorProxy?
     var undoManager: UndoManager?
     var isEditable = true
+    /// Called with the destination (as written) of a link that was clicked; see `NoteLinks.classify`.
+    var onOpenLink: ((String) -> Void)?
 
     init(text: Binding<String>, style: EditorStyle = .standard, showsSource: Bool = false, focusOnAppear: Bool = false,
-         proxy: TextEditorProxy? = nil, undoManager: UndoManager? = nil, isEditable: Bool = true) {
+         proxy: TextEditorProxy? = nil, undoManager: UndoManager? = nil, isEditable: Bool = true,
+         onOpenLink: ((String) -> Void)? = nil) {
         _text = text
         self.style = style
         self.showsSource = showsSource
@@ -22,6 +25,7 @@ struct MarkdownEditor: NSViewRepresentable {
         self.proxy = proxy
         self.undoManager = undoManager
         self.isEditable = isEditable
+        self.onOpenLink = onOpenLink
     }
 
     func makeCoordinator() -> Coordinator {
@@ -32,6 +36,7 @@ struct MarkdownEditor: NSViewRepresentable {
         let textView = MarkdownTextView(usingTextLayoutManager: false)
         textView.configureAsPlainTextEditor()
         textView.isEditable = isEditable
+        textView.onOpenLink = onOpenLink
 
         let coordinator = context.coordinator
         textView.delegate = coordinator
@@ -53,6 +58,7 @@ struct MarkdownEditor: NSViewRepresentable {
     func updateNSView(_ scrollView: NSScrollView, context: Context) {
         guard let textView = scrollView.documentView as? MarkdownTextView else { return }
         textView.isEditable = isEditable
+        textView.onOpenLink = onOpenLink
         proxy?.textView = textView
         proxy?.language = .markdown
         context.coordinator.configure(textView, style: style, showsSource: showsSource, initial: false)
@@ -320,7 +326,9 @@ struct MarkdownEditor: NSViewRepresentable {
                 ], range: range)
             case .link(let url):
                 storage.addAttribute(.foregroundColor, value: colors.link.nsColor, range: range)
-                if let url = Self.linkURL(url) { storage.addAttribute(.link, value: url, range: range) }
+                if let value = Self.linkValue(url) { storage.addAttribute(.link, value: value, range: range) }
+            case .wikiLink(let target):
+                storage.addAttributes([.foregroundColor: colors.link.nsColor, .link: "[[\(target)]]"], range: range)
             }
         }
 
@@ -378,12 +386,12 @@ struct MarkdownEditor: NSViewRepresentable {
             return true
         }
 
-        /// Only absolute URLs are clickable; relative paths have nothing sensible to open.
-        private static func linkURL(_ string: String) -> URL? {
-            let url = URL(string: string)
-                ?? string.addingPercentEncoding(withAllowedCharacters: .urlFragmentAllowed).flatMap(URL.init(string:))
-            guard let url, url.scheme != nil else { return nil }
-            return url
+        /// The `.link` attribute of a link: the URL for absolute addresses, the destination as written otherwise
+        /// (a relative note path). `MarkdownTextView` hands it to `NoteLinks.classify` when it is clicked.
+        private static func linkValue(_ string: String) -> Any? {
+            guard !string.isEmpty else { return nil }
+            if case .web(let url)? = NoteLinks.classify(string) { return url }
+            return string
         }
 
         /// Maps code block ranges from before an edit to where they would be after it, if the edit left fences alone.
@@ -447,6 +455,7 @@ final class MarkdownTextView: EditorTextView {
     /// True while a click or drag selection is being tracked.
     private(set) var isTrackingMouse = false
     var onMouseUp: (() -> Void)?
+    var onOpenLink: ((String) -> Void)?
 
     override func setFrameSize(_ newSize: NSSize) {
         updateInsets(for: newSize)
@@ -461,11 +470,71 @@ final class MarkdownTextView: EditorTextView {
         }
     }
 
+    /// Clicks without modifiers (or with only ⌘) act on task boxes and links: a click on a box flips it, a click
+    /// on a link opens it (⌘-click works too). Caret placement, selection and drags are untouched, so a link's text
+    /// can still be edited with the arrow keys or a drag.
     override func mouseDown(with event: NSEvent) {
+        let modifiers = event.modifierFlags.intersection([.command, .shift, .option, .control])
+        let plain = modifiers.isEmpty || modifiers == .command
+        let hit = plain ? characterIndex(at: convert(event.locationInWindow, from: nil)) : nil
+        if let hit, isEditable, let edit = taskToggle(at: hit) {
+            window?.makeFirstResponder(self)
+            if event.clickCount == 1 { apply(edit) }
+            return
+        }
         isTrackingMouse = true
         super.mouseDown(with: event)
         isTrackingMouse = false
         onMouseUp?()
+        guard let hit, event.clickCount == 1, selectedRange().length == 0, let window,
+              characterIndex(at: convert(window.mouseLocationOutsideOfEventStream, from: nil)) == hit,
+              let value = textStorage?.attribute(.link, at: hit, effectiveRange: nil) else { return }
+        onOpenLink?((value as? URL)?.absoluteString ?? "\(value)")
+    }
+
+    /// Links are followed by `mouseDown`; AppKit must not open them a second time.
+    override func clicked(onLink link: Any, at charIndex: Int) {}
+
+    private func taskToggle(at index: Int) -> TextEdit? {
+        let ns = string as NSString
+        guard index < ns.length, [0x5B, 0x20, 0x78, 0x58, 0x5D].contains(ns.character(at: index)) else { return nil }
+        return MarkdownEditing.toggleTask(in: string, at: index)
+    }
+
+    /// The character under `point` (view coordinates), nil when the point is beside the text, not on a glyph.
+    private func characterIndex(at point: NSPoint) -> Int? {
+        guard let layout = layoutManager, let container = textContainer, layout.numberOfGlyphs > 0 else { return nil }
+        let local = NSPoint(x: point.x - textContainerOrigin.x, y: point.y - textContainerOrigin.y)
+        var fraction: CGFloat = 0
+        let glyph = layout.glyphIndex(for: local, in: container, fractionOfDistanceThroughGlyph: &fraction)
+        guard layout.boundingRect(forGlyphRange: NSRange(location: glyph, length: 1), in: container).contains(local) else { return nil }
+        return layout.characterIndexForGlyph(at: glyph)
+    }
+
+    /// Return continues lists and quotes; see `MarkdownEditing.newline`.
+    override func insertNewline(_ sender: Any?) {
+        if !hasMarkedText(), let edit = MarkdownEditing.newline(in: string, selection: selectedRange()) {
+            apply(edit)
+        } else {
+            super.insertNewline(sender)
+        }
+    }
+
+    /// Tab and Shift-Tab indent and outdent list items; anywhere else they act as before.
+    override func insertTab(_ sender: Any?) {
+        if !hasMarkedText(), let edit = MarkdownEditing.indent(in: string, selection: selectedRange(), outdent: false) {
+            apply(edit)
+        } else {
+            super.insertTab(sender)
+        }
+    }
+
+    override func insertBacktab(_ sender: Any?) {
+        if !hasMarkedText(), let edit = MarkdownEditing.indent(in: string, selection: selectedRange(), outdent: true) {
+            apply(edit)
+        } else {
+            super.insertBacktab(sender)
+        }
     }
 
     override func performKeyEquivalent(with event: NSEvent) -> Bool {
@@ -476,6 +545,9 @@ final class MarkdownTextView: EditorTextView {
         switch event.charactersIgnoringModifiers {
         case "b": toggleWrap("**"); return true
         case "i": toggleWrap("*"); return true
+        case "k" where isEditable:
+            if let edit = MarkdownEditing.link(in: string, selection: selectedRange()) { apply(edit) }
+            return true
         default: return super.performKeyEquivalent(with: event)
         }
     }

@@ -81,6 +81,25 @@ Within a folder: subfolders first, then files (notes and other text files togeth
 
 Apps may offer two display preferences, which change nothing on disk: sorting by last modified (folders still first and by name, then files newest first, ties by name) and showing only Markdown files (`md`, `markdown`, `mdown`, `mkd`; folders are always shown), which hides the other files from the tree and from search.
 
+## Links
+
+Links in Markdown files are followed from the editor with a plain click or a ⌘-click (Ctrl-click on Windows); a click that only places the caret or ends a drag-selection does nothing. Arrow keys still move through link text, so it stays editable.
+
+- **Web addresses**: any destination with a scheme of two or more letters (`https:`, `http:`, `mailto:`, `file:`…), also bare URLs and `<autolinks>`, opens in the system's default app. A single letter before `:` (`C:\x.md`) is a path, not a scheme.
+- **File links** `[text](path)`: a relative path, percent-decoded, without `#fragment` and `?query`, resolved against the folder of the note that holds the link, with `.` and `..` resolved. The target must be inside the same root (`..` above the root resolves to nothing). Matching ignores case and Unicode normalization; a path without extension also tries `.md`. A target that is not among the listed files, or a note outside the roots, is looked up on disk relative to the note's folder; a listed text file opens in a tab, any other file in its default app. Absolute paths (`/…`) are looked up on disk.
+- **Wiki links** `[[Note name]]`, `[[Note name|shown text]]` and `[[Note name#heading]]`: only the part before `|` and `#`, trimmed, names the target. The name is compared with every listed file of every root: its display name (file name without `.md`), its full file name (`config.json`), or its path without `.md` (`Work/Plan`, matching from any folder boundary). Comparison folds case with NFC + lowercase, plus Turkish `ı` and `İ` to `i`, so `ÇALIŞMA` finds `çalışma`. Several matches: same folder as the linking note, then same root, then `.md` notes before other files, then fewer path components, then path order.
+- A target that does not exist is reported with a neutral message ("There is no note named …"); nothing is created. An opened target goes to a tab: an already open tab is focused, otherwise a new tab opens next to the current one.
+- `[[…]]` is styled like a link (brackets as dimmed markers, name as link text). Inside code spans and fenced code it is plain text. Brackets inside the name, or an empty name, make it plain text.
+
+## Editing helpers (Markdown editor)
+
+Each is one undo step. Ranges are UTF-16 offsets; text in the editor has LF line breaks.
+
+- **Return in a list or quote** continues it with the same indentation: `-`, `*`, `+` keep their character, numbered items count up (`9.` → `10.`, `)` kept), task items continue as `- [ ] `, quotes repeat their `>` markers (`> - a` continues as `> - `). The text after the caret moves to the new item. Return on an empty item (marker only, or marker and box) removes the marker and indentation (inside a quote only the quote prefix stays), ending the list. Nothing is continued when a selection exists, the caret is before the text of the item, a marker has no space after it (`-`, `2025.`), the line is a thematic break (`---`, `- - -`), or the line is inside a fenced code block. Following numbers are not renumbered.
+- **Tab / Shift-Tab** on a list item line, or on a selection whose lines are all list items, adds or removes one level at the start of the line's indentation (after any quote prefix): 2 spaces for bullets and tasks, the width of the marker plus its space for numbered items (`1. ` = 3, `10. ` = 4). Shift-Tab removes one tab or up to one level of spaces. Anywhere else Tab inserts a tab as before.
+- **⌘K (Ctrl+K)** turns the selection into `[selection](|)` with the caret in the parentheses; an empty selection gives `[|]()`; a selected `http(s)` address becomes `[|](address)`.
+- **Clicking a task box** `[ ]` / `[x]` (`[X]` counts as checked) flips it to `[x]` / `[ ]` when the file is editable; the caret does not move. Boxes in fenced code are not task items.
+
 ## Deleting
 
 Deleting a note or folder moves it to the OS trash (macOS Trash / Windows Recycle Bin) so it can be restored. Apps never delete permanently on their own; where the volume has no trash (e.g. some network shares on Windows), the OS asks the user before deleting permanently, and declining cancels the delete.

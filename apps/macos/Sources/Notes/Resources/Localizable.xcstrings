@@ -2057,6 +2057,40 @@
           }
         }
       }
+    },
+    "The link “%@” couldn't be opened.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The link “%@” couldn't be opened."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” bağlantısı açılamadı."
+          }
+        }
+      }
+    },
+    "There is no note named “%@” in the workspace.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is no note named “%@” in the workspace."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Çalışma alanında “%@” adlı bir not yok."
+          }
+        }
+      }
     }
   },
   "version": "1.0"

@@ -23,6 +23,8 @@ public struct MarkdownSpan: Hashable, Sendable {
         case task(checked: Bool)
         /// Link text, or the URL itself for autolinks and bare URLs.
         case link(url: String)
+        /// The text of a `[[Note name]]` wiki link (alias and heading included); `target` is the note name.
+        case wikiLink(target: String)
         case horizontalRule
     }
 
@@ -279,7 +281,7 @@ private struct Scanner {
             case .lt:
                 i = autolink(i, end) ?? i + 1
             case .lbracket:
-                i = link(i, i, end) ?? i + 1
+                i = wikiLink(i, end) ?? link(i, i, end) ?? i + 1
             case .bang where i + 1 < end && s[i + 1] == .lbracket:
                 i = link(i, i + 1, end) ?? i + 1
             case 104 where i == start || !isWordUnit(s[i - 1]): // h
@@ -408,6 +410,19 @@ private struct Scanner {
         guard j > schemeEnd else { return nil }
         addInline(i, j, .link(url: string(i, j)))
         return j
+    }
+
+    /// `[[Note name]]`: no brackets inside, a non-empty name.
+    private mutating func wikiLink(_ i: Int, _ end: Int) -> Int? {
+        guard i + 1 < end, s[i + 1] == .lbracket else { return nil }
+        var j = i + 2
+        while j + 1 < end, s[j] != .lbracket, s[j] != .rbracket { j += 1 }
+        guard j + 1 < end, s[j] == .rbracket, s[j + 1] == .rbracket,
+              let target = NoteLinks.wikiName(string(i + 2, j)) else { return nil }
+        addInline(i, i + 2, .marker)
+        addInline(i + 2, j, .wikiLink(target: target))
+        addInline(j, j + 2, .marker)
+        return j + 2
     }
 
     /// `[text](url)` starting at `bracket`; `start` is the `!` of an image or the bracket itself.
