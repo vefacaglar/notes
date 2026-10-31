@@ -1,7 +1,8 @@
 #!/usr/bin/env swift
 // Draws the app icon (a light paper tile with a graphite Markdown "#" and an accent-blue text cursor) at every iconset
-// size and builds Resources/AppIcon.icns with iconutil. Run from apps/macos: `swift scripts/make-icon.swift`; pass
-// `--preview <folder>` to also keep the PNGs there. The result is committed; bundle.sh only copies it.
+// size and builds Sources/Notes/Resources/AppIcon.icns with iconutil. Run from apps/macos: `swift scripts/make-icon.swift`; pass
+// `--preview <folder>` to also keep the PNGs there. The result is committed; bundle.sh copies it into the
+// app, and an unbundled debug run loads it from the resource bundle for the Dock.
 import AppKit
 
 func grey(_ value: CGFloat, _ alpha: CGFloat = 1) -> CGColor { CGColor(gray: value, alpha: alpha) }
@@ -137,7 +138,7 @@ if let flag = CommandLine.arguments.firstIndex(of: "--preview"), flag + 1 < Comm
     }
 }
 
-let resources = root.appendingPathComponent("Resources")
+let resources = root.appendingPathComponent("Sources/Notes/Resources")
 try fileManager.createDirectory(at: resources, withIntermediateDirectories: true)
 let output = resources.appendingPathComponent("AppIcon.icns")
 let process = Process()

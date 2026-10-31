@@ -59,6 +59,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func applicationWillFinishLaunching(_ notification: Notification) {
         // Behave like a regular app when launched as a bare executable (`swift run`).
         NSApp.setActivationPolicy(.regular)
+        // A bare executable has no Info.plist icon, so the Dock would show the generic "exec" one.
+        if Bundle.main.bundleURL.pathExtension != "app",
+           let url = Bundle.module.url(forResource: "AppIcon", withExtension: "icns"), let icon = NSImage(contentsOf: url) {
+            NSApp.applicationIconImage = icon
+        }
         // Tabs live inside the window; macOS window tabs would be a second, competing kind.
         NSWindow.allowsAutomaticWindowTabbing = false
     }
