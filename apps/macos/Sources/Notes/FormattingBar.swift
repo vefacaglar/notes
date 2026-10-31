@@ -21,8 +21,8 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
                     .buttonStyle(BarButtonStyle(active: editor.isOutlineShown))
                     .labelStyle(.iconOnly)
             }
-            .padding(.horizontal, 8)
-            .frame(height: 32)
+            .padding(.horizontal, 10)
+            .frame(height: 36)
             .modifier(CapsuleBackground())
         }
     }
@@ -79,13 +79,14 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
     }
 }
 
-/// Before macOS 26 toolbar items have no glass of their own: give the group its capsule.
+/// The group's own capsule: glass from macOS 26 (a custom principal item gets none from the toolbar), a material before.
 private struct CapsuleBackground: ViewModifier {
     func body(content: Content) -> some View {
         if #available(macOS 26, *) {
-            content
+            content.glassEffect(.regular, in: Capsule())
         } else {
-            content.background(.quaternary.opacity(0.6), in: Capsule())
+            content.background(.regularMaterial, in: Capsule())
+                .overlay(Capsule().strokeBorder(Color.primary.opacity(0.1)))
         }
     }
 }
@@ -96,9 +97,9 @@ private struct BarButtonStyle: ButtonStyle {
 
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
-            .font(.system(size: 13))
+            .font(.system(size: 14))
             .foregroundStyle(active ? .primary : .secondary)
-            .frame(width: 26, height: 24)
+            .frame(width: 30, height: 28)
             .background(Color.primary.opacity(configuration.isPressed ? 0.14 : active ? 0.1 : 0), in: Capsule())
             .contentShape(Capsule())
             .opacity(isEnabled ? 1 : 0.5)

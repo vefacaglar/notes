@@ -42,6 +42,7 @@ struct WorkspaceView: View {
                 }
             }
             if workspace.isMain {
+                if #available(macOS 26, *) { ToolbarSpacer(.flexible, placement: .primaryAction) }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button(action: workspace.newNote) { Label(loc: "New Note", systemImage: "square.and.pencil") }
                     Button(action: workspace.newFolder) { Label(loc: "New Folder", systemImage: "folder.badge.plus") }
@@ -52,6 +53,7 @@ struct WorkspaceView: View {
                 }
             }
         }
+        .modifier(HiddenToolbarTitle())
         .errorAlert($workspace.errorMessage)
         .sheet(isPresented: $workspace.isQuickOpenVisible) { QuickOpenView(workspace: workspace, model: model) }
         .focusedSceneValue(\.workspace, workspace)
@@ -333,5 +335,16 @@ struct OutlineButton: View {
                     editor.reveal(location: heading.location)
                 }
             }
+    }
+}
+
+/// The title stays the window's name (Window menu, Mission Control) but is not drawn: the tab shows it.
+private struct HiddenToolbarTitle: ViewModifier {
+    func body(content: Content) -> some View {
+        if #available(macOS 15, *) {
+            content.toolbar(removing: .title)
+        } else {
+            content
+        }
     }
 }
