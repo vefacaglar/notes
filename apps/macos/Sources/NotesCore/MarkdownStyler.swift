@@ -26,6 +26,10 @@ public struct MarkdownSpan: Hashable, Sendable {
         /// The text of a `[[Note name]]` wiki link (alias and heading included); `target` is the note name.
         case wikiLink(target: String)
         case horizontalRule
+        /// The header row of a pipe table (its pipes and the delimiter row are `.marker`).
+        case tableHeader
+        /// Pipes and the delimiter row of a pipe table: dimmed like markers but never hidden, so the columns stay put.
+        case tableMarker
     }
 
     /// UTF-16 range, directly usable with `NSString` / `NSTextStorage`.
@@ -142,12 +146,29 @@ private struct Scanner {
                 fence = (open.char, open.count, spans.count)
                 add(lineStart, end, .codeBlock)
                 add(lineStart, end, .marker)
+            } else if let rows = MarkdownTable.rows(in: s, at: lineStart) {
+                table(rows)
+                lineStart = rows[rows.count - 1].next
+                continue
             } else {
                 line(lineStart, end)
             }
             lineStart = next + 1
         }
         if let open = fence { closeFence(open.spanIndex, s.count) }
+    }
+
+    private mutating func table(_ rows: [MarkdownTable.Row]) {
+        for (index, row) in rows.enumerated() {
+            if index == 1 {
+                add(row.first, row.end, .tableMarker)
+                continue
+            }
+            if index == 0 { addInline(row.first, row.end, .tableHeader) }
+            for pipe in row.pipes { addInline(pipe, pipe + 1, .tableMarker) }
+            for cell in row.cells { inline(cell.location, NSMaxRange(cell)) }
+            flushInline()
+        }
     }
 
     private mutating func closeFence(_ index: Int, _ end: Int) {

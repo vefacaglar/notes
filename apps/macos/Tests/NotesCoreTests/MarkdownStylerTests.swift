@@ -228,4 +228,18 @@ struct MarkdownStylerTests {
         // Generous bound so debug builds pass too; release is far below this.
         #expect(elapsed < .milliseconds(500))
     }
+
+    @Test func tables() {
+        expectStyled("| Ad | **Şehir** |\n| :-- | --: |\n| 🎉 | `a|b` |", [
+            ("| Ad | **Şehir** |", .tableHeader), ("|", .tableMarker), ("|", .tableMarker),
+            ("**", .marker), ("Şehir", .bold), ("**", .marker), ("|", .tableMarker),
+            ("| :-- | --: |", .tableMarker),
+            ("|", .tableMarker), ("|", .tableMarker),
+            ("`", .marker), ("a|b", .inlineCode), ("`", .marker), ("|", .tableMarker),
+        ])
+    }
+
+    @Test func notATableWithoutDelimiterRow() {
+        expectStyled("a | b\n---", [("---", .horizontalRule)])
+    }
 }

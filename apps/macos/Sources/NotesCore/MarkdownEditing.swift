@@ -161,7 +161,7 @@ public enum MarkdownEditing {
     // MARK: Line parsing
 
     /// Range of the line holding `location`, without its LF (lines end at LF only, like the scanner).
-    private static func lineBounds(at location: Int, in ns: NSString) -> (start: Int, end: Int) {
+    static func lineBounds(at location: Int, in ns: NSString) -> (start: Int, end: Int) {
         var start = min(max(location, 0), ns.length), end = start
         while start > 0 && ns.character(at: start - 1) != 0x0A { start -= 1 }
         while end < ns.length && ns.character(at: end) != 0x0A { end += 1 }

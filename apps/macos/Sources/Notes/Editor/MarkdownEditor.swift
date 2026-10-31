@@ -61,6 +61,7 @@ struct MarkdownEditor: NSViewRepresentable {
         }
         proxy?.textView = textView
         proxy?.language = .markdown
+        textView.onSelectionChange = { [weak proxy] in proxy?.refreshFormat() }
 
         let scrollView = textView.embeddedInScrollView()
         coordinator.observeScrolling(of: scrollView, textView: textView)
@@ -202,6 +203,7 @@ struct MarkdownEditor: NSViewRepresentable {
         }
 
         override func selectionDidChange(in textView: NSTextView) {
+            (textView as? MarkdownTextView)?.onSelectionChange?()
             // An edit is followed by a restyle, which takes care of focus mode.
             if focusMode, pendingEdit == nil, !needsFullRestyle {
                 updateFocus(in: textView)
@@ -477,7 +479,9 @@ struct MarkdownEditor: NSViewRepresentable {
         private func style(_ kind: MarkdownSpan.Kind, in range: NSRange, of storage: NSTextStorage) {
             let colors = palette.colors
             switch kind {
-            case .marker, .horizontalRule:
+            case .tableHeader:
+                addTraits(.boldFontMask, to: storage, in: range)
+            case .marker, .horizontalRule, .tableMarker:
                 storage.addAttribute(.foregroundColor, value: colors.marker.nsColor, range: range)
             case .heading(let level):
                 let size = (palette.textFont.pointSize * Self.headingScale[min(max(level, 1), 6) - 1]).rounded()
@@ -646,6 +650,7 @@ final class MarkdownTextView: EditorTextView {
     /// True while a click or drag selection is being tracked.
     private(set) var isTrackingMouse = false
     var onMouseUp: (() -> Void)?
+    var onSelectionChange: (() -> Void)?
     var onOpenLink: ((String) -> Void)?
     /// The note's file (nil for a draft): where relative images are found and pasted images are saved.
     var noteURL: URL?
@@ -927,7 +932,8 @@ final class MarkdownTextView: EditorTextView {
 
     /// Return continues lists and quotes; see `MarkdownEditing.newline`.
     override func insertNewline(_ sender: Any?) {
-        if !hasMarkedText(), let edit = MarkdownEditing.newline(in: string, selection: selectedRange()) {
+        if !hasMarkedText(), let edit = MarkdownTable.newline(in: string, selection: selectedRange())
+            ?? MarkdownEditing.newline(in: string, selection: selectedRange()) {
             apply(edit)
         } else {
             super.insertNewline(sender)
@@ -936,7 +942,8 @@ final class MarkdownTextView: EditorTextView {
 
     /// Tab and Shift-Tab indent and outdent list items; anywhere else they act as before.
     override func insertTab(_ sender: Any?) {
-        if !hasMarkedText(), let edit = MarkdownEditing.indent(in: string, selection: selectedRange(), outdent: false) {
+        if !hasMarkedText(), let edit = MarkdownTable.tab(in: string, selection: selectedRange(), backward: false)
+            ?? MarkdownEditing.indent(in: string, selection: selectedRange(), outdent: false) {
             apply(edit)
         } else {
             super.insertTab(sender)
@@ -944,7 +951,8 @@ final class MarkdownTextView: EditorTextView {
     }
 
     override func insertBacktab(_ sender: Any?) {
-        if !hasMarkedText(), let edit = MarkdownEditing.indent(in: string, selection: selectedRange(), outdent: true) {
+        if !hasMarkedText(), let edit = MarkdownTable.tab(in: string, selection: selectedRange(), backward: true)
+            ?? MarkdownEditing.indent(in: string, selection: selectedRange(), outdent: true) {
             apply(edit)
         } else {
             super.insertBacktab(sender)
@@ -957,36 +965,13 @@ final class MarkdownTextView: EditorTextView {
             return super.performKeyEquivalent(with: event)
         }
         switch event.charactersIgnoringModifiers {
-        case "b": toggleWrap("**"); return true
-        case "i": toggleWrap("*"); return true
+        case "b" where isEditable: if let edit = MarkdownEditing.toggleInline(.bold, in: string, selection: selectedRange()) { apply(edit) }; return true
+        case "i" where isEditable: if let edit = MarkdownEditing.toggleInline(.italic, in: string, selection: selectedRange()) { apply(edit) }; return true
         case "k" where isEditable:
             if let edit = MarkdownEditing.link(in: string, selection: selectedRange()) { apply(edit) }
             return true
         default: return super.performKeyEquivalent(with: event)
         }
-    }
-
-    /// Wraps the selection in `marker`, or unwraps it when it is already wrapped.
-    private func toggleWrap(_ marker: String) {
-        let ns = string as NSString
-        let selection = selectedRange()
-        let m = (marker as NSString).length
-        let outer = NSRange(location: selection.location - m, length: selection.length + 2 * m)
-        if outer.location >= 0, NSMaxRange(outer) <= ns.length,
-           ns.substring(with: NSRange(location: outer.location, length: m)) == marker,
-           ns.substring(with: NSRange(location: NSMaxRange(selection), length: m)) == marker {
-            replace(outer, with: ns.substring(with: selection), select: NSRange(location: outer.location, length: selection.length))
-        } else {
-            let inner = ns.substring(with: selection)
-            replace(selection, with: marker + inner + marker, select: NSRange(location: selection.location + m, length: selection.length))
-        }
-    }
-
-    private func replace(_ range: NSRange, with text: String, select: NSRange) {
-        guard shouldChangeText(in: range, replacementString: text) else { return }
-        textStorage?.replaceCharacters(in: range, with: text)
-        didChangeText()
-        setSelectedRange(select)
     }
 }
 

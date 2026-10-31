@@ -41,12 +41,17 @@ struct NoteEditorView: View {
                 .padding(.horizontal, 12)
                 .padding(.top, 8)
             }
+            if language == .markdown, settings.showFormattingBar {
+                FormattingBar(editor: editor, isReadOnly: document.isReadOnly) { outlineButton }
+            }
             Group {
                 if language == .markdown {
                     MarkdownEditor(text: $document.text, style: style, showsSource: showsSource, focusOnAppear: focusOnAppear,
                                    proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly, onOpenLink: onOpenLink,
                                    noteURL: document.isDraft ? nil : document.url, focusMode: settings.focusMode)
-                        .overlay(alignment: .topTrailing) { outlineButton }
+                        .overlay(alignment: .topTrailing) {
+                            if !settings.showFormattingBar { outlineButton.padding(.top, 6).padding(.trailing, 16) }
+                        }
                 } else {
                     CodeEditor(text: $document.text, language: language, style: style, focusOnAppear: focusOnAppear, proxy: editor,
                                undoManager: document.undoManager, isEditable: !document.isReadOnly)
@@ -57,6 +62,7 @@ struct NoteEditorView: View {
         .focusedSceneValue(\.textEditor, language.canFormat && !document.isReadOnly ? editor : nil)
         .focusedSceneValue(\.markdownEditor, language == .markdown ? editor : nil)
         .onAppear { document.attach(editor) }
+        .onChange(of: document.isReadOnly, initial: true) { _, readOnly in editor.isReadOnly = readOnly }
     }
 
     /// Markdown only: opens the list of headings (⌃⌘O), small and out of the text's way in the top-right corner.
@@ -65,8 +71,6 @@ struct NoteEditorView: View {
             .buttonStyle(.borderless)
             .controlSize(.small)
             .foregroundStyle(.secondary)
-            .padding(.top, 6)
-            .padding(.trailing, 16)
             .help(loc: "Outline (⌃⌘O)")
             .popover(isPresented: Bindable(editor).isOutlineShown, arrowEdge: .bottom) {
                 OutlineView(text: document.text) { heading in

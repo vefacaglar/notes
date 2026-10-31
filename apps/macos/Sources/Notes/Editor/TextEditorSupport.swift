@@ -36,6 +36,10 @@ extension NSTextView {
     /// Applies `edit` as one undoable step, then places the selection if the edit says where it goes.
     func apply(_ edit: TextEdit) {
         guard isEditable, let storage = textStorage, NSMaxRange(edit.range) <= storage.length else { return }
+        if edit.range.length == 0, edit.replacement.isEmpty {
+            if let selection = edit.selection { setSelectedRange(selection); scrollRangeToVisible(selection) }
+            return
+        }
         breakUndoCoalescing()
         guard shouldChangeText(in: edit.range, replacementString: edit.replacement) else { return }
         storage.replaceCharacters(in: edit.range, with: edit.replacement)
@@ -235,8 +239,39 @@ final class TextEditorProxy {
     @ObservationIgnored var language: CodeLanguage = .plainText
     /// Markdown only: whether the outline popover is open.
     var isOutlineShown = false
+    /// Markdown only: whether the table size picker of the formatting bar is open.
+    var isTablePickerShown = false
+    /// Mirrors the document's read-only state, so menus can disable themselves.
+    var isReadOnly = false
 
     var canFormat: Bool { language.canFormat }
+
+    /// Markdown only: the styles at the caret, for the formatting bar.
+    private(set) var activeFormat = ActiveFormat()
+
+    func refreshFormat() {
+        guard language == .markdown, let textView else { return }
+        let format = MarkdownEditing.activeFormat(in: textView.string, selection: textView.selectedRange())
+        if format != activeFormat { activeFormat = format }
+    }
+
+    /// Runs a Markdown formatting action on the text view as one undo step; beeps when it does not apply.
+    private func perform(_ make: (String, NSRange) -> TextEdit?) {
+        guard language == .markdown, let textView, textView.isEditable else { return }
+        guard let edit = make(textView.string, textView.selectedRange()) else { NSSound.beep(); return }
+        textView.apply(edit)
+        textView.window?.makeFirstResponder(textView)
+        refreshFormat()
+    }
+
+    func toggle(_ style: InlineStyle) { perform { MarkdownEditing.toggleInline(style, in: $0, selection: $1) } }
+    func apply(_ style: LineStyle) { perform { MarkdownEditing.apply(style, in: $0, selection: $1) } }
+    func insertLink() { perform { MarkdownEditing.link(in: $0, selection: $1) } }
+    func insertCodeBlock() { perform { MarkdownEditing.codeBlock(in: $0, selection: $1) } }
+    func insertRule() { perform { MarkdownEditing.horizontalRule(in: $0, selection: $1) } }
+    func insertTable(rows: Int, columns: Int) { perform { MarkdownTable.insert(rows: rows, columns: columns, in: $0, selection: $1) } }
+    func convertToTable() { perform { MarkdownTable.convertSelection(in: $0, selection: $1) } }
+    func tableCommand(_ command: TableCommand) { perform { MarkdownTable.perform(command, in: $0, selection: $1) } }
 
     /// Opens or closes the outline of the headings (Markdown only).
     func toggleOutline() {

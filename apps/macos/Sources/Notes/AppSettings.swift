@@ -45,6 +45,8 @@ final class AppSettings {
     /// View > Zoom: the editor font scale, 0.5 to 3.0 in steps of 0.1.
     var zoom: Double { didSet { save(zoom, .zoom) } }
     var showStatusBar: Bool { didSet { save(showStatusBar, .showStatusBar) } }
+    /// The formatting bar above the Markdown editor.
+    var showFormattingBar: Bool { didSet { save(showFormattingBar, .showFormattingBar) } }
     var lineSpacing: Double { didSet { save(lineSpacing, .lineSpacing) } }
     var limitLineWidth: Bool { didSet { save(limitLineWidth, .limitLineWidth) } }
     var markerStyle: MarkerStyle { didSet { save(markerStyle.rawValue, .markerStyle) } }
@@ -93,6 +95,7 @@ final class AppSettings {
             zoom = 1
         }
         showStatusBar = bool(.showStatusBar, true)
+        showFormattingBar = bool(.showFormattingBar, true)
         if let spacing = defaults.object(forKey: Key.lineSpacing.name) as? Double, spacing.isFinite {
             lineSpacing = min(max(spacing, Self.lineSpacingRange.lowerBound), Self.lineSpacingRange.upperBound)
         } else {
@@ -199,7 +202,7 @@ final class AppSettings {
     private enum Key: String {
         case appearanceMode, lightThemeID, darkThemeID, textFont, codeFont, lineSpacing, limitLineWidth, markerStyle
         case spellCheck, codeLineNumbers, codeWrap, restoreTabs, sidebarSort, showNonMarkdownFiles, autoNaming
-        case showSidebarPreview, zoom, showStatusBar, focusMode
+        case showSidebarPreview, zoom, showStatusBar, showFormattingBar, focusMode
 
         var name: String { "settings." + rawValue }
     }
