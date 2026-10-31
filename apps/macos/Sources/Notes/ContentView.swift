@@ -6,6 +6,7 @@ struct WorkspaceView: View {
     @Bindable var workspace: Workspace
     let model: NotesModel
     @Environment(AppSettings.self) private var settings
+    @State private var detailFrame: ClosedRange<CGFloat> = 0...0
 
     var body: some View {
         NavigationSplitView(columnVisibility: sidebarVisibility) {
@@ -18,6 +19,8 @@ struct WorkspaceView: View {
             }
             // On the column, not the editor, so it stays up whatever happens to the editor.
             .errorAlert(documentError)
+            .onGeometryChange(for: ClosedRange<CGFloat>.self) { $0.frame(in: .global).minX...$0.frame(in: .global).maxX }
+                action: { detailFrame = $0 }
         }
         .appFont()
         .navigationTitle(title)
@@ -26,7 +29,8 @@ struct WorkspaceView: View {
                 let document = tab.document
                 let language = document.language
                 if language == .markdown, settings.showFormattingBar {
-                    FormattingToolbar(editor: tab.editor, isReadOnly: document.isReadOnly) {
+                    FormattingToolbar(editor: tab.editor, isReadOnly: document.isReadOnly, column: detailFrame,
+                                      trailingRoom: workspace.isMain ? 105 : 8) {
                         OutlineButton(editor: tab.editor, document: document)
                     }
                 }
@@ -42,7 +46,6 @@ struct WorkspaceView: View {
                 }
             }
             if workspace.isMain {
-                if #available(macOS 26, *) { ToolbarSpacer(.flexible, placement: .primaryAction) }
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button(action: workspace.newNote) { Label(loc: "New Note", systemImage: "square.and.pencil") }
                     Button(action: workspace.newFolder) { Label(loc: "New Folder", systemImage: "folder.badge.plus") }
@@ -53,7 +56,6 @@ struct WorkspaceView: View {
                 }
             }
         }
-        .modifier(HiddenToolbarTitle())
         .errorAlert($workspace.errorMessage)
         .sheet(isPresented: $workspace.isQuickOpenVisible) { QuickOpenView(workspace: workspace, model: model) }
         .focusedSceneValue(\.workspace, workspace)
@@ -190,6 +192,9 @@ private struct WindowBridge: NSViewRepresentable {
             workspace.window = window
             window.isRestorable = workspace.isMain && LaunchOptions.isPersistent
             window.tabbingMode = .disallowed
+            // The title keeps naming the window and keeps the toolbar's items at its right end, but is not drawn:
+            // the tab shows it. (Removing it from the toolbar would line all items up on the left.)
+            window.titleVisibility = .hidden
             if let frame = workspace.pendingFrame {
                 workspace.pendingFrame = nil
                 window.setFrame(frame, display: true)
@@ -335,16 +340,5 @@ struct OutlineButton: View {
                     editor.reveal(location: heading.location)
                 }
             }
-    }
-}
-
-/// The title stays the window's name (Window menu, Mission Control) but is not drawn: the tab shows it.
-private struct HiddenToolbarTitle: ViewModifier {
-    func body(content: Content) -> some View {
-        if #available(macOS 15, *) {
-            content.toolbar(removing: .title)
-        } else {
-            content
-        }
     }
 }

@@ -6,13 +6,18 @@ import SwiftUI
 struct FormattingToolbar<Trailing: View>: ToolbarContent {
     let editor: TextEditorProxy
     let isReadOnly: Bool
+    /// The editor column (window coordinates): the capsule is centered over it.
+    var column: ClosedRange<CGFloat> = 0...0
+    /// Room the items after this one (the folder actions) take at the column's right end.
+    var trailingRoom: CGFloat = 0
     /// The outline button, last in the group.
     @ViewBuilder var trailing: Trailing
 
     var body: some ToolbarContent {
         let format = editor.activeFormat
-        // One item in the middle of the toolbar, so the controls share one rounded (capsule) background.
-        ToolbarItem(placement: .principal) {
+        // One item, so the controls share one rounded (capsule) background. Not `.principal`: that pulls the
+        // folder actions next to it instead of leaving them at the window's edge.
+        ToolbarItem {
             HStack(spacing: 2) {
                 HStack(spacing: 2) { formatting(format) }
                     .disabled(isReadOnly)
@@ -24,6 +29,7 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
             .padding(.horizontal, 10)
             .frame(height: 36)
             .modifier(CapsuleBackground())
+            .modifier(CenteredOverColumn(column: column, trailingRoom: trailingRoom))
         }
     }
 
@@ -76,6 +82,21 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
         Button(action: action) { Image(systemName: symbol) }
             .buttonStyle(BarButtonStyle(active: active))
             .help(loc: key)
+    }
+}
+
+/// The toolbar lines its items up at its right end, so this item ends `trailingRoom` before the column's end; empty
+/// room after the content moves the content to the middle of the column.
+private struct CenteredOverColumn: ViewModifier {
+    let column: ClosedRange<CGFloat>
+    let trailingRoom: CGFloat
+    @State private var contentWidth: CGFloat = 0
+
+    func body(content: Content) -> some View {
+        let center = (column.lowerBound + column.upperBound) / 2
+        content
+            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { contentWidth = $0 }
+            .padding(.trailing, max(0, column.upperBound - trailingRoom - center - contentWidth / 2))
     }
 }
 
