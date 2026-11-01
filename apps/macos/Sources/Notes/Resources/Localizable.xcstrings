@@ -2895,6 +2895,40 @@
         }
       }
     },
+    "Reading Mode": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading Mode"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okuma Modu"
+          }
+        }
+      }
+    },
+    "Reading Mode (⇧⌘E)": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Reading Mode (⇧⌘E)"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Okuma Modu (⇧⌘E)"
+          }
+        }
+      }
+    },
     "Reload Themes": {
       "extractionState": "manual",
       "localizations": {

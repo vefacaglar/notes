@@ -105,9 +105,11 @@ struct MarkdownEditor: NSViewRepresentable {
         /// Running maximum of the spans' ends, so the first span that can reach a location is found by bisection
         /// (spans are sorted by start, except a heading's closing `###`, which comes before the inline spans).
         private var spanReach: [Int] = []
-        /// The lines (through their line break) whose markers stay visible while markers are hidden elsewhere:
-        /// the lines with the cursor or selection. nil when markers are not hidden.
+        /// The lines (through their line break) with the cursor or selection, where markers can be shown while they
+        /// are hidden elsewhere (see `shownMarkers`). nil when markers are not hidden.
         private var revealed: NSRange?
+        /// The hidden-elsewhere markers that are shown, all inside `revealed`; see `markers(shownBy:within:string:)`.
+        private var shownMarkers: Set<NSRange> = []
         /// The image lines of the current text (empty in source mode and for plain-text fallbacks).
         private var imageSlots: [InlineImageSlot] = []
         private var focusMode = false
@@ -122,7 +124,8 @@ struct MarkdownEditor: NSViewRepresentable {
             super.init(text: text, undoManager: undoManager)
         }
 
-        private var hidesMarkers: Bool { palette.style.markerStyle == .hidden && !showsSource }
+        /// Reading mode hides the markers whatever the marker style, and never shows them at the cursor.
+        private var hidesMarkers: Bool { (palette.style.markerStyle == .hidden || palette.style.reading) && !showsSource }
         private var base: [NSAttributedString.Key: Any] { showsSource ? palette.codeBase : palette.markdownBase }
 
         /// Applies a new style or source mode by restyling in place: the text, selection and undo stack stay.
@@ -162,6 +165,7 @@ struct MarkdownEditor: NSViewRepresentable {
                 spans = []
                 spanReach = []
                 revealed = nil
+                shownMarkers = []
                 pendingEdit = nil
                 needsFullRestyle = false
                 textView.typingAttributes = base
@@ -199,6 +203,7 @@ struct MarkdownEditor: NSViewRepresentable {
             pendingEdit = nil
             needsFullRestyle = false
             revealed = reveal
+            shownMarkers = reveal.map { markers(shownBy: textView.selectedRanges.map(\.rangeValue), within: $0, string: storage.mutableString) } ?? []
 
             storage.beginEditing()
             for target in Self.merged(targets) { apply(in: target, to: storage) }
@@ -223,22 +228,20 @@ struct MarkdownEditor: NSViewRepresentable {
             selectionSettled(in: textView)
         }
 
-        /// Re-hides the markers of the lines the cursor left and reveals those of the lines it is on now. Only the
-        /// lines that entered or left the revealed range and hold a hideable marker are touched.
+        /// Re-hides the markers the cursor left and shows those it touches now. Only the lines of the markers that
+        /// changed are restyled.
         func selectionSettled(in textView: NSTextView) {
             // During an edit the restyle that follows it takes care of this.
             guard hidesMarkers, pendingEdit == nil, !needsFullRestyle, !textView.hasMarkedText(),
                   let storage = textView.textStorage, storage.length <= Self.maxStyledLength else { return }
             let string = storage.mutableString
             let reveal = revealRange(in: textView, string: string)
-            guard reveal != revealed else { return }
-            var changed = [reveal]
-            if let old = revealed, NSMaxRange(old) <= storage.length {
-                changed = RangeMath.symmetricDifference(reveal, old)
-            }
+            let shown = markers(shownBy: textView.selectedRanges.map(\.rangeValue), within: reveal, string: string)
             revealed = reveal
-            // Code blocks never hide markers (fences stay visible), and restyling them would redo their highlighting.
-            let lines = Self.merged(markerLines(in: RangeMath.subtract(changed, removing: codeBlocks), string: string))
+            guard shown != shownMarkers else { return }
+            let changed = shown.symmetricDifference(shownMarkers).filter { NSMaxRange($0) <= storage.length }
+            shownMarkers = shown
+            let lines = Self.merged(changed.map { RangeMath.lineRange($0, in: string) })
             guard !lines.isEmpty else { return }
             storage.beginEditing()
             for line in Self.coalesced(lines) { apply(in: line, to: storage) }
@@ -431,23 +434,42 @@ struct MarkdownEditor: NSViewRepresentable {
             return RangeMath.lineRange(NSRange(location: start, length: end - start), in: string)
         }
 
-        /// The lines inside `ranges` (line-aligned) that contain a marker which is hidden while not revealed.
-        private func markerLines(in ranges: [NSRange], string: NSString) -> [NSRange] {
-            var lines: [NSRange] = []
-            var coveredEnd = 0
-            for range in ranges {
-                var k = RangeMath.firstIndex(in: spanReach, endingAfter: range.location)
-                while k < spans.count, spans[k].range.location < NSMaxRange(range) {
-                    let span = spans[k]
-                    k += 1
-                    guard span.kind == .marker, span.range.location >= coveredEnd, NSIntersectionRange(span.range, range).length > 0,
-                          !Self.isQuoteMarker(span.range, in: string) else { continue }
-                    let line = RangeMath.lineRange(span.range, in: string)
-                    lines.append(line)
-                    coveredEnd = NSMaxRange(line)
+        /// The hideable markers inside `lines` that stay visible: those a selection touches (either end counts), and
+        /// both delimiters of an emphasis, code span or link whose text or delimiters a selection touches, so a pair
+        /// shows together. A heading's `#`s show when the cursor is next to them, not anywhere on the line; fences
+        /// when it is on the fence line. None in reading mode.
+        private func markers(shownBy selections: [NSRange], within lines: NSRange, string: NSString) -> Set<NSRange> {
+            guard !palette.style.reading else { return [] }
+            func touched(_ r: NSRange) -> Bool {
+                selections.contains { r.location <= NSMaxRange($0) && $0.location <= NSMaxRange(r) }
+            }
+            var markers: [NSRange] = [], elements: [NSRange] = []
+            var k = RangeMath.firstIndex(in: spanReach, endingAfter: lines.location)
+            while k < spans.count, spans[k].range.location < NSMaxRange(lines) {
+                let span = spans[k]
+                k += 1
+                guard span.range.location >= lines.location, NSMaxRange(span.range) <= NSMaxRange(lines) else { continue }
+                switch span.kind {
+                case .marker where !Self.isQuoteMarker(span.range, in: string): markers.append(span.range)
+                case .bold, .italic, .boldItalic, .strikethrough, .inlineCode, .link, .wikiLink: elements.append(span.range)
+                default: break
                 }
             }
-            return lines
+            var shown = Set(markers.filter(touched))
+            guard !elements.isEmpty else { return shown }
+            var byEnd: [Int: NSRange] = [:], byStart: [Int: NSRange] = [:]
+            for marker in markers {
+                byEnd[NSMaxRange(marker)] = marker
+                byStart[marker.location] = marker
+            }
+            for element in elements {
+                // Both or none: a bare URL has no delimiters of its own, and a heading's `#` before it is not one.
+                guard let open = byEnd[element.location], let close = byStart[NSMaxRange(element)],
+                      touched(NSUnionRange(open, close)) else { continue }
+                shown.insert(open)
+                shown.insert(close)
+            }
+            return shown
         }
 
         private static func reach(of spans: [MarkdownSpan]) -> [Int] {
@@ -463,22 +485,16 @@ struct MarkdownEditor: NSViewRepresentable {
         private func apply(in target: NSRange, to storage: NSTextStorage) {
             storage.setAttributes(base, range: target)
             let string = storage.mutableString
-            var block: NSRange?
             var k = RangeMath.firstIndex(in: spanReach, endingAfter: target.location)
             while k < spans.count {
                 let span = spans[k]
                 k += 1
                 if span.range.location >= NSMaxRange(target) { break }
-                if span.kind == .codeBlock { block = span.range }
                 let range = NSIntersectionRange(span.range, target)
                 guard range.length > 0 else { continue }
-                if span.kind == .marker {
-                    let isFence = block.map { NSLocationInRange(span.range.location, $0) } ?? false
-                    if hidesMarkers, !isFence, !Self.isQuoteMarker(span.range, in: string),
-                       NSIntersectionRange(span.range, revealed ?? NSRange()).length == 0 {
-                        storage.addAttributes(palette.hiddenMarker, range: range)
-                        continue
-                    }
+                if span.kind == .marker, hidesMarkers, !shownMarkers.contains(span.range), !Self.isQuoteMarker(span.range, in: string) {
+                    storage.addAttributes(palette.hiddenMarker, range: range)
+                    continue
                 }
                 style(span.kind, in: range, of: storage)
                 if span.kind == .codeBlock { highlightCode(in: span.range, within: target, of: storage, string: string) }
@@ -610,7 +626,8 @@ struct MarkdownEditor: NSViewRepresentable {
 
         /// A range from before an edit, moved to post-edit coordinates and widened to whole lines.
         private static func shift(_ range: NSRange, by edit: (range: NSRange, delta: Int), length: Int, in text: String) -> NSRange {
-            var r = shift([range], by: edit)[0]
+            // A range that ends where the edit starts is before it (unlike a code block, which an edit at its end extends).
+            var r = NSMaxRange(range) <= edit.range.location ? range : shift([range], by: edit)[0]
             r.location = min(max(r.location, 0), length)
             r.length = min(max(r.length, 0), length - r.location)
             return MarkdownStyler.restyleRange(afterEditing: r, in: text)
@@ -1033,7 +1050,6 @@ final class MarkdownTextView: EditorTextView {
     }
 }
 
-
 // MARK: - Range helpers
 
 /// UTF-16 range arithmetic for the incremental restyling (pure, so it can be tested on its own).
@@ -1047,42 +1063,6 @@ enum RangeMath {
         while end < length && string.character(at: end) != 0x0A { end += 1 }
         if end < length { end += 1 }
         return NSRange(location: start, length: end - start)
-    }
-
-    /// The parts of `a` and `b` that are in only one of them, in ascending order.
-    static func symmetricDifference(_ a: NSRange, _ b: NSRange) -> [NSRange] {
-        (difference(a, b) + difference(b, a)).sorted { $0.location < $1.location }
-    }
-
-    /// `a` without `b`: zero, one or two ranges.
-    static func difference(_ a: NSRange, _ b: NSRange) -> [NSRange] {
-        let overlap = NSIntersectionRange(a, b)
-        guard overlap.length > 0 else { return a.length > 0 ? [a] : [] }
-        var result: [NSRange] = []
-        if overlap.location > a.location { result.append(NSRange(location: a.location, length: overlap.location - a.location)) }
-        if NSMaxRange(overlap) < NSMaxRange(a) { result.append(NSRange(location: NSMaxRange(overlap), length: NSMaxRange(a) - NSMaxRange(overlap))) }
-        return result
-    }
-
-    /// `ranges` (ascending) without `blocks` (ascending, disjoint).
-    static func subtract(_ ranges: [NSRange], removing blocks: [NSRange]) -> [NSRange] {
-        guard !blocks.isEmpty else { return ranges }
-        var result: [NSRange] = []
-        for range in ranges {
-            var rest = [range]
-            var lo = 0, hi = blocks.count
-            while lo < hi {
-                let mid = (lo + hi) / 2
-                if NSMaxRange(blocks[mid]) <= range.location { lo = mid + 1 } else { hi = mid }
-            }
-            var k = lo
-            while k < blocks.count, blocks[k].location < NSMaxRange(range) {
-                rest = rest.flatMap { difference($0, blocks[k]) }
-                k += 1
-            }
-            result += rest
-        }
-        return result
     }
 
     /// First index whose running maximum (`reach`, non-decreasing) is greater than `location`.

@@ -12,6 +12,8 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
     var trailingRoom: CGFloat = 0
     /// Markdown syntax shown (dimmed) or hidden away from the cursor line: the app's `markerStyle`.
     @Binding var showsSyntax: Bool
+    /// The app's reading mode; syntax is hidden then whatever `showsSyntax` says.
+    @Binding var reading: Bool
     /// The outline button, last in the group.
     @ViewBuilder var trailing: Trailing
 
@@ -24,7 +26,9 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
                 HStack(spacing: 2) { formatting(format) }
                     .disabled(isReadOnly)
                 separator
-                button("number", "Show Markdown Syntax (⇧⌘M)", active: showsSyntax) { showsSyntax.toggle() }
+                button("number", "Show Markdown Syntax (⇧⌘M)", active: showsSyntax && !reading) { showsSyntax.toggle() }
+                    .disabled(reading)
+                button("book", "Reading Mode (⇧⌘E)", active: reading) { reading.toggle() }
                 trailing
                     .buttonStyle(BarButtonStyle(active: editor.isOutlineShown))
                     .labelStyle(.iconOnly)
@@ -88,23 +92,30 @@ struct FormattingToolbar<Trailing: View>: ToolbarContent {
     }
 }
 
-/// The Format button of a code file (JSON…) in the toolbar, in its own capsule like the Markdown controls.
+/// The Format and Reading Mode buttons of a code file (JSON…) in the toolbar, in their own capsule like the Markdown
+/// controls.
 struct CodeFormatToolbar: ToolbarContent {
     let editor: TextEditorProxy
     let isReadOnly: Bool
     var column: ClosedRange<CGFloat> = 0...0
     var trailingRoom: CGFloat = 0
+    @Binding var reading: Bool
 
     var body: some ToolbarContent {
         ToolbarItem {
-            Button { editor.format() } label: { Label(loc: "Format", systemImage: "wand.and.stars").labelStyle(.iconOnly) }
-                .buttonStyle(BarButtonStyle(active: false))
-                .disabled(isReadOnly)
-                .help(loc: "Format (⇧⌥F)")
-                .padding(.horizontal, 10)
-                .frame(height: 36)
-                .modifier(CapsuleBackground())
-                .modifier(CenteredOverColumn(column: column, trailingRoom: trailingRoom))
+            HStack(spacing: 2) {
+                Button { editor.format() } label: { Label(loc: "Format", systemImage: "wand.and.stars").labelStyle(.iconOnly) }
+                    .buttonStyle(BarButtonStyle(active: false))
+                    .disabled(isReadOnly)
+                    .help(loc: "Format (⇧⌥F)")
+                Button { reading.toggle() } label: { Image(systemName: "book") }
+                    .buttonStyle(BarButtonStyle(active: reading))
+                    .help(loc: "Reading Mode (⇧⌘E)")
+            }
+            .padding(.horizontal, 10)
+            .frame(height: 36)
+            .modifier(CapsuleBackground())
+            .modifier(CenteredOverColumn(column: column, trailingRoom: trailingRoom))
         }
     }
 }

@@ -33,16 +33,17 @@ struct WorkspaceView: View {
                 let language = document.language
                 // A locked note has no text to format or outline.
                 if language == .markdown, settings.showFormattingBar, !document.isLocked {
-                    FormattingToolbar(editor: tab.editor, isReadOnly: document.isReadOnly, column: detailFrame,
-                                      trailingRoom: workspace.isMain ? 105 : 8,
+                    FormattingToolbar(editor: tab.editor, isReadOnly: document.isReadOnly || settings.readingMode,
+                                      column: detailFrame, trailingRoom: workspace.isMain ? 105 : 8,
                                       showsSyntax: Binding(get: { settings.markerStyle == .dimmed },
-                                                           set: { settings.markerStyle = $0 ? .dimmed : .hidden })) {
+                                                           set: { settings.markerStyle = $0 ? .dimmed : .hidden }),
+                                      reading: readingMode) {
                         OutlineButton(editor: tab.editor, document: document)
                     }
                 }
                 if language.canFormat, !document.isLocked {
-                    CodeFormatToolbar(editor: tab.editor, isReadOnly: document.isReadOnly, column: detailFrame,
-                                      trailingRoom: workspace.isMain ? 105 : 8)
+                    CodeFormatToolbar(editor: tab.editor, isReadOnly: document.isReadOnly || settings.readingMode,
+                                      column: detailFrame, trailingRoom: workspace.isMain ? 105 : 8, reading: readingMode)
                 }
                 if language == .markdown, !settings.showFormattingBar, !document.isLocked {
                     ToolbarItem { OutlineButton(editor: tab.editor, document: document) }
@@ -118,6 +119,10 @@ struct WorkspaceView: View {
             // Fills the column so the tab bar stays at the top instead of centring with the placeholder.
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private var readingMode: Binding<Bool> {
+        Binding(get: { settings.readingMode }, set: { settings.readingMode = $0 })
     }
 
     private var lockedBackground: Color {

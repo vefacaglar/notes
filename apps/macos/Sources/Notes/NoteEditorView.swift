@@ -29,23 +29,25 @@ struct NoteEditorView: View {
         let language = document.language
         let settings = environmentSettings ?? .shared
         let style = EditorStyle(settings: settings, colorScheme: colorScheme)
+        // Reading mode works like a read-only file, except that nothing tells the user why: they turned it on.
+        let isReadOnly = document.isReadOnly || settings.readingMode
         VStack(spacing: 0) {
             Group {
                 if language == .markdown {
                     MarkdownEditor(text: $document.text, style: style, showsSource: showsSource, focusOnAppear: focusOnAppear,
-                                   proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly, onOpenLink: onOpenLink,
+                                   proxy: editor, undoManager: document.undoManager, isEditable: !isReadOnly, onOpenLink: onOpenLink,
                                    noteURL: document.isDraft ? nil : document.url,
                                    allowsImageInsertion: !document.isEncrypted, focusMode: settings.focusMode)
                 } else {
                     CodeEditor(text: $document.text, language: language, style: style, focusOnAppear: focusOnAppear, proxy: editor,
-                               undoManager: document.undoManager, isEditable: !document.isReadOnly)
+                               undoManager: document.undoManager, isEditable: !isReadOnly)
                 }
             }
             .background(Color(nsColor: style.theme.colors.background.nsColor))
         }
-        .focusedSceneValue(\.textEditor, language.canFormat && !document.isReadOnly ? editor : nil)
+        .focusedSceneValue(\.textEditor, language.canFormat && !isReadOnly ? editor : nil)
         .focusedSceneValue(\.markdownEditor, language == .markdown ? editor : nil)
         .onAppear { document.attach(editor) }
-        .onChange(of: document.isReadOnly, initial: true) { _, readOnly in editor.isReadOnly = readOnly }
+        .onChange(of: isReadOnly, initial: true) { _, readOnly in editor.isReadOnly = readOnly }
     }
 }

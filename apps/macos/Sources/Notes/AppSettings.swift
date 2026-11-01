@@ -50,6 +50,8 @@ final class AppSettings {
     var lineSpacing: Double { didSet { save(lineSpacing, .lineSpacing) } }
     var limitLineWidth: Bool { didSet { save(limitLineWidth, .limitLineWidth) } }
     var markerStyle: MarkerStyle { didSet { save(markerStyle.rawValue, .markerStyle) } }
+    /// View > Reading Mode: no file can be edited, Markdown shows without its syntax.
+    var readingMode: Bool { didSet { save(readingMode, .readingMode) } }
     var spellCheck: Bool { didSet { save(spellCheck, .spellCheck) } }
     var codeLineNumbers: Bool { didSet { save(codeLineNumbers, .codeLineNumbers) } }
     var codeWrap: Bool { didSet { save(codeWrap, .codeWrap) } }
@@ -108,6 +110,7 @@ final class AppSettings {
         }
         limitLineWidth = bool(.limitLineWidth, false)
         markerStyle = string(.markerStyle).flatMap(MarkerStyle.init(rawValue:)) ?? .hidden
+        readingMode = bool(.readingMode, false)
         spellCheck = bool(.spellCheck, false)
         codeLineNumbers = bool(.codeLineNumbers, true)
         codeWrap = bool(.codeWrap, true)
@@ -211,7 +214,7 @@ final class AppSettings {
         case appearanceMode, lightThemeID, darkThemeID, textFont, codeFont, lineSpacing, limitLineWidth, markerStyle
         case spellCheck, codeLineNumbers, codeWrap, restoreTabs, sidebarSort, showNonMarkdownFiles, autoNaming
         case showSidebarPreview, zoom, showStatusBar, showFormattingBar, focusMode
-        case highlightCurrentLine, lockEncryptedAfterMinutes
+        case highlightCurrentLine, lockEncryptedAfterMinutes, readingMode
 
         var name: String { "settings." + rawValue }
     }

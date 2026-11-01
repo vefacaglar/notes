@@ -297,6 +297,8 @@ struct NotesCommands: Commands {
                 set: { settings.markerStyle = $0 ? .dimmed : .hidden }
             ))
             .keyboardShortcut("m", modifiers: [.command, .shift])
+            Toggle(loc: "Reading Mode", isOn: Binding(get: { settings.readingMode }, set: { settings.readingMode = $0 }))
+                .keyboardShortcut("e", modifiers: [.command, .shift])
             Toggle(loc: "Show Status Bar", isOn: Binding(get: { settings.showStatusBar }, set: { settings.showStatusBar = $0 }))
             Toggle(loc: "Show Formatting Bar", isOn: Binding(get: { settings.showFormattingBar }, set: { settings.showFormattingBar = $0 }))
             Divider()

@@ -15,6 +15,8 @@ struct EditorStyle: Equatable, Sendable {
     var codeLineNumbers: Bool
     var codeWrap: Bool
     var highlightCurrentLine: Bool
+    /// Reading mode: the text can't be edited, and Markdown syntax is hidden everywhere (the cursor shows none).
+    var reading = false
 
     static let standard = EditorStyle(
         theme: ThemeLibrary.baseTheme(for: .light), textFont: AppSettings.defaultTextFont, codeFont: AppSettings.defaultCodeFont,
@@ -23,7 +25,7 @@ struct EditorStyle: Equatable, Sendable {
     )
 
     init(theme: ResolvedTheme, textFont: FontChoice, codeFont: FontChoice, lineSpacing: Double, limitLineWidth: Bool,
-         markerStyle: MarkerStyle, spellCheck: Bool, codeLineNumbers: Bool, codeWrap: Bool, highlightCurrentLine: Bool) {
+         markerStyle: MarkerStyle, spellCheck: Bool, codeLineNumbers: Bool, codeWrap: Bool, highlightCurrentLine: Bool, reading: Bool = false) {
         self.theme = theme
         self.textFont = textFont
         self.codeFont = codeFont
@@ -34,6 +36,7 @@ struct EditorStyle: Equatable, Sendable {
         self.codeLineNumbers = codeLineNumbers
         self.codeWrap = codeWrap
         self.highlightCurrentLine = highlightCurrentLine
+        self.reading = reading
     }
 
     @MainActor
@@ -42,7 +45,7 @@ struct EditorStyle: Equatable, Sendable {
             theme: settings.resolvedTheme(for: colorScheme), textFont: settings.textFont, codeFont: settings.codeFont,
             lineSpacing: settings.lineSpacing, limitLineWidth: settings.limitLineWidth, markerStyle: settings.markerStyle,
             spellCheck: settings.spellCheck, codeLineNumbers: settings.codeLineNumbers, codeWrap: settings.codeWrap,
-            highlightCurrentLine: settings.highlightCurrentLine
+            highlightCurrentLine: settings.highlightCurrentLine, reading: settings.readingMode
         )
     }
 }
