@@ -275,3 +275,75 @@ struct ListingOptionsTests {
         #expect(NoteStore.isMarkdown(path) == expected)
     }
 }
+
+extension NoteStoreTests {
+    private func putBytes(_ path: String, _ data: Data) throws {
+        try data.write(to: root.appendingPathComponent(path))
+    }
+
+    @Test func encryptedNotesAreListedButNotNotes() throws {
+        try put("Secret.mdenc")
+        try put("a.md")
+        #expect(NoteStore.isListed("Secret.MDENC") && NoteStore.isMarkdown("Secret.mdenc"))
+        #expect(NoteStore.isEncrypted("Work/Secret.mdenc") && !NoteStore.isEncrypted("a.md"))
+        #expect(!NoteStore.isNote("Secret.mdenc"))
+        #expect(CodeLanguage(path: "Secret.mdenc") == .markdown)
+        #expect(store.tree().map(\.name) == ["a", "Secret"])
+        #expect(store.tree(ListingOptions(markdownOnly: true)).map(\.name) == ["a", "Secret"])
+        #expect(NoteStore.displayName("Work/Secret.mdenc") == "Secret")
+    }
+
+    @Test func searchFindsEncryptedNamesNotContent() throws {
+        try put("Gizli.mdenc", "needle in bytes")
+        try put("n.md", "needle")
+        #expect(store.search("needle").map(\.path) == ["n.md"])
+        #expect(store.search("gizli") == [SearchHit(path: "Gizli.mdenc", line: nil, snippet: nil)])
+        #expect(store.search("mdenc").isEmpty)
+    }
+
+    @Test func encryptedNoteHasNoPreview() throws {
+        try put("s.mdenc", "title\n\nbody text")
+        try put("s.md", "title\n\nbody text")
+        #expect(NoteStore.preview(ofFileAt: root.appendingPathComponent("s.mdenc")) == nil)
+        #expect(NoteStore.preview(ofFileAt: root.appendingPathComponent("s.md")) == "body text")
+    }
+
+    @Test func renameKeepsMdencExtension() throws {
+        try put("s.mdenc")
+        #expect(try store.rename("s.mdenc", to: "Yeni") == "Yeni.mdenc")
+        #expect(try store.rename("Yeni.mdenc", to: "Başka.mdenc") == "Başka.mdenc")
+        #expect(FileManager.default.fileExists(atPath: root.appendingPathComponent("Başka.mdenc").path))
+    }
+
+    @Test func renameNeverAddsOrRemovesMdenc() throws {
+        try put("todo.txt")
+        #expect(try store.rename("todo.txt", to: "todo.mdenc") == "todo.mdenc.txt")
+        try put("n.md")
+        #expect(try store.rename("n.md", to: "todo.mdenc") == "todo.mdenc.md")
+        try put("e.mdenc")
+        #expect(try store.rename("e.mdenc", to: "plain.md") == "plain.md.mdenc")
+        #expect(!NoteStore.isNote("plain.md.mdenc") && NoteStore.isEncrypted("plain.md.mdenc"))
+    }
+
+    @Test func conflictCopyAndDuplicateKeepExtension() throws {
+        try put("s.mdenc")
+        let url = root.appendingPathComponent("s.mdenc")
+        #expect(NoteStore.conflictCopyURL(for: url, language: .english).lastPathComponent == "s (conflict).mdenc")
+        let copy = try store.duplicate("s.mdenc")
+        #expect(copy.hasSuffix(".mdenc"))
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("F"), withIntermediateDirectories: true)
+        #expect(try store.move("s.mdenc", to: "F") == "F/s.mdenc")
+    }
+
+    @Test func uniqueEncryptedURL() throws {
+        try put("s.mdenc")
+        try FileManager.default.createDirectory(at: root.appendingPathComponent("F"), withIntermediateDirectories: true)
+        #expect(try store.uniqueEncryptedURL(named: "n").path == "n.mdenc")
+        #expect(try store.uniqueEncryptedURL(named: "s").path == "s 2.mdenc")
+        #expect(try store.uniqueEncryptedURL(named: "s.mdenc").path == "s 2.mdenc")
+        let inFolder = try store.uniqueEncryptedURL(named: "s", in: "F")
+        #expect(inFolder.path == "F/s.mdenc" && inFolder.url == root.appendingPathComponent("F/s.mdenc"))
+        #expect(throws: NoteStoreError.invalidName("a:b.mdenc")) { try store.uniqueEncryptedURL(named: "a:b") }
+        #expect(throws: NoteStoreError.self) { try store.uniqueEncryptedURL(named: "x", in: "Nope") }
+    }
+}

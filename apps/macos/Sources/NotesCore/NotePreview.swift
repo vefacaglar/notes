@@ -48,7 +48,7 @@ extension NoteStore {
 
     /// The preview of the file at `url`, reading only its first `previewBytes` bytes. `nil` when unreadable or empty.
     public static func preview(ofFileAt url: URL) -> String? {
-        guard let handle = try? FileHandle(forReadingFrom: url) else { return nil }
+        guard !isEncrypted(url.lastPathComponent), let handle = try? FileHandle(forReadingFrom: url) else { return nil }
         defer { try? handle.close() }
         guard var data = try? handle.read(upToCount: previewBytes), !data.isEmpty else { return nil }
         // The cut may fall inside a multi-byte character: drop up to three bytes of it.

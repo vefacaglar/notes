@@ -94,6 +94,11 @@ public enum NoteFile {
         normalized(try String(contentsOf: url.resolvingSymlinksInPath(), encoding: .utf8))
     }
 
+    /// The raw bytes of the file `url` points to (through links); for encrypted notes.
+    public static func readData(_ url: URL) throws -> Data {
+        try Data(contentsOf: url.resolvingSymlinksInPath())
+    }
+
     /// Writes `text` as UTF-8 without a BOM, atomically. An existing file is replaced through
     /// `FileManager.replaceItemAt`, which keeps its permissions, Finder tags and most extended attributes; the hidden
     /// flag is copied over. Not preserved: `com.apple.ResourceFork`, `com.apple.quarantine`, hard links (the path gets a
@@ -103,6 +108,12 @@ public enum NoteFile {
         try write(text, to: url, replacementFolder: itemReplacementFolder)
     }
 
+    /// Writes `data` as it is, through the same atomic path as the text `write` (replace, hidden flag, network share
+    /// fallback, broken links, `notWritable`).
+    public static func write(_ data: Data, to url: URL) throws {
+        try write(data, to: url, replacementFolder: itemReplacementFolder)
+    }
+
     static func itemReplacementFolder(for target: URL) throws -> URL {
         try FileManager.default.url(for: .itemReplacementDirectory, in: .userDomainMask, appropriateFor: target, create: true)
     }
@@ -110,12 +121,15 @@ public enum NoteFile {
     /// `replacementFolder` makes the private folder the temp file is written in; when it fails (network shares whose
     /// root is not writable), the temp file goes next to the target as a hidden, uniquely named file instead.
     static func write(_ text: String, to url: URL, replacementFolder: (URL) throws -> URL) throws {
+        try write(Data(normalized(text).utf8), to: url, replacementFolder: replacementFolder)
+    }
+
+    static func write(_ data: Data, to url: URL, replacementFolder: (URL) throws -> URL) throws {
         let fm = FileManager.default
         let target = url.resolvingSymlinksInPath()
         if !fm.fileExists(atPath: target.path), isLink(target) || isLink(url) {
             throw NoteFileError.brokenLink(path: target.path)
         }
-        let data = Data(normalized(text).utf8)
         do {
             guard fm.fileExists(atPath: target.path) else {
                 try data.write(to: target, options: .atomic)

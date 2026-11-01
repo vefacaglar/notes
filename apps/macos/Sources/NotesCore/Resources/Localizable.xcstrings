@@ -1242,6 +1242,57 @@
         }
       }
     },
+    "The password is wrong or the file is damaged.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The password is wrong or the file is damaged."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parola yanlış ya da dosya bozuk."
+          }
+        }
+      }
+    },
+    "This encrypted note is damaged.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This encrypted note is damaged."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu şifreli not bozuk."
+          }
+        }
+      }
+    },
+    "This encrypted note was made by a newer version of Notes.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This encrypted note was made by a newer version of Notes."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu şifreli not Notes'un daha yeni bir sürümüyle oluşturulmuş."
+          }
+        }
+      }
+    },
     "“%@” can't be saved because it is read-only or locked.": {
       "extractionState": "manual",
       "localizations": {

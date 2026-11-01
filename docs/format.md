@@ -6,6 +6,7 @@ The storage contract shared by the macOS and Windows apps. The folder on disk is
 
 - **Root**: a folder chosen by the user (macOS default: `~/Documents/Notes`, Windows default: `%USERPROFILE%\Documents\Notes`). Created if missing. An app may show several roots side by side (a workspace, like VS Code); each root follows this contract on its own, paths are relative to their root, and roots may not be nested inside one another. The list of roots is app preference, not stored in the folders.
 - **Notes**: every regular file whose extension is `md` (case-insensitive) is a note. The note's display name is the file name without the extension. Only notes are created by New Note and named automatically.
+- **Encrypted notes**: regular files whose extension is `mdenc` (case-insensitive) are password-protected Markdown notes (see *Encrypted notes*). Their display name is the file name without the extension. They are listed, opened in the Markdown editor once unlocked and shown with the Markdown-only filter, but they are not notes in the sense of the rules below: New Note does not create them and they are never named automatically. An app that does not implement *Encrypted notes* does not list them (they are ignored like unlisted files).
 - **Other text files**: regular files with one of these extensions (case-insensitive) are listed, searched and editable too, but are not notes: `json`, `swift`, `js` `mjs` `cjs` `jsx` `ts` `tsx` `mts` `cts`, `py`, `sh` `bash` `zsh`, `yaml` `yml`, `xml` `html` `htm` `plist` `svg`, `css`, `c` `h` `cc` `cpp` `hpp` `m` `mm` `java` `kt` `kts` `cs` `go` `rs`, `sql`, `toml` `ini`, `markdown` `mdown` `mkd`, `txt`, `log`, `csv`. They are shown with their full file name (extension included). Markdown files with the longer extensions open in the Markdown editor, the rest in a code editor with syntax highlighting; JSON can be reformatted ("Format"). They are never renamed automatically.
 - **Large files**: files over 20 MB open read-only; files over 200 MB are not opened. Sizes are checked again when a file is reloaded after an external change: past 200 MB the last text read stays on screen, read-only. Styling is skipped for texts over 2,000,000 UTF-16 code units.
 - **Read-only files**: a file the user may not write (permissions, locked item, a folder that refuses writes) opens read-only with a notice instead of failing every save. A symbolic link whose target is missing is not opened or written.
@@ -75,6 +76,49 @@ A new tab opens a draft: an unsaved note that lives only in the app until the us
 - Files are written atomically: write to a temporary file on the same volume, then replace the original in a way that keeps its metadata (`ReplaceFile` on Windows). On macOS permissions, Finder tags, most extended attributes and the hidden flag are kept; the resource fork (`com.apple.ResourceFork`), the quarantine attribute and hard links are not (the file gets a new inode). Where the private temporary folder can't be used (some network shares), the temporary file is a hidden `.<uuid>.tmp` next to the original. Symbolic links are followed: the link stays and its target is replaced; a link to a missing file is never written.
 - Markdown flavour: **CommonMark** plus the GitHub Flavored Markdown extensions **strikethrough** (`~~text~~`) and **task list items** (`- [ ]` / `- [x]`). Other syntax is kept verbatim as plain text.
 
+## Encrypted notes
+
+An encrypted note is one file in the notes folder, `<name>.mdenc`, holding a Markdown note encrypted with a password. Nothing else is stored anywhere: no key file, no password hint, no list of encrypted notes. The file name is not secret (it is shown locked); the content is.
+
+**File layout** (binary; integers big-endian; offsets in bytes):
+
+| Offset | Size | Field |
+| --- | --- | --- |
+| 0 | 8 | magic: ASCII `NOTESENC` |
+| 8 | 1 | format version: `1` |
+| 9 | 1 | key derivation: `1` = PBKDF2-HMAC-SHA256 |
+| 10 | 4 | iterations (UInt32) |
+| 14 | 16 | salt |
+| 30 | 12 | nonce |
+| 42 | n | ciphertext (n ≥ 0) |
+| 42 + n | 16 | authentication tag |
+
+- **Cipher**: AES-256-GCM. The key is PBKDF2-HMAC-SHA256 of the password (normalized to Unicode NFC, then UTF-8) with the salt and iteration count from the header, 32 bytes. The additional authenticated data is the whole 42-byte header, so a change to any header byte fails authentication too.
+- **Plaintext**: the note's text in the on-disk form of *File contents* (UTF-8 without a BOM, LF line breaks); it may be empty. Text that is not valid UTF-8 after decryption is reported as a damaged file.
+- **Writing**: apps write version `1`, key derivation `1`, 600,000 iterations and a random 16-byte salt when a file is first encrypted or its password changes. Every save of the same file with the same password keeps the salt and iterations (so the key is derived once per unlock) and uses a new random 12-byte nonce; a nonce is never reused with a key. Files are written atomically as in *File contents*; the temporary file holds only ciphertext.
+- **Reading**: a file shorter than 58 bytes or without the magic is not an encrypted note ("damaged"). An unknown version or key derivation is reported as made by a newer app, and the file is left alone. Iteration counts outside 10,000–10,000,000 are rejected as damaged (no unbounded work for a hostile file). A wrong password and tampered or damaged data can not be told apart: both are reported as "The password is wrong or the file is damaged."
+- **Size limits** of *Large files* apply to the file size.
+- **Test vector** (for checking an implementation byte for byte): password `correct horse`, salt bytes `00 01 … 0f`, 10,000 iterations, nonce bytes `00 01 … 0b`, plaintext `# Merhaba\nşifreli not\n` (UTF-8) give the file `4e4f544553454e43010100002710000102030405060708090a0b0c0d0e0f000102030405060708090a0b59043478fa207924476c2c15bf69de34aaf25bac4a610f213beff55d3b7b60643ffafff21e5309` (hex).
+
+**Unlocking** (app behaviour):
+
+- A locked note shows its name and a password field instead of its text. Passwords entered while the app runs are kept in memory only, never written to disk or the Keychain; opening another encrypted note tries the passwords already entered (newest first) before asking. Keys are derived off the UI thread.
+- **Locking** forgets every password and key, saves pending edits of unlocked encrypted notes (encrypted), then drops their text and undo history from memory; their tabs show the locked state. The app locks on File > Lock Encrypted Notes, when the screen locks or the Mac goes to sleep, after a set time without keyboard or mouse input (app setting: 1, 5, 10, 30 or 60 minutes or never; default 10 minutes), and on quit. A save that fails while locking keeps the note unlocked and reports the failure, so no edit is dropped. A lock always wins: a key derivation that was running when the app locked is discarded, and a command waiting in a dialog stops when it finds its note locked. A locked tab that becomes active, and every locked open note after a password is typed, tries the passwords already entered.
+
+**Encrypting and decrypting** (app behaviour):
+
+- **New Encrypted Note** (File menu; folder and root menus in the main window's sidebar) asks for a name (the portable rules of *Paths and names*) and, if no password was entered yet, a new password typed twice; it creates `<name>.mdenc` (made unique like a new note) with empty text where New Note would put a note (the folder whose menu was used, else the main window's selected folder) and opens it unlocked.
+- **Encrypt…** on a saved `.md` note (File menu, sidebar file menu; not for drafts or other text files) asks for the name (prefilled with the current one) and the password (the last one entered, or a new one typed twice). Unsaved edits are saved first. It writes `<name>.mdenc` (unique in the folder), reads it back and decrypts it to check it equals the note's text, and only then removes the `.md` file permanently, not to the Trash, which would keep the plaintext; this is the one exception to *Deleting*. A note that is a symbolic link or has more than one hard link is not encrypted (removing the name would leave the plaintext under the other one). Before the first encryption in a run the app says that copies kept elsewhere (Time Machine, sync history, git) are not removed. If any step before the removal fails, the `.mdenc` file is deleted again and the note is left as it was.
+- **Renaming** never adds or removes `.mdenc`: an encrypted note keeps it whatever the new name ends in, and for any other file a typed `.mdenc` ending is part of the name (`todo.txt` renamed to `todo.mdenc` gives `todo.mdenc.txt`). Save As of an unencrypted file to a name ending in `.mdenc` is refused. Only Encrypt and Remove Encryption convert.
+- **Remove Encryption…** on an unlocked encrypted note first checks that the `.mdenc` file still holds the bytes last read or written here (otherwise it stops; the reload brings the newer version), then writes `<name>.md` (unique in the folder) with its text, reads it back to check it, then moves the `.mdenc` file to the Trash. The note is hand-named afterwards (it keeps its name).
+- Open tabs, pins and recents follow both conversions like a rename.
+
+**What never sees the plaintext**: the sidebar shows no preview for encrypted notes (date only); search matches their names, never their content; drafts are never encrypted and encrypted notes never become drafts; conflict copies of an encrypted note are encrypted with the same key (`<name> (conflict).mdenc`); pasting or dropping images into an encrypted note is refused with a neutral message (the file in `assets` would be plain), images it already links to are shown; session state, pins and recents hold only paths, selections and scroll positions, and a restored encrypted note opens locked. The plaintext is held in memory only, as long as the note is unlocked (best effort: memory is not wiped).
+
+**Duplicate, move and copy in** treat an encrypted note as bytes: the copy has the same password. **Save As** of an unlocked encrypted note writes an encrypted copy with the same password (the name always ends in `.mdenc`). Commands that need the text (export, print, Save As, Remove Encryption, Format) are unavailable while the note is locked, and a locked note is never saved. **External changes**: an encrypted note that changed on disk is decrypted with its key on reload; if that fails (password changed elsewhere), the note locks and asks again. The conflict check of *External changes* applies, comparing the file's bytes with the bytes last read or written here where it would compare texts (an unchanged stamp, under the same size and timestamp conditions); when the stamp changed, the disk file is decrypted and its text compared.
+
+**Exporting**: see *HTML export*. Exporting or printing an encrypted note as HTML or an unprotected PDF asks first, because it makes an unencrypted copy.
+
 ## Display order
 
 Within a folder: subfolders first, then files (notes and other text files together, by display name); each group in localized natural order (case-insensitive, numbers compared by value: `2` before `10`), as by Finder / Explorer (`localizedStandardCompare` on macOS, `StrCmpLogicalW` on Windows).
@@ -137,7 +181,7 @@ None of these ever overwrites an item, and none changes a note's content.
 
 ## Sidebar preview
 
-With the sidebar preview on (app preference, default on), a file row shows its modification date and a one-line preview under the name. The preview exists for Markdown files and reads only the first 2,048 bytes (a cut inside a UTF-8 sequence is dropped). It is the first non-blank line after the title, that is after the first non-blank line, skipping thematic breaks and fenced code blocks, with the Markdown syntax removed as for titles (heading `#`s, quote and list markers, task boxes, emphasis and code delimiters, link syntax), runs of whitespace collapsed to one space, trimmed of leftover `*`, `_`, `~`, `` ` `` and whitespace, and cut to 200 characters. A file without such a line has no preview.
+With the sidebar preview on (app preference, default on), a file row shows its modification date and a one-line preview under the name. The preview exists for Markdown files (never for encrypted notes) and reads only the first 2,048 bytes (a cut inside a UTF-8 sequence is dropped). It is the first non-blank line after the title, that is after the first non-blank line, skipping thematic breaks and fenced code blocks, with the Markdown syntax removed as for titles (heading `#`s, quote and list markers, task boxes, emphasis and code delimiters, link syntax), runs of whitespace collapsed to one space, trimmed of leftover `*`, `_`, `~`, `` ` `` and whitespace, and cut to 200 characters. A file without such a line has no preview.
 
 ## Status bar counts
 
@@ -147,13 +191,15 @@ The status bar under the editor shows three counts of the document text (the tex
 
 File > Export as HTML… writes a self-contained UTF-8 HTML page (inline CSS, no scripts) of the active file; Export as PDF… and Print… render the same page. A Markdown note is converted: ATX and setext headings, paragraphs (a line ending in two spaces or a backslash is a `<br>`), `*`/`_` emphasis, `**`/`__` strong, `~~` strikethrough, code spans, fenced code blocks (`<pre><code class="language-x">`), bullet and ordered lists (nested; an ordered list starts at its first number; a list with blank lines between items is loose, with `<p>` per item), task items (`- [ ]` / `- [x]`, a disabled checkbox), block quotes (nested blocks), links, images, autolinks and bare `http(s)://` URLs, thematic breaks and pipe tables with alignment. Raw HTML in the source is escaped, never passed through; link and image targets are kept only if scheme-less (relative), `http`, `https` or `mailto`, any other scheme becomes `#`; before the scheme is read, leading and trailing control characters and spaces are dropped and TAB, LF and CR inside are removed, as a browser does. A destination or title that contains an autolink or code span is not a link (left as text). Any other file is one `<pre>` of its text. The CSS uses the neutral greys, the user's text and code font families and base sizes (not the zoom), and a light or dark scheme following the viewer (always light when printing). Relative image paths are left as written in the HTML file, so images resolve only next to the exported file; PDF and Print embed the relative image files of a saved note (image types, up to 25 MB each) so they appear. The suggested file name is the note's name plus `.html`/`.pdf` (dots in the name are kept); the open file itself is never suggested or overwritten.
 
+**Protected exports** (File menu; not while the note is locked): Export as PDF… offers "Protect with password" for any document (a password typed twice); the PDF gets that password as its user and owner password (PDF standard encryption, readable in any PDF viewer; weaker than an `.mdenc` file), and no unprotected PDF is kept on disk (it is rendered into a private folder in the system's temporary folder and deleted right after; only a crash in between can leave it there, where the OS clears it). Export as Encrypted Note… (Markdown documents, drafts included) writes an `.mdenc` copy of the text (see *Encrypted notes*) with the password the user types (twice), with a new salt; the open file is never overwritten. HTML has no password option (it has no scripts).
+
 ## Zoom
 
 View > Zoom In / Zoom Out / Actual Size scale the editors' text and code font sizes by one factor from 50% to 300% in steps of 10% (default 100%). It is an app preference and not part of the format; the font sizes chosen in Settings stay as they are.
 
 ## Deleting
 
-Deleting a note or folder moves it to the OS trash (macOS Trash / Windows Recycle Bin) so it can be restored. Apps never delete permanently on their own; where the volume has no trash (e.g. some network shares on Windows), the OS asks the user before deleting permanently, and declining cancels the delete.
+Deleting a note or folder moves it to the OS trash (macOS Trash / Windows Recycle Bin) so it can be restored. Apps never delete permanently on their own (the one exception is the plaintext original of a note being encrypted, see *Encrypted notes*); where the volume has no trash (e.g. some network shares on Windows), the OS asks the user before deleting permanently, and declining cancels the delete.
 
 ## External changes
 

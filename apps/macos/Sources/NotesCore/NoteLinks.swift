@@ -144,6 +144,6 @@ public enum NoteLinks {
     }
 
     private static func withoutNoteExtension(_ path: String) -> String {
-        NoteStore.isNote(path) ? (path as NSString).deletingPathExtension : path
+        NoteStore.isNote(path) || NoteStore.isEncrypted(path) ? (path as NSString).deletingPathExtension : path
     }
 }

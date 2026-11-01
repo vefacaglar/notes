@@ -23,7 +23,7 @@ public enum NoteStoreError: LocalizedError, Equatable {
 public struct NoteNode: Identifiable, Hashable, Sendable {
     /// Path relative to the store root, always "/"-separated.
     public let path: String
-    /// File name without the `.md` extension for notes, the full file name for other files, folder name for folders.
+    /// File name without the `.md` / `.mdenc` extension for notes, the full file name for other files, folder name for folders.
     public let name: String
     public let isFolder: Bool
     /// `nil` for notes so that `List(children:)` shows no disclosure triangle.
@@ -92,6 +92,11 @@ public struct NoteStore: Sendable {
         (lastComponent(path) as NSString).pathExtension.lowercased() == "md"
     }
 
+    /// Encrypted notes (`.mdenc`, see `NoteCrypto`): listed and shown as Markdown, but not notes, and never read here.
+    public static func isEncrypted(_ path: String) -> Bool {
+        (lastComponent(path) as NSString).pathExtension.lowercased() == NoteCrypto.fileExtension
+    }
+
     /// Extensions (lowercased) of the files that are listed, searched and opened: notes, code and plain text.
     public static let listedExtensions = CodeLanguage.fileExtensions.union(["txt", "log", "csv"])
 
@@ -130,7 +135,7 @@ public struct NoteStore: Sendable {
     /// The name shown for an item: the file name without `.md` for notes, the full name otherwise.
     public static func displayName(_ path: String) -> String {
         let name = lastComponent(path)
-        return isNote(name) ? (name as NSString).deletingPathExtension : name
+        return isNote(name) || isEncrypted(name) ? (name as NSString).deletingPathExtension : name
     }
 
     /// `path` rewritten after `old` was renamed to `new`; `nil` when `path` is not `old` or inside it.
@@ -266,6 +271,18 @@ public struct NoteStore: Sendable {
         return path
     }
 
+    /// Where a new encrypted note called `name` (a trailing `.mdenc` is ignored) can go in `folder`: `<name>.mdenc`, or
+    /// `<name> 2.mdenc`… when taken. Nothing is created. Throws `invalidName` (portable rules) or `missingFolder`.
+    public func uniqueEncryptedURL(named name: String, in folder: String? = nil) throws -> (path: String, url: URL) {
+        var stem = name.trimmingCharacters(in: .whitespacesAndNewlines)
+        if Self.isEncrypted(stem) { stem = (stem as NSString).deletingPathExtension }
+        let (_, probe) = try newURL(named: stem + "." + NoteCrypto.fileExtension, in: folder)
+        let dir = probe.deletingLastPathComponent()
+        guard Self.isFolder(dir) else { throw NoteStoreError.missingFolder(folder ?? "") }
+        let fileName = Self.uniqueItemName(stem + "." + NoteCrypto.fileExtension, isFolder: false, in: dir)
+        return try newURL(named: fileName, in: folder)
+    }
+
     @discardableResult
     public func createFolder(named name: String, in parent: String? = nil) throws -> String {
         let (path, url) = try newURL(named: name.trimmingCharacters(in: .whitespacesAndNewlines), in: parent)
@@ -291,7 +308,10 @@ public struct NoteStore: Sendable {
         let oldExtension = (path as NSString).pathExtension
         if !isFolder.boolValue && Self.isNote(path) {
             if !Self.isNote(newName) { newName += ".md" }
-        } else if !isFolder.boolValue, !oldExtension.isEmpty, !Self.isListed(newName) {
+        } else if !isFolder.boolValue && Self.isEncrypted(path) {
+            if !Self.isEncrypted(newName) { newName += "." + NoteCrypto.fileExtension }
+        } else if !isFolder.boolValue, !oldExtension.isEmpty, !Self.isListed(newName) || Self.isEncrypted(newName) {
+            // A typed ".mdenc" ending is part of the name: a rename never turns a plain file into an encrypted one.
             newName += "." + oldExtension
         }
 
@@ -343,11 +363,12 @@ public struct NoteStore: Sendable {
         var nameHits: [SearchHit] = []
         var contentHits: [SearchHit] = []
         for path in notePaths(listing) {
-            let name = Self.isNote(path) ? (path as NSString).deletingPathExtension : path
+            let encrypted = Self.isEncrypted(path)
+            let name = Self.isNote(path) || encrypted ? (path as NSString).deletingPathExtension : path
             if Self.foldDotlessI(name).range(of: query, options: options) != nil {
                 nameHits.append(SearchHit(path: path, line: nil, snippet: nil))
             }
-            guard contentHits.count < limit, let text = try? read(path) else { continue }
+            guard !encrypted, contentHits.count < limit, let text = try? read(path) else { continue }
             var matchesInFile = 0
             for (index, line) in text.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
                 guard Self.foldDotlessI(String(line)).range(of: query, options: options) != nil else { continue }

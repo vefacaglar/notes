@@ -17,7 +17,7 @@ public enum CodeLanguage: String, CaseIterable, Sendable {
             (.cFamily, ["c", "h", "cc", "cpp", "hpp", "m", "mm", "java", "kt", "kts", "cs", "go", "rs"]),
             (.sql, ["sql"]),
             (.toml, ["toml", "ini"]),
-            (.markdown, ["md", "markdown", "mdown", "mkd"]),
+            (.markdown, ["md", "markdown", "mdown", "mkd", "mdenc"]),
         ]
         for (language, extensions) in groups {
             for ext in extensions { table[ext] = language }
