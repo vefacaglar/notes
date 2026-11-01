@@ -319,7 +319,7 @@ final class Workspace: Identifiable {
             tab.document.error = nil
             return false
         }
-        inside.forEach(remove)
+        inside.forEach { remove($0) }
         root.scanToken?.cancel()
         root.scanToken = nil
         root.watcher = nil
@@ -643,7 +643,11 @@ final class Workspace: Identifiable {
 
     /// ⌘W: closes the active tab; with no tabs left, the window.
     func closeActiveTabOrWindow() {
-        if let tab = activeTab { close(tab) } else { window?.performClose(nil) }
+        if let tab = activeTab {
+            close(tab)
+        } else if let window {
+            model?.closeForLastTab(window, of: self)
+        }
     }
 
     /// Closes `tab` after saving it. A draft with text asks Save / Don't Save / Cancel; an empty one just goes away.
@@ -653,7 +657,7 @@ final class Workspace: Identifiable {
         if document.isDraft {
             if document.text.isEmpty {
                 document.discardDraft()
-                remove(tab)
+                remove(tab, closingWindowIfEmpty: true)
             } else {
                 askAboutDraft(in: tab)
             }
@@ -661,9 +665,9 @@ final class Workspace: Identifiable {
         }
         captureViewState(of: tab)
         guard SaveGuard.flush([document], in: window, discard: L("Close Without Saving"), then: { [weak self] in
-            self?.remove(tab)
+            self?.remove(tab, closingWindowIfEmpty: true)
         }) else { return }
-        remove(tab)
+        remove(tab, closingWindowIfEmpty: true)
     }
 
     func closeOtherTabs(than tab: EditorTab) {
@@ -687,18 +691,19 @@ final class Workspace: Identifiable {
             guard let self, self.tabs.contains(where: { $0 === tab }), tab.document === document else { return }
             switch response {
             case .alertFirstButtonReturn:
-                if self.saveDraft(document) { self.remove(tab) }
+                if self.saveDraft(document) { self.remove(tab, closingWindowIfEmpty: true) }
             case .alertSecondButtonReturn:
                 document.discardDraft()
-                self.remove(tab)
+                self.remove(tab, closingWindowIfEmpty: true)
             default:
                 break
             }
         }
     }
 
-    /// Takes `tab` out without saving (the caller saved it, or its file is gone).
-    func remove(_ tab: EditorTab) {
+    /// Takes `tab` out without saving (the caller saved it, or its file is gone). When the user closed it and it was
+    /// the last one, the window closes too (the app stays open).
+    func remove(_ tab: EditorTab, closingWindowIfEmpty: Bool = false) {
         guard let index = tabs.firstIndex(where: { $0 === tab }) else { return }
         let wasActive = tab.id == activeTabID
         tabs.remove(at: index)
@@ -706,10 +711,18 @@ final class Workspace: Identifiable {
             activeTabID = tabs.isEmpty ? nil : tabs[min(index, tabs.count - 1)].id
             syncSelection()
         }
+        // On the next turn: from a sheet's completion (a draft's Save / Don't Save) the sheet is still attached and
+        // the window would ignore the close. A file that arrived meanwhile keeps the window.
+        if closingWindowIfEmpty, tabs.isEmpty, window != nil {
+            DispatchQueue.main.async { [weak self] in
+                guard let self, self.tabs.isEmpty, let window = self.window, window.isVisible, window.attachedSheet == nil else { return }
+                self.model?.closeForLastTab(window, of: self)
+            }
+        }
     }
 
     func removeTabs(where shouldRemove: (NoteDocument) -> Bool) {
-        tabs.filter { shouldRemove($0.document) }.forEach(remove)
+        tabs.filter { shouldRemove($0.document) }.forEach { remove($0) }
     }
 
     /// Before the window closes: saves every file (asking when that fails). Drafts are kept by the store, except when

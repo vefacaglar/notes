@@ -21,6 +21,7 @@ struct NotesApp: App {
         Window(Text(loc: "Notes"), id: Self.mainWindowID) {
             WorkspaceView(workspace: appDelegate.model.main, model: appDelegate.model)
                 .environment(AppSettings.shared)
+                .capturesOpenWindow(appDelegate.model)
         }
         .defaultSize(width: 1000, height: 680)
         .commands {
@@ -34,6 +35,7 @@ struct NotesApp: App {
             if let id, let workspace = appDelegate.model.workspace(id), !workspace.isMain {
                 WorkspaceView(workspace: workspace, model: appDelegate.model)
                     .environment(AppSettings.shared)
+                    .capturesOpenWindow(appDelegate.model)
             } else {
                 StaleWindowCloser()
             }
@@ -153,7 +155,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     func applicationShouldTerminateAfterLastWindowClosed(_ sender: NSApplication) -> Bool {
-        true
+        model.shouldTerminateAfterLastWindowClosed()
+    }
+
+    /// A Dock click with no window open brings the main window back.
+    func applicationShouldHandleReopen(_ sender: NSApplication, hasVisibleWindows: Bool) -> Bool {
+        if !hasVisibleWindows { model.windowRequests.append(.main) }
+        return false
     }
 }
 
@@ -163,6 +171,8 @@ struct NotesCommands: Commands {
     @FocusedValue(\.textEditor) private var editor
     /// The key window's workspace; `nil` while e.g. Settings is in front.
     @FocusedValue(\.workspace) private var workspace
+    /// Also captured here: the menus exist even when the app starts without any window (restored with none open).
+    @Environment(\.openWindow) private var openWindow
     private let settings = AppSettings.shared
 
     /// The standard About panel; name, icon and version come from the bundle, the credits are a short description.
@@ -177,6 +187,7 @@ struct NotesCommands: Commands {
     }
 
     var body: some Commands {
+        let _ = model.captureOpenWindow(openWindow)
         CommandGroup(replacing: .newItem) {
             Button(loc: "New Note") {
                 model.main.newNote()

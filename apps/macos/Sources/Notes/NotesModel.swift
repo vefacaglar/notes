@@ -17,7 +17,14 @@ final class NotesModel {
     let main: Workspace
     private(set) var external: [Workspace] = []
     /// Windows the views should open; consumed by `WindowRequestHandler`.
-    var windowRequests: [WindowRequest] = []
+    var windowRequests: [WindowRequest] = [] {
+        didSet { if !windowRequests.isEmpty { openWindowsWhenNoneIsOpen() } }
+    }
+    /// Opens a window; set by the first window that appears (see `capturesOpenWindow`).
+    @ObservationIgnored var openWindowAction: ((WindowRequest) -> Void)?
+    /// A window is closing because its last tab did; the app must not quit for it (`AppDelegate`). Not timed: the
+    /// window may only close after a save prompt.
+    @ObservationIgnored private var keepsRunningWithoutWindows = false
 
     /// Pinned files (`pins.json`) and the last opened ones (`recents.json`), absolute paths.
     private(set) var pins = PathList()
@@ -60,7 +67,12 @@ final class NotesModel {
         settings.removeRoot = { [weak self] path in self?.removeRoot(path: path) }
         setUpDrafts()
         loadLists()
+        // A test run counts as a first run while its support folder has no session yet.
+        let isFirstRun = initial.isFirstRun
+            || (!LaunchOptions.testRoots.isEmpty && !(sessionURL.map { FileManager.default.fileExists(atPath: $0.path) } ?? false))
         restore()
+        // The very first run starts on an empty draft: nothing reaches a notes folder until it is saved.
+        if isFirstRun, main.tabs.isEmpty { main.newDraftTab() }
         autoLock = AutoLock { [weak self] in self?.lockEncryptedNotes() }
     }
 
@@ -317,9 +329,43 @@ final class NotesModel {
     /// An outside file's window closed: its drafts with text move to the main window, the rest goes away.
     func workspaceClosed(_ workspace: Workspace) {
         guard !workspace.isMain, external.contains(where: { $0 === workspace }) else { return }
+        let before = main.tabs.count
         workspace.moveUnsavedDocuments(to: main)
+        if main.tabs.count > before, !hasQuit { windowRequests.append(.main) }
         external.removeAll { $0 === workspace }
         sessionChanged()
+    }
+
+    // MARK: Windows without tabs
+
+    /// Closes `window` because its last tab was closed: the app stays open without windows.
+    func closeForLastTab(_ window: NSWindow, of workspace: Workspace) {
+        // Only when it is the last window (minimized ones and Settings count): otherwise AppKit doesn't ask and the
+        // flag would outlive this close.
+        keepsRunningWithoutWindows = !NSApp.windows.contains {
+            $0 !== window && $0.canBecomeMain && ($0.isVisible || $0.isMiniaturized)
+        }
+        window.performClose(nil)
+        // Refused (a save prompt was cancelled): the window stays, and so does the normal quit on its close button.
+        if window.isVisible { keepsRunningWithoutWindows = false }
+    }
+
+    /// Asked once per last window closed; a window closed with its close button afterwards quits the app again,
+    /// unless it handed drafts to the main window, which is opening.
+    func shouldTerminateAfterLastWindowClosed() -> Bool {
+        defer { keepsRunningWithoutWindows = false }
+        return !keepsRunningWithoutWindows && windowRequests.isEmpty
+    }
+
+    /// With no visible workspace window, none of the views that normally consume `windowRequests` exists.
+    private func openWindowsWhenNoneIsOpen() {
+        Task { [weak self] in
+            guard let self, !self.hasQuit, let open = self.openWindowAction, !self.windowRequests.isEmpty else { return }
+            guard !self.workspaces.contains(where: { $0.window?.isVisible == true }) else { return }
+            let requests = self.windowRequests
+            self.windowRequests = []
+            requests.forEach(open)
+        }
     }
 
     // MARK: Drafts
