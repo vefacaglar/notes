@@ -9,6 +9,8 @@ struct NoteEditorView: View {
     /// Markdown only: show the file as unstyled source in the code font (same text view and undo stack).
     var showsSource = false
     var focusOnAppear = false
+    /// The tab's reading mode: not editable, Markdown markers hidden.
+    var reading = false
     /// Follows a clicked link (its destination as written); the workspace window passes `Workspace.openLink`.
     var onOpenLink: ((String) -> Void)?
     /// Lets the "Format" command, the toolbar and the document reach this editor; see `TextEditorProxy`.
@@ -17,20 +19,21 @@ struct NoteEditorView: View {
     @Environment(\.colorScheme) private var colorScheme
 
     init(document: NoteDocument, editor: TextEditorProxy, showsSource: Bool = false, focusOnAppear: Bool = false,
-         onOpenLink: ((String) -> Void)? = nil) {
+         reading: Bool = false, onOpenLink: ((String) -> Void)? = nil) {
         self.document = document
         self.editor = editor
         self.onOpenLink = onOpenLink
         self.showsSource = showsSource
         self.focusOnAppear = focusOnAppear
+        self.reading = reading
     }
 
     var body: some View {
         let language = document.language
         let settings = environmentSettings ?? .shared
-        let style = EditorStyle(settings: settings, colorScheme: colorScheme)
+        let style = EditorStyle(settings: settings, colorScheme: colorScheme, reading: reading)
         // Reading mode works like a read-only file, except that nothing tells the user why: they turned it on.
-        let isReadOnly = document.isReadOnly || settings.readingMode
+        let isReadOnly = document.isReadOnly || reading
         VStack(spacing: 0) {
             Group {
                 if language == .markdown {

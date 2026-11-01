@@ -304,16 +304,16 @@ final class NotesModel {
 
     /// A file inside a root opens in the main window as that root's item. Any other file opens in a window of its
     /// own rooted at its folder (sidebar closed, no automatic names); further files from that folder join it as tabs.
-    func open(_ urls: [URL]) {
+    func open(_ urls: [URL], reading: Bool = false) {
         for url in urls.map({ $0.standardizedFileURL }) {
             if main.contains(url) {
                 main.query = ""
-                main.open(url, newTab: true, focus: true)
+                main.open(url, newTab: true, focus: true, reading: reading)
                 windowRequests.append(.main)
                 continue
             }
             let workspace = external.first { $0.contains(url) } ?? newExternalWorkspace(for: url)
-            workspace.open(url, newTab: true, focus: true)
+            workspace.open(url, newTab: true, focus: true, reading: reading)
             windowRequests.append(.workspace(workspace.id))
         }
     }
@@ -484,7 +484,8 @@ final class NotesModel {
             let document = tab.document
             return Session.Tab(file: document.isDraft ? nil : document.url.path,
                                draft: document.isDraft ? document.url.lastPathComponent : nil,
-                               showsSource: tab.showsSource, view: tab.viewState)
+                               showsSource: tab.showsSource, view: tab.viewState,
+                               reading: tab.reading ? true : nil)
         }
         return Session.Window(
             isMain: workspace.isMain, root: workspace.isMain ? nil : root, tabs: tabs,
@@ -550,6 +551,7 @@ final class NotesModel {
                     configure(document)
                     let tab = EditorTab(document: document)
                     tab.showsSource = saved.showsSource && document.language == .markdown
+                    tab.reading = saved.reading ?? false
                     tab.viewState = saved.view
                     workspace.append(tab)
                     // `append` skips a document that is open already; the active tab is the one that shows it.

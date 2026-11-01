@@ -73,6 +73,8 @@ struct Session: Codable {
         var draft: String?
         var showsSource: Bool
         var view: EditorViewState?
+        /// Reading mode; absent means write mode.
+        var reading: Bool? = nil
     }
 
     var version = 1

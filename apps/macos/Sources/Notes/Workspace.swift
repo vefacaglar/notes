@@ -40,6 +40,8 @@ final class EditorTab: Identifiable {
     fileprivate(set) var document: NoteDocument
     /// "Show Source": Markdown as plain text.
     var showsSource = false
+    /// Reading mode: the file is not editable and the Markdown markers stay hidden. Files from Finder open this way.
+    var reading = false
     /// The tab's editor handle, shared with the window toolbar (formatting, outline, Format).
     let editor = TextEditorProxy()
     /// Saved when the tab stops being shown, applied when its editor appears again.
@@ -489,9 +491,10 @@ final class Workspace: Identifiable {
 
     /// Shows the file at `url`: focuses its tab if it has one; otherwise opens it in the active tab (after saving that
     /// tab's file; if the save fails nothing changes and its error says why) or, with `newTab`, in a new tab. An
-    /// empty draft in the active tab is replaced; a draft with text is never replaced.
+    /// empty draft in the active tab is replaced; a draft with text is never replaced. `reading` applies only to a tab
+    /// this call creates or reuses: a file that is open already keeps its mode.
     @discardableResult
-    func open(_ url: URL, newTab: Bool, focus: Bool = false) -> Bool {
+    func open(_ url: URL, newTab: Bool, focus: Bool = false, reading: Bool = false) -> Bool {
         if let tab = tab(showing: url) {
             model?.recordRecent(url)
             return activate(tab, focus: focus)
@@ -511,13 +514,16 @@ final class Workspace: Identifiable {
             current.document = document
             current.viewState = nil
             current.showsSource = false
+            current.reading = reading
             current.focusOnShow = focus
             syncSelection()
             model?.recordRecent(url)
             model?.sessionChanged()
             return true
         }
-        guard insert(EditorTab(document: document), focus: focus) else { return false }
+        let tab = EditorTab(document: document)
+        tab.reading = reading
+        guard insert(tab, focus: focus) else { return false }
         model?.recordRecent(url)
         return true
     }
@@ -600,6 +606,14 @@ final class Workspace: Identifiable {
         tabs.move(fromOffsets: IndexSet(integer: from), toOffset: to > from ? to + 1 : to)
     }
 
+    /// ⇧⌘E and the toolbar button: reading mode of the active tab.
+    func toggleReading() {
+        guard let tab = activeTab else { return }
+        captureViewState(of: tab)
+        tab.reading.toggle()
+        model?.sessionChanged()
+    }
+
     func toggleSource() {
         guard let tab = activeTab, tab.document.language == .markdown else { return }
         captureViewState(of: tab)
@@ -631,11 +645,33 @@ final class Workspace: Identifiable {
                 if let window = self.window, let textView = tab.document.textView(in: window) {
                     textView.enclosingScrollView?.superview?.layoutSubtreeIfNeeded()
                     state?.apply(to: textView)
-                    if focus { window.makeFirstResponder(textView) }
+                    if focus {
+                        window.makeFirstResponder(textView)
+                        await self.keepFocus(textView, in: window, of: tab)
+                    }
                     return
                 }
                 try? await Task.sleep(for: .milliseconds(25))
             }
+        }
+    }
+
+    /// SwiftUI finishes the same update that created the editor (the sidebar's selection follows the new tab) after
+    /// the first `makeFirstResponder` and can hand the keys back to the sidebar or the window. For a moment after
+    /// focusing the editor, take them back from those two, never from anything else the user may have chosen.
+    private func keepFocus(_ textView: NSTextView, in window: NSWindow, of tab: EditorTab) async {
+        let document = tab.document
+        let started = ProcessInfo.processInfo.systemUptime
+        for _ in 0..<12 {
+            try? await Task.sleep(for: .milliseconds(40))
+            guard activeTab === tab, tab.document === document, textView.window === window else { return }
+            // The user acted since the focus request: the keys are theirs now.
+            if let event = NSApp.currentEvent, event.timestamp > started,
+               [.leftMouseDown, .rightMouseDown, .otherMouseDown, .keyDown].contains(event.type) { return }
+            let responder = window.firstResponder
+            var view = responder as? NSView
+            while let current = view, !(current is NSTableView) { view = current.superview }
+            if responder === window || responder == nil || view != nil { window.makeFirstResponder(textView) }
         }
     }
 

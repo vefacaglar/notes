@@ -21,7 +21,7 @@ struct EditorStyle: Equatable, Sendable {
     static let standard = EditorStyle(
         theme: ThemeLibrary.baseTheme(for: .light), textFont: AppSettings.defaultTextFont, codeFont: AppSettings.defaultCodeFont,
         lineSpacing: 1.2, limitLineWidth: false, markerStyle: .dimmed, spellCheck: false, codeLineNumbers: true, codeWrap: true,
-        highlightCurrentLine: true
+        highlightCurrentLine: false
     )
 
     init(theme: ResolvedTheme, textFont: FontChoice, codeFont: FontChoice, lineSpacing: Double, limitLineWidth: Bool,
@@ -40,12 +40,12 @@ struct EditorStyle: Equatable, Sendable {
     }
 
     @MainActor
-    init(settings: AppSettings, colorScheme: ColorScheme) {
+    init(settings: AppSettings, colorScheme: ColorScheme, reading: Bool = false) {
         self.init(
             theme: settings.resolvedTheme(for: colorScheme), textFont: settings.textFont, codeFont: settings.codeFont,
             lineSpacing: settings.lineSpacing, limitLineWidth: settings.limitLineWidth, markerStyle: settings.markerStyle,
             spellCheck: settings.spellCheck, codeLineNumbers: settings.codeLineNumbers, codeWrap: settings.codeWrap,
-            highlightCurrentLine: settings.highlightCurrentLine, reading: settings.readingMode
+            highlightCurrentLine: settings.highlightCurrentLine, reading: reading
         )
     }
 }
