@@ -95,10 +95,12 @@ public sealed partial class SidebarView : UserControl
         model.SelectionChanged += SyncSelection;
         model.HitsChanged += ShowHits;
         model.QueryChanged += SyncQuery;
+        model.PinsChanged += SyncPinned;
         PreviewCache.Shared.Loaded += OnPreviewLoaded;
         AppSettings.EditorSettingChanged += OnSettingChanged;
         SyncTree();
         SyncQuery();
+        SyncPinned();
     }
 
     internal void Detach()
@@ -109,6 +111,7 @@ public sealed partial class SidebarView : UserControl
         model.SelectionChanged -= SyncSelection;
         model.HitsChanged -= ShowHits;
         model.QueryChanged -= SyncQuery;
+        model.PinsChanged -= SyncPinned;
         PreviewCache.Shared.Loaded -= OnPreviewLoaded;
         AppSettings.EditorSettingChanged -= OnSettingChanged;
     }
@@ -118,6 +121,7 @@ public sealed partial class SidebarView : UserControl
     {
         if (model is null || !AppSettings.ShowSidebarPreview) return;
         if (model.Locate(fullPath) is { } item && Find(item) is { } node) Refresh(node);
+        if (model.PinnedItems.Any(p => p.Item.FullPath.Equals(fullPath, StringComparison.OrdinalIgnoreCase))) SyncPinned(force: true);
     }
 
     private static void Refresh(TreeViewNode node)
@@ -127,7 +131,11 @@ public sealed partial class SidebarView : UserControl
 
     private void OnSettingChanged(string key)
     {
-        if (key == "showSidebarPreview") RefreshAll(Tree.RootNodes);
+        if (key == "showSidebarPreview")
+        {
+            RefreshAll(Tree.RootNodes);
+            SyncPinned(force: true);
+        }
         if (key is "sidebarSort" or "showNonMarkdownFiles" or "showSidebarPreview") SyncMoreMenu();
     }
 
@@ -384,6 +392,11 @@ public sealed partial class SidebarView : UserControl
     private void SyncSelection()
     {
         if (model is null) return;
+        if (pinnedSelection is not null && pinnedSelection != model.Selection)
+        {
+            pinnedSelection = null;
+            SelectPinned();
+        }
         var target = model.Selection is { } item ? Find(item) : null;
         if (Tree.SelectedNode == target) return;
         syncing = true;
@@ -418,9 +431,18 @@ public sealed partial class SidebarView : UserControl
     /// <summary>Builds the item's context menu: per root, folder or file.</summary>
     private void Item_ContextRequested(UIElement sender, ContextRequestedEventArgs args)
     {
-        if (model is null || owner is null || (sender as FrameworkElement)?.DataContext is not TreeViewNode node) return;
+        if ((sender as FrameworkElement)?.DataContext is TreeViewNode node) ShowMenu(sender, args, ItemOf(node));
+    }
+
+    private void Pinned_ContextRequested(UIElement sender, ContextRequestedEventArgs args)
+    {
+        if ((sender as FrameworkElement)?.DataContext is SidebarItem item) ShowMenu(sender, args, item);
+    }
+
+    private void ShowMenu(UIElement sender, ContextRequestedEventArgs args, SidebarItem item)
+    {
+        if (model is null || owner is null) return;
         args.Handled = true;
-        var item = ItemOf(node);
         var menu = new MenuFlyout();
         void Add(string text, string glyph, Action action)
         {
@@ -437,6 +459,9 @@ public sealed partial class SidebarView : UserControl
         else
         {
             Add(Loc.Get("OpenInNewTab"), "", () => _ = model.OpenItemAsync(target, newTab: true));
+            var full = target.FullPath;
+            if (model.IsPinned(full)) Add(Loc.Get("Unpin"), "", () => model.TogglePin(full));
+            else Add(Loc.Get("Pin"), "", () => model.TogglePin(full));
         }
         if (item.Node is not null) Add(Loc.Get("Rename"), "", () => _ = owner.RenameAsync(target));
         Add(Loc.Get("ShowInExplorer"), "", () => model.RevealInExplorer(target));
@@ -515,6 +540,55 @@ public sealed partial class SidebarView : UserControl
 
     private void AddRoot_Click(object sender, RoutedEventArgs e) => _ = owner?.AddRootAsync();
 
+    // MARK: Pinned
+
+    /// <summary>The pinned row the selection came from, if it was chosen there (the same file is also in the tree).</summary>
+    private ItemRef? pinnedSelection;
+
+    private void SyncPinned() => SyncPinned(force: false);
+
+    private void SyncPinned(bool force)
+    {
+        if (model is null) return;
+        var pinned = model.PinnedItems;
+        PinnedPanel.Visibility = pinned.Count > 0 && !model.IsSearching ? Visibility.Visible : Visibility.Collapsed;
+        if (!force && PinnedList.ItemsSource is List<SidebarItem> shown
+            && shown.Count == pinned.Count && shown.Zip(pinned).All(p => p.First.Item == p.Second.Item && p.First.Node == p.Second.Node)) return;
+        syncing = true;
+        try
+        {
+            PinnedList.ItemsSource = pinned.Select(p => new SidebarItem(p.Item, p.Node)).ToList();
+        }
+        finally
+        {
+            syncing = false;
+        }
+        SelectPinned();
+    }
+
+    /// <summary>Selects the pinned row for pinnedSelection (none when it isn't pinned or wasn't chosen there).</summary>
+    private void SelectPinned()
+    {
+        syncing = true;
+        try
+        {
+            PinnedList.SelectedItem = pinnedSelection is { } item && PinnedList.ItemsSource is List<SidebarItem> shown
+                ? shown.FirstOrDefault(s => s.Item == item)
+                : null;
+        }
+        finally
+        {
+            syncing = false;
+        }
+    }
+
+    private void Pinned_SelectionChanged(object sender, SelectionChangedEventArgs e)
+    {
+        if (syncing || model is null || PinnedList.SelectedItem is not SidebarItem pinned) return;
+        pinnedSelection = pinned.Item;
+        _ = model.OpenItemAsync(pinned.Item, newTab: CtrlDown);
+    }
+
     // MARK: Search
 
     private void SyncQuery()
@@ -537,6 +611,7 @@ public sealed partial class SidebarView : UserControl
     {
         if (model is null) return;
         var searching = model.IsSearching;
+        SyncPinned();
         Tree.Visibility = searching ? Visibility.Collapsed : Visibility.Visible;
         SyncUnavailable();
         var items = new List<HitItem>();

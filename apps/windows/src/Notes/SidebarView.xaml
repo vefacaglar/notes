@@ -8,6 +8,7 @@
         <Grid.RowDefinitions>
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
@@ -45,7 +46,31 @@
 
         <TextBox x:Name="SearchBox" Grid.Row="1" x:Uid="SearchBox"  TextChanged="SearchBox_TextChanged" KeyDown="SearchBox_KeyDown" />
 
-        <TreeView x:Name="Tree" Grid.Row="2" SelectionMode="Single" CanDragItems="False" CanReorderItems="False" AllowDrop="False"
+        <!-- Pinned files, above the folders (hidden while searching and when nothing is pinned). -->
+        <StackPanel x:Name="PinnedPanel" Grid.Row="2" Visibility="Collapsed" Spacing="2">
+            <TextBlock x:Uid="PinnedHeader" Margin="8,0,0,0" FontWeight="SemiBold" Style="{StaticResource CaptionTextBlockStyle}"
+                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <ListView x:Name="PinnedList" SelectionMode="Single" MaxHeight="180" SelectionChanged="Pinned_SelectionChanged">
+                <ListView.ItemTemplate>
+                    <DataTemplate x:DataType="local:SidebarItem">
+                        <Grid Background="Transparent" ColumnSpacing="8" ContextRequested="Pinned_ContextRequested">
+                            <Grid.ColumnDefinitions>
+                                <ColumnDefinition Width="Auto" />
+                                <ColumnDefinition Width="*" />
+                            </Grid.ColumnDefinitions>
+                            <FontIcon Glyph="{x:Bind Glyph}" FontSize="16" />
+                            <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                                <TextBlock Text="{x:Bind Name}" TextTrimming="CharacterEllipsis" />
+                                <TextBlock Text="{x:Bind Detail}" Visibility="{x:Bind DetailVisibility}" MaxLines="1" TextTrimming="CharacterEllipsis"
+                                           Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                            </StackPanel>
+                        </Grid>
+                    </DataTemplate>
+                </ListView.ItemTemplate>
+            </ListView>
+        </StackPanel>
+
+        <TreeView x:Name="Tree" Grid.Row="3" SelectionMode="Single" CanDragItems="False" CanReorderItems="False" AllowDrop="False"
                   SelectionChanged="Tree_SelectionChanged" KeyDown="Tree_KeyDown" Expanding="Tree_Expanding" Collapsed="Tree_Collapsed">
             <TreeView.ItemTemplate>
                 <DataTemplate x:DataType="TreeViewNode">
@@ -68,7 +93,7 @@
             </TreeView.ItemTemplate>
         </TreeView>
 
-        <ListView x:Name="Hits" Grid.Row="2" Visibility="Collapsed" SelectionMode="Single" SelectionChanged="Hits_SelectionChanged">
+        <ListView x:Name="Hits" Grid.Row="3" Visibility="Collapsed" SelectionMode="Single" SelectionChanged="Hits_SelectionChanged">
             <ListView.ItemTemplate>
                 <DataTemplate x:DataType="local:HitItem">
                     <StackPanel Padding="0,6" Spacing="2">
@@ -85,11 +110,11 @@
         </ListView>
 
         <!-- Configured folders that couldn't be opened: greyed, with the reason, Retry and Remove. -->
-        <ScrollViewer x:Name="UnavailableScroll" Grid.Row="3" MaxHeight="240" Visibility="Collapsed">
+        <ScrollViewer x:Name="UnavailableScroll" Grid.Row="4" MaxHeight="240" Visibility="Collapsed">
             <StackPanel x:Name="UnavailableList" Spacing="8" Padding="0,8,0,8" />
         </ScrollViewer>
 
-        <TextBlock x:Name="NoResults" Grid.Row="2" Visibility="Collapsed" HorizontalAlignment="Center" Margin="0,24,0,0"
+        <TextBlock x:Name="NoResults" Grid.Row="3" Visibility="Collapsed" HorizontalAlignment="Center" Margin="0,24,0,0"
                    TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
     </Grid>
 </UserControl>

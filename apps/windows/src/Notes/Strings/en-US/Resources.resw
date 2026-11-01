@@ -183,4 +183,9 @@
   <data name="SortModifiedItem.Text" xml:space="preserve"><value>Date Modified</value></data>
   <data name="ShowOtherFilesItem.Text" xml:space="preserve"><value>Show other text and code files</value></data>
   <data name="ShowPreviewItem.Text" xml:space="preserve"><value>Show preview in sidebar</value></data>
+  <data name="PinnedHeader.Text" xml:space="preserve"><value>Pinned</value></data>
+  <data name="Pin" xml:space="preserve"><value>Pin</value></data>
+  <data name="Unpin" xml:space="preserve"><value>Unpin</value></data>
+  <data name="OpenRecent" xml:space="preserve"><value>Open Recent</value></data>
+  <data name="ClearMenu" xml:space="preserve"><value>Clear Menu</value></data>
 </root>

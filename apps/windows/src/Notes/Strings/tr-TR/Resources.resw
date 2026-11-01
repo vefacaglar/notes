@@ -183,4 +183,9 @@
   <data name="SortModifiedItem.Text" xml:space="preserve"><value>Değiştirilme Tarihi</value></data>
   <data name="ShowOtherFilesItem.Text" xml:space="preserve"><value>Diğer metin ve kod dosyalarını göster</value></data>
   <data name="ShowPreviewItem.Text" xml:space="preserve"><value>Kenar çubuğunda önizlemeyi göster</value></data>
+  <data name="PinnedHeader.Text" xml:space="preserve"><value>Sabitlenenler</value></data>
+  <data name="Pin" xml:space="preserve"><value>Sabitle</value></data>
+  <data name="Unpin" xml:space="preserve"><value>Sabitlemeyi Kaldır</value></data>
+  <data name="OpenRecent" xml:space="preserve"><value>Son Kullanılanlar</value></data>
+  <data name="ClearMenu" xml:space="preserve"><value>Menüyü Temizle</value></data>
 </root>

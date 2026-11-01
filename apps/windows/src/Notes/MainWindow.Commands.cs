@@ -128,7 +128,37 @@ public sealed partial class MainWindow
     {
         foreach (var (item, enabled) in menuStates) item.IsEnabled = enabled();
         foreach (var (item, isChecked) in checkStates) item.IsChecked = isChecked();
+        _ = RebuildRecentsAsync();
         if (outlineItem is not null) outlineItem.Text = Loc.Get(ActiveEditor?.IsOutlineOpen == true ? "HideOutline" : "ShowOutline");
+    }
+
+    private MenuFlyoutSubItem? recentMenu;
+    private int recentVersion;
+    private List<string>? shownRecents;
+
+    /// <summary>File &gt; Open Recent: the recently opened files that still exist (checked off the UI thread), then Clear Menu.</summary>
+    private async Task RebuildRecentsAsync()
+    {
+        if (recentMenu is not { } menu) return;
+        var version = ++recentVersion;
+        var paths = model.Recents.Paths.ToList();
+        var existing = await Task.Run(() => paths.Where(File.Exists).ToList());
+        // Untouched while nothing changed: rebuilding would close a submenu that is open.
+        if (version != recentVersion || shownRecents is not null && shownRecents.SequenceEqual(existing)) return;
+        shownRecents = existing;
+        menu.Items.Clear();
+        foreach (var path in existing)
+        {
+            var item = new MenuFlyoutItem { Text = NoteStore.DisplayName(System.IO.Path.GetFileName(path)) };
+            ToolTipService.SetToolTip(item, path);
+            item.Click += (_, _) => _ = model.OpenRecentAsync(path);
+            menu.Items.Add(item);
+        }
+        AddSeparator(menu.Items);
+        var clear = new MenuFlyoutItem { Text = Loc.Get("ClearMenu"), IsEnabled = existing.Count > 0 };
+        clear.Click += (_, _) => model.ClearRecents();
+        menu.Items.Add(clear);
+        menu.IsEnabled = paths.Count > 0;
     }
 
     private void BuildMenu()
@@ -141,6 +171,10 @@ public sealed partial class MainWindow
         AddItem(f, "NewFolder", () => _ = NewFolderAsync(null), new(VirtualKey.N, Ctrl | Shift));
         AddSeparator(f);
         AddItem(f, "AddFolderToWorkspace", () => _ = AddRootAsync(), new(VirtualKey.O, Ctrl | Shift));
+        AddSeparator(f);
+        recentMenu = new MenuFlyoutSubItem { Text = Loc.Get("OpenRecent") };
+        f.Add(recentMenu);
+        model.RecentsChanged += () => _ = RebuildRecentsAsync();
         AddSeparator(f);
         AddItem(f, "CloseTab", CloseActiveTabOrWindow, new(VirtualKey.W, Ctrl));
         AddSeparator(f);

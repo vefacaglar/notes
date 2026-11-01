@@ -99,6 +99,7 @@ internal sealed partial class NotesModel
 
     public NotesModel()
     {
+        LoadLists();
         AppSettings.EditorSettingChanged += key =>
         {
             if (key is not ("sidebarSort" or "showNonMarkdownFiles")) return;
@@ -280,6 +281,7 @@ internal sealed partial class NotesModel
         if (Selection?.Root == root) SetSelection(null);
         tracked.RemoveAll(t => t.Root == root);
         RootsChanged?.Invoke();
+        UpdatePinnedItems();
         ScheduleSearch();
         await SaveRootsAsync();
     }
@@ -347,6 +349,7 @@ internal sealed partial class NotesModel
         try { tree = await Task.Run(() => root.Store.Tree(options)); }
         catch (Exception) { return; }
         if (!roots.Contains(root) || version != root.ScanVersion) return;
+        UpdatePinnedItems();
         if (tree.SequenceEqual(root.Tree))
         {
             // Same structure, so the sidebar stays as it is, but the stored tree keeps the current modification dates.
@@ -742,6 +745,7 @@ internal sealed partial class NotesModel
         if (await FindTabAsync(fullPath) is { } existing)
         {
             if (Current()) ActivateTab(existing);
+            RecordRecent(fullPath);
             return;
         }
         var target = newTab ? null : ActiveTab;
@@ -786,6 +790,7 @@ internal sealed partial class NotesModel
                 if (old.IsDraft && old.Text.Length == 0) Drafts.TryDelete(old.Path);
             }
             target.Document = opened;
+            RecordRecent(fullPath);
             // The tab starts in the mode of the way the file was opened (a file from Explorer opens in reading mode).
             target.Reading = reading;
             target.ShowsSource = false;
@@ -877,6 +882,7 @@ internal sealed partial class NotesModel
         }
         foreach (var item in tracked.Where(t => t.Root == root))
             if (NoteStore.Moved(item.Path, old, newPath) is { } movedPath) item.Path = movedPath;
+        ItemMovedInLists(root, old, root, newPath);
     }
 
     public PathRef Track(ItemRef item)
@@ -1029,6 +1035,7 @@ internal sealed partial class NotesModel
                     throw;
                 }
                 closed.AddRange(inside.Select(t => (t, t.Document!)));
+                ItemTrashedInLists(full);
                 if (Selection is { } selection && selection.Root == root && NoteStore.Moved(selection.Path, path, path) is not null)
                 {
                     SetSelection(null);
