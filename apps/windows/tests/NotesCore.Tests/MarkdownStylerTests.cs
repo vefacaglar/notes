@@ -110,6 +110,22 @@ public class MarkdownStylerTests
     }
 
     [Fact]
+    public void WikiLinks()
+    {
+        var wiki = MarkdownSpanKind.WikiLink;
+        ExpectStyled("bkz [[Alışveriş]] ve", ("[[", Marker), ("Alışveriş", wiki("Alışveriş")), ("]]", Marker));
+        ExpectStyled("[[Not#Başlık]]", ("[[", Marker), ("Not#Başlık", wiki("Not")), ("]]", Marker));
+        ExpectStyled("[[Not|takma ad]] 😀 [[İki]]",
+            ("[[", Marker), ("Not|takma ad", wiki("Not")), ("]]", Marker),
+            ("[[", Marker), ("İki", wiki("İki")), ("]]", Marker));
+        ExpectStyled("[[]]");
+        ExpectStyled("[[ ]]");
+        ExpectStyled("[[a [b]]");
+        ExpectStyled("[[açık");
+        ExpectStyled("`[[kod]]`", ("`", Marker), ("[[kod]]", MarkdownSpanKind.InlineCode), ("`", Marker));
+    }
+
+    [Fact]
     public void Links()
     {
         ExpectStyled("bak [Şu sayfa](https://ex.com/a_(b)) tamam",
@@ -323,6 +339,39 @@ public class MarkdownStylerTests
         }, rendered);
         Assert.DoesNotContain(rendered, r => r.EndsWith('\r') && r.Length < 10 && !r.StartsWith("```"));
         Assert.Equal(MarkdownSpanKind.HorizontalRule, spans[^1].Kind);
+    }
+
+    [Fact]
+    public void Tables()
+    {
+        var m = MarkdownSpanKind.TableMarker;
+        const string table = "| Ad | **Şehir** |\n| :-- | --: |\n| 🎉 | `a|b` |";
+        ExpectStyled(table,
+            (table, MarkdownSpanKind.Table),
+            ("| Ad | **Şehir** |", MarkdownSpanKind.TableHeader), ("|", m), ("|", m),
+            ("**", Marker), ("Şehir", MarkdownSpanKind.Bold), ("**", Marker), ("|", m),
+            ("| :-- | --: |", m),
+            ("|", m), ("|", m),
+            ("`", Marker), ("a|b", MarkdownSpanKind.InlineCode), ("`", Marker), ("|", m));
+    }
+
+    [Fact]
+    public void NotATableWithoutDelimiterRow()
+    {
+        ExpectStyled("a | b\n---", ("---", MarkdownSpanKind.HorizontalRule));
+    }
+
+    [Fact]
+    public void TableEdgeCases()
+    {
+        var text = "|a|b|\r\n|-|-|\r\n|1|2|\r\nnormal";
+        var spans = MarkdownStyler.Spans(text);
+        Assert.Equal(MarkdownSpanKind.Table, spans[0].Kind);
+        Assert.Equal(new MarkdownRange(0, text.IndexOf("normal", StringComparison.Ordinal)), spans[0].Range);
+        ExpectStyled("| a | b |\n| - |");
+        ExpectStyled("    | a |\n    | - |");
+        Assert.Equal(MarkdownSpanKind.Table, MarkdownStyler.Spans("| a |\n| - |")[0].Kind);
+        Assert.Equal(MarkdownSpanKind.CodeBlock, MarkdownStyler.Spans("```\n| a |\n| - |\n```")[0].Kind);
     }
 
     [Fact]

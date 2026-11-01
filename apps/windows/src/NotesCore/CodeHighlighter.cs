@@ -27,7 +27,7 @@ public static class CodeLanguages
             (CodeLanguage.CFamily, ["c", "h", "cc", "cpp", "hpp", "m", "mm", "java", "kt", "kts", "cs", "go", "rs"]),
             (CodeLanguage.Sql, ["sql"]),
             (CodeLanguage.Toml, ["toml", "ini"]),
-            (CodeLanguage.Markdown, ["md", "markdown", "mdown", "mkd"]),
+            (CodeLanguage.Markdown, ["md", "markdown", "mdown", "mkd", "mdenc"]),
         ];
         foreach (var (language, extensions) in groups)
             foreach (var ext in extensions) table[ext] = language;

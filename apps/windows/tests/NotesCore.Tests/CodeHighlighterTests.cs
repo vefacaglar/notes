@@ -32,6 +32,7 @@ public class CodeHighlighterTests
     [InlineData("n.ini", CodeLanguage.Toml)]
     [InlineData("Klasör/o.md", CodeLanguage.Markdown)]
     [InlineData("x.mkd", CodeLanguage.Markdown)]
+    [InlineData("gizli.MDENC", CodeLanguage.Markdown)]
     [InlineData("x.MDOWN", CodeLanguage.Markdown)]
     [InlineData("p.txt", CodeLanguage.PlainText)]
     [InlineData("Makefile", CodeLanguage.PlainText)]

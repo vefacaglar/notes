@@ -24,11 +24,23 @@ public enum MarkdownKind
     /// <summary>Link text, or the URL itself for autolinks and bare URLs (<see cref="MarkdownSpanKind.Url"/>).</summary>
     Link,
     HorizontalRule,
+    /// <summary>The text of a <c>[[Note name]]</c> wiki link (alias and heading included); <see cref="MarkdownSpanKind.Target"/> is the note name.</summary>
+    WikiLink,
+    /// <summary>The header row of a pipe table (its pipes and the delimiter row are <see cref="TableMarker"/>).</summary>
+    TableHeader,
+    /// <summary>Pipes and the delimiter row of a pipe table: dimmed like markers but never hidden, so the columns stay put.</summary>
+    TableMarker,
+    /// <summary>A whole pipe table, its lines through the last line break; comes before the spans inside it.</summary>
+    Table,
 }
 
 /// <summary>A span kind with its payload; value equality, so it can be used in sets and comparisons.</summary>
-public readonly record struct MarkdownSpanKind(MarkdownKind Kind, int Level = 0, bool Checked = false, string? Url = null)
+public readonly record struct MarkdownSpanKind(MarkdownKind Kind, int Level = 0, bool Checked = false, string? Url = null, string? Target = null)
 {
+    public static MarkdownSpanKind TableHeader => new(MarkdownKind.TableHeader);
+    public static MarkdownSpanKind TableMarker => new(MarkdownKind.TableMarker);
+    public static MarkdownSpanKind Table => new(MarkdownKind.Table);
+    public static MarkdownSpanKind WikiLink(string target) => new(MarkdownKind.WikiLink, Target: target);
     public static MarkdownSpanKind Marker => new(MarkdownKind.Marker);
     public static MarkdownSpanKind Bold => new(MarkdownKind.Bold);
     public static MarkdownSpanKind Italic => new(MarkdownKind.Italic);
@@ -159,6 +171,12 @@ public static class MarkdownStyler
                     Add(lineStart, end, MarkdownSpanKind.CodeBlock);
                     Add(lineStart, end, MarkdownSpanKind.Marker);
                 }
+                else if (TableRows(lineStart) is { } rows)
+                {
+                    Table(rows);
+                    lineStart = rows[^1].Next;
+                    continue;
+                }
                 else
                 {
                     Line(lineStart, end);
@@ -166,6 +184,24 @@ public static class MarkdownStyler
                 lineStart = next + 1;
             }
             if (fence is { } unclosed) CloseFence(unclosed.spanIndex, s.Length);
+        }
+
+        private void Table(List<TableRow> rows)
+        {
+            Add(rows[0].Start, Math.Min(rows[^1].Next, s.Length), MarkdownSpanKind.Table);
+            for (int index = 0; index < rows.Count; index++)
+            {
+                var row = rows[index];
+                if (index == 1)
+                {
+                    Add(row.First, row.End, MarkdownSpanKind.TableMarker);
+                    continue;
+                }
+                if (index == 0) AddInline(row.First, row.End, MarkdownSpanKind.TableHeader);
+                foreach (var pipe in row.Pipes) AddInline(pipe, pipe + 1, MarkdownSpanKind.TableMarker);
+                foreach (var cell in row.Cells) Inline(cell.Location, cell.End);
+                FlushInline();
+            }
         }
 
         private void CloseFence(int index, int end)
@@ -325,7 +361,7 @@ public static class MarkdownStyler
                 }
                 else if (c == '[')
                 {
-                    i = Link(i, i, end) ?? i + 1;
+                    i = WikiLink(i, end) ?? Link(i, i, end) ?? i + 1;
                 }
                 else if (c == '!' && i + 1 < end && s[i + 1] == '[')
                 {
@@ -469,6 +505,27 @@ public static class MarkdownStyler
             return j;
         }
 
+        /// <summary><c>[[Note name]]</c>: no brackets inside, a non-empty name.</summary>
+        private int? WikiLink(int i, int end)
+        {
+            if (i + 1 >= end || s[i + 1] != '[') return null;
+            int j = i + 2;
+            while (j + 1 < end && s[j] != '[' && s[j] != ']') j++;
+            if (j + 1 >= end || s[j] != ']' || s[j + 1] != ']' || WikiName(Substr(i + 2, j)) is not { } target) return null;
+            AddInline(i, i + 2, MarkdownSpanKind.Marker);
+            AddInline(i + 2, j, MarkdownSpanKind.WikiLink(target));
+            AddInline(j, j + 2, MarkdownSpanKind.Marker);
+            return j + 2;
+        }
+
+        /// <summary>The note name of a wiki link's inner text: before <c>|</c> (alias) and <c>#</c> (heading), trimmed; <c>null</c> when empty.</summary>
+        private static string? WikiName(string inner)
+        {
+            var cut = inner.AsSpan().IndexOfAny('|', '#');
+            var name = (cut >= 0 ? inner[..cut] : inner).Trim();
+            return name.Length == 0 ? null : name;
+        }
+
         /// <summary><c>[text](url)</c> starting at <paramref name="bracket"/>; <paramref name="start"/> is the <c>!</c> of an image or the bracket itself.</summary>
         private int? Link(int start, int bracket, int end)
         {
@@ -512,6 +569,111 @@ public static class MarkdownStyler
             AddInline(bracket + 1, close, MarkdownSpanKind.Link(Substr(urlStart, urlEnd)));
             AddInline(close, k + 1, MarkdownSpanKind.Marker);
             return k + 1;
+        }
+
+        // Pipe tables (GFM): the same detection as the macOS MarkdownTable.
+
+        private readonly record struct TableRow(int Start, int First, int End, int Next, List<MarkdownRange> Cells, List<int> Pipes);
+
+        private TableRow ScanRow(int start)
+        {
+            int nl = start;
+            while (nl < s.Length && s[nl] != '\n') nl++;
+            int end = nl > start && s[nl - 1] == '\r' ? nl - 1 : nl;
+            int i = start;
+            while (i < end && IsSpace(s[i])) i++;
+            int first = i;
+            var pipes = new List<int>();
+            while (i < end)
+            {
+                switch (s[i])
+                {
+                    case '\\':
+                        i += 2;
+                        break;
+                    case '`':
+                    {
+                        int j = i;
+                        while (j < end && s[j] == '`') j++;
+                        int k = j, close = -1;
+                        while (k < end)
+                        {
+                            if (s[k] != '`') { k++; continue; }
+                            int l = k;
+                            while (l < end && s[l] == '`') l++;
+                            if (l - k == j - i) { close = l; break; }
+                            k = l;
+                        }
+                        i = close >= 0 ? close : j;
+                        break;
+                    }
+                    case '|':
+                        pipes.Add(i);
+                        i++;
+                        break;
+                    default:
+                        i++;
+                        break;
+                }
+            }
+            var cuts = new List<(int A, int B)>();
+            int from = first;
+            foreach (var p in pipes) { cuts.Add((from, p)); from = p + 1; }
+            cuts.Add((from, end));
+            if (pipes.Count > 0 && pipes[0] == first) cuts.RemoveAt(0);
+            if (pipes.Count > 0 && cuts.Count > 0 && IsBlank(cuts[^1].A, cuts[^1].B)) cuts.RemoveAt(cuts.Count - 1);
+            var cells = new List<MarkdownRange>(cuts.Count);
+            foreach (var (ca, cb) in cuts)
+            {
+                int a = ca, b = cb;
+                while (a < b && IsSpace(s[a])) a++;
+                while (b > a && IsSpace(s[b - 1])) b--;
+                cells.Add(new MarkdownRange(a, b - a));
+            }
+            return new TableRow(start, first, end, nl + 1, cells, pipes);
+        }
+
+        private bool IsBlank(int from, int to)
+        {
+            for (int x = from; x < to; x++) if (!IsSpace(s[x])) return false;
+            return true;
+        }
+
+        private bool IsDelimiterRow(TableRow row)
+        {
+            if (row.Cells.Count == 0 || row.Pipes.Count == 0) return false;
+            foreach (var cell in row.Cells)
+            {
+                if (cell.Length == 0) return false;
+                int a = cell.Location, b = cell.End;
+                bool left = s[a] == ':';
+                bool right = s[b - 1] == ':' && b - a > (left ? 1 : 0);
+                int from = a + (left ? 1 : 0), to = b - (right ? 1 : 0);
+                if (to <= from) return false;
+                for (int x = from; x < to; x++) if (s[x] != '-') return false;
+            }
+            return true;
+        }
+
+        /// <summary>The rows of the table whose header line starts at <paramref name="start"/> (header, delimiter row, body rows), or <c>null</c>.</summary>
+        private List<TableRow>? TableRows(int start)
+        {
+            if (start >= s.Length) return null;
+            var header = ScanRow(start);
+            if (header.Pipes.Count == 0 || header.First - start > 3 || header.Next > s.Length) return null;
+            for (int x = start; x < header.First; x++) if (s[x] != ' ') return null;
+            var delimiter = ScanRow(header.Next);
+            if (delimiter.Cells.Count != header.Cells.Count || !IsDelimiterRow(delimiter)) return null;
+            var result = new List<TableRow> { header, delimiter };
+            int pos = delimiter.Next;
+            while (pos < s.Length)
+            {
+                var body = ScanRow(pos);
+                if (body.Pipes.Count == 0) break;
+                result.Add(body);
+                pos = body.Next;
+            }
+            return result;
         }
 
         private string Substr(int start, int end) => s.Substring(start, Math.Max(start, end) - start);
