@@ -1,5 +1,10 @@
 # State
 
+## Next (2026-11-01)
+
+- Done today (macOS): toolbar with a centered formatting capsule (title kept but empty: hiding or removing it lines toolbar items up on the left; SwiftUI resets `titleVisibility`), Format icon for code files, middle-click closes a tab, Markdown syntax hidden by default with a toolbar/⇧⌘M toggle, sidebar folder open/closed state in session.json, new app icon, `scripts/install.sh` (→ /Applications).
+- Next phase the user asked for: save notes encrypted to a database through an API. Open questions put to the user (no answers yet): which server/DB (own API vs Supabase/Firebase/existing), backup vs two-way sync, end-to-end encryption on the client (recommended; builds on `.mdenc`), which notes, single user vs accounts. It changes the "folder is the only source of truth" rule in docs/format.md: write a design doc first.
+
 ## Encrypted notes (macOS, 2026-11-01: 2505606, 97fcd9b)
 
 `.mdenc` notes (docs/format.md "Encrypted notes", with a test vector for the Windows port), lock/unlock, Encrypt / Remove Encryption / New Encrypted Note, auto-lock, password PDF, Export as Encrypted Note. Reviewed (Opus), all findings fixed. Verified in a test instance: locked open, wrong/right password, encrypted save (independently decrypted), Lock, restore opens locked, session.json paths only. Not verified by hand (window-focused commands couldn't run in the background): Encrypt / Remove Encryption / New Encrypted Note dialogs, PDF password panel, Export as Encrypted Note, image refusal, idle/sleep/screen-lock triggers, Settings picker; whether macOS saved window state captures an unlocked note. Windows: not implemented (ignores `.mdenc`).

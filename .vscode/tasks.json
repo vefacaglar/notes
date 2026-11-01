@@ -100,6 +100,14 @@
       "presentation": { "reveal": "always", "clear": true }
     },
     {
+      "label": "macOS: Install to Applications",
+      "type": "shell",
+      "command": "./scripts/install.sh",
+      "options": { "cwd": "${workspaceFolder}/apps/macos" },
+      "problemMatcher": "$swiftc",
+      "presentation": { "reveal": "always", "clear": true }
+    },
+    {
       "label": "macOS: Clean",
       "type": "shell",
       "command": "swift package clean && rm -rf build",

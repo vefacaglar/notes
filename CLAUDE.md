@@ -16,6 +16,7 @@ macOS (in `apps/macos`):
 - `swift test`
 - `swift build`
 - `./scripts/bundle.sh` then `open build/Notes.app`
+- `./scripts/install.sh`: release build installed as `/Applications/Notes.app` (quits and reopens a running installed copy)
 - `swift run Notes -notesFolder <temp folder> [-notesFolder <another>] [-theme light|dark] [-lang en|tr] [-supportFolder <temp folder>]` (test flags: roots and appearance are not saved)
 
 Windows (in `apps/windows`):
