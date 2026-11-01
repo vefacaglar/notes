@@ -1161,6 +1161,23 @@
         }
       }
     },
+    "Copied": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copied"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopyalandı"
+          }
+        }
+      }
+    },
     "Copies kept elsewhere (Time Machine, sync history, git) are not removed.": {
       "extractionState": "manual",
       "localizations": {
@@ -1174,6 +1191,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Başka yerlerde tutulan kopyalar (Time Machine, eşitleme geçmişi, git) silinmez."
+          }
+        }
+      }
+    },
+    "Copy Code": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copy Code"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kodu Kopyala"
           }
         }
       }

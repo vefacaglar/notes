@@ -112,6 +112,13 @@ struct MarkdownEditor: NSViewRepresentable {
         private var shownMarkers: Set<NSRange> = []
         /// The image lines of the current text (empty in source mode and for plain-text fallbacks).
         private var imageSlots: [InlineImageSlot] = []
+        /// The pipe tables of the current text (whole lines) and how each is laid out, by start; see `layoutTable`.
+        private var tables: [NSRange] = []
+        private var grids: [Int: TableGrid] = [:]
+        /// The tables the selection touches: shown as source so they can be edited.
+        private var shownTables: Set<NSRange> = []
+        /// Width the tables may use, as of the last restyle.
+        private var containerWidth: CGFloat = 0
         private var focusMode = false
         /// The paragraph range and text length the focus dimming was last computed for.
         private var dimmedFor: (paragraph: NSRange, length: Int)?
@@ -136,6 +143,10 @@ struct MarkdownEditor: NSViewRepresentable {
             textView.apply(palette, spellCheck: style.spellCheck)
             textView.limitsLineWidth = style.limitLineWidth
             textView.codeBlockColor = palette.colors.codeBlockBackground.nsColor
+            textView.tableHeaderColor = palette.colors.codeBlockBackground.nsColor
+            textView.tableLineColor = palette.colors.marker.nsColor.withAlphaComponent(0.7)
+            textView.copyButtonColor = palette.colors.secondaryText.nsColor
+            textView.decorationColor = palette.colors.marker.nsColor
             textView.linkTextAttributes = [.foregroundColor: palette.colors.link.nsColor, .cursor: NSCursor.pointingHand]
             textView.defaultParagraphStyle = base[.paragraphStyle] as? NSParagraphStyle
             textView.typingAttributes = base
@@ -166,6 +177,11 @@ struct MarkdownEditor: NSViewRepresentable {
                 spanReach = []
                 revealed = nil
                 shownMarkers = []
+                tables = []
+                grids = [:]
+                shownTables = []
+                (textView as? MarkdownTextView)?.tableGrids = []
+                (textView as? MarkdownTextView)?.decorations = []
                 pendingEdit = nil
                 needsFullRestyle = false
                 textView.typingAttributes = base
@@ -182,6 +198,12 @@ struct MarkdownEditor: NSViewRepresentable {
             let spans = MarkdownStyler.spans(in: storage.string)
             let blocks = spans.filter { $0.kind == .codeBlock }.map(\.range)
             let reveal = hidesMarkers ? revealRange(in: textView, string: storage.mutableString) : nil
+            let oldGrids = grids
+            let oldTables = tables
+            containerWidth = Self.availableWidth(of: textView)
+            tables = spans.filter { $0.kind == .table }.map(\.range)
+            grids = [:]
+            shownTables = tablesShown(by: reveal)
 
             var targets = [full]
             // Only fenced code spans lines, so unless the fences moved, restyling the edited lines is enough
@@ -195,6 +217,16 @@ struct MarkdownEditor: NSViewRepresentable {
                 targets = [target]
                 if let old = revealed { targets.append(Self.shift(old, by: edit, length: storage.length, in: storage.string)) }
                 if let reveal { targets.append(reveal) }
+                // An edit in one row can change every column: tables it touches, before or after it, are restyled whole.
+                for old in oldTables where oldGrids[old.location]?.rendered == true {
+                    let moved = Self.shift(old, by: edit, length: storage.length, in: storage.string)
+                    if NSIntersectionRange(moved, target).length > 0 { targets.append(moved) }
+                }
+                targets = Self.expanded(targets, over: renderedTables)
+                for table in tables where !targets.contains(where: { NSIntersectionRange($0, table).length > 0 }) {
+                    let old = table.location >= NSMaxRange(edit.range) ? table.location - edit.delta : table.location
+                    grids[table.location] = oldGrids[old].map { $0.moved(to: table) }
+                }
             }
             codeBlocks = blocks
             (textView as? MarkdownTextView)?.codeBlocks = blocks
@@ -208,6 +240,8 @@ struct MarkdownEditor: NSViewRepresentable {
             storage.beginEditing()
             for target in Self.merged(targets) { apply(in: target, to: storage) }
             storage.endEditing()
+            syncGrids(textView)
+            syncDecorations(textView, string: storage.mutableString)
             textView.typingAttributes = base
             updateImageSlots(in: textView, storage: storage, spans: spans)
             if focusMode, !textView.hasMarkedText() {
@@ -237,15 +271,21 @@ struct MarkdownEditor: NSViewRepresentable {
             let string = storage.mutableString
             let reveal = revealRange(in: textView, string: string)
             let shown = markers(shownBy: textView.selectedRanges.map(\.rangeValue), within: reveal, string: string)
+            let shownTablesNow = tablesShown(by: reveal)
             revealed = reveal
-            guard shown != shownMarkers else { return }
+            guard shown != shownMarkers || shownTablesNow != shownTables else { return }
             let changed = shown.symmetricDifference(shownMarkers).filter { NSMaxRange($0) <= storage.length }
+            let changedTables = shownTablesNow.symmetricDifference(shownTables).filter { NSMaxRange($0) <= storage.length }
             shownMarkers = shown
-            let lines = Self.merged(changed.map { RangeMath.lineRange($0, in: string) })
+            shownTables = shownTablesNow
+            containerWidth = Self.availableWidth(of: textView)
+            let lines = Self.merged(changed.map { RangeMath.lineRange($0, in: string) } + changedTables)
             guard !lines.isEmpty else { return }
             storage.beginEditing()
-            for line in Self.coalesced(lines) { apply(in: line, to: storage) }
+            for line in Self.coalesced(Self.merged(Self.expanded(lines, over: renderedTables))) { apply(in: line, to: storage) }
             storage.endEditing()
+            syncGrids(textView)
+            syncDecorations(textView, string: string)
             // Restyling a line resets its paragraph style, which holds the room reserved for its images.
             if !imageSlots.isEmpty { applyImageSpacing(in: textView) }
         }
@@ -314,7 +354,8 @@ struct MarkdownEditor: NSViewRepresentable {
             guard !changes.isEmpty, !textView.hasMarkedText() else { return }
             storage.beginEditing()
             for change in changes {
-                let style = (baseStyle?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+                let current = storage.attribute(.paragraphStyle, at: change.range.location, effectiveRange: nil) as? NSParagraphStyle
+                let style = (current ?? baseStyle)?.mutableCopy() as? NSMutableParagraphStyle ?? NSMutableParagraphStyle()
                 style.paragraphSpacing = change.spacing
                 storage.addAttribute(.paragraphStyle, value: style, range: change.range)
             }
@@ -322,13 +363,15 @@ struct MarkdownEditor: NSViewRepresentable {
         }
 
         func layoutWidthChanged(in textView: NSTextView) {
-            guard !imageSlots.isEmpty, !isImageSyncScheduled else { return }
+            guard !imageSlots.isEmpty || !grids.isEmpty, !isImageSyncScheduled else { return }
             isImageSyncScheduled = true
             DispatchQueue.main.async { [weak self, weak textView] in
                 MainActor.assumeIsolated {
                     guard let self else { return }
                     self.isImageSyncScheduled = false
-                    if let textView { self.applyImageSpacing(in: textView) }
+                    guard let textView else { return }
+                    self.refitTables(in: textView)
+                    if !self.imageSlots.isEmpty { self.applyImageSpacing(in: textView) }
                 }
             }
         }
@@ -353,6 +396,16 @@ struct MarkdownEditor: NSViewRepresentable {
             } else {
                 let full = NSRange(location: 0, length: textView.textStorage?.length ?? 0)
                 textView.layoutManager?.removeTemporaryAttribute(.foregroundColor, forCharacterRange: full)
+                view.focusParagraph = nil
+            }
+        }
+
+        /// The dim of focus mode would show the glyphs of drawn markers (`-`, `>`, `---`) over their drawings:
+        /// keep them clear. The drawings are dimmed by the text view.
+        private func clearDecorationGlyphs(in textView: NSTextView, outside paragraph: NSRange) {
+            guard let layout = textView.layoutManager, let view = textView as? MarkdownTextView else { return }
+            for item in view.decorations where !NSLocationInRange(item.range.location, paragraph) && NSMaxRange(item.range) <= (textView.textStorage?.length ?? 0) {
+                layout.addTemporaryAttribute(.foregroundColor, value: NSColor.clear, forCharacterRange: item.range)
             }
         }
 
@@ -369,7 +422,9 @@ struct MarkdownEditor: NSViewRepresentable {
             let cleared = keepsHead ? NSRange(location: paragraph.location, length: length - paragraph.location)
                                     : NSRange(location: 0, length: length)
             layout.removeTemporaryAttribute(.foregroundColor, forCharacterRange: cleared)
+            (textView as? MarkdownTextView)?.focusParagraph = paragraph
             let dim = palette.colors.text.nsColor.withAlphaComponent(0.3)
+            defer { clearDecorationGlyphs(in: textView, outside: paragraph) }
             if paragraph.location > 0, !keepsHead {
                 layout.addTemporaryAttribute(.foregroundColor, value: dim, forCharacterRange: NSRange(location: 0, length: paragraph.location))
             }
@@ -443,7 +498,7 @@ struct MarkdownEditor: NSViewRepresentable {
             func touched(_ r: NSRange) -> Bool {
                 selections.contains { r.location <= NSMaxRange($0) && $0.location <= NSMaxRange(r) }
             }
-            var markers: [NSRange] = [], elements: [NSRange] = []
+            var markers: [NSRange] = [], elements: [NSRange] = [], decorated: [NSRange] = []
             var k = RangeMath.firstIndex(in: spanReach, endingAfter: lines.location)
             while k < spans.count, spans[k].range.location < NSMaxRange(lines) {
                 let span = spans[k]
@@ -451,11 +506,14 @@ struct MarkdownEditor: NSViewRepresentable {
                 guard span.range.location >= lines.location, NSMaxRange(span.range) <= NSMaxRange(lines) else { continue }
                 switch span.kind {
                 case .marker where !Self.isQuoteMarker(span.range, in: string): markers.append(span.range)
+                case .marker, .horizontalRule: decorated.append(span.range)
+                case .listMarker where Self.isBullet(span.range, in: string): decorated.append(span.range)
                 case .bold, .italic, .boldItalic, .strikethrough, .inlineCode, .link, .wikiLink: elements.append(span.range)
                 default: break
                 }
             }
             var shown = Set(markers.filter(touched))
+            shown.formUnion(decorated.filter(touched))
             guard !elements.isEmpty else { return shown }
             var byEnd: [Int: NSRange] = [:], byStart: [Int: NSRange] = [:]
             for marker in markers {
@@ -472,6 +530,144 @@ struct MarkdownEditor: NSViewRepresentable {
             return shown
         }
 
+        // MARK: Tables
+
+        /// Horizontal room a cell keeps on each side of its text.
+        private static let tableCellPadding: CGFloat = 12
+
+        private static func availableWidth(of textView: NSTextView) -> CGFloat {
+            textView.textContainer.map { $0.size.width - 2 * $0.lineFragmentPadding } ?? 0
+        }
+
+        /// `ranges` with every table they touch added whole, so a table is always restyled as a unit.
+        private static func expanded(_ ranges: [NSRange], over tables: [NSRange]) -> [NSRange] {
+            var result = ranges
+            for table in tables where ranges.contains(where: { NSIntersectionRange($0, table).length > 0 }) { result.append(table) }
+            return result
+        }
+
+        /// Tables that are laid out as tables now: only those must be restyled as a unit.
+        private var renderedTables: [NSRange] {
+            hidesMarkers ? tables.filter { !shownTables.contains($0) } : []
+        }
+
+        /// Tables the selection touches stay source (none in reading mode, which renders them always).
+        private func tablesShown(by reveal: NSRange?) -> Set<NSRange> {
+            guard let reveal, !palette.style.reading else { return [] }
+            return Set(tables.filter { NSIntersectionRange($0, reveal).length > 0 })
+        }
+
+        private func syncGrids(_ textView: NSTextView) {
+            (textView as? MarkdownTextView)?.tableGrids = tables.compactMap { grids[$0.location] }.filter(\.rendered)
+        }
+
+        /// A narrower or wider container can flip a table between rendered and source: restyle those tables.
+        private func refitTables(in textView: NSTextView) {
+            guard hidesMarkers, pendingEdit == nil, !needsFullRestyle, !textView.hasMarkedText(),
+                  let storage = textView.textStorage, storage.length <= Self.maxStyledLength else { return }
+            containerWidth = Self.availableWidth(of: textView)
+            let stale = tables.filter { table in
+                grids[table.location].map { ($0.naturalWidth <= containerWidth) != $0.rendered } ?? false
+            }
+            guard !stale.isEmpty else { return }
+            storage.beginEditing()
+            for table in stale where NSMaxRange(table) <= storage.length { apply(in: table, to: storage) }
+            storage.endEditing()
+            syncGrids(textView)
+        }
+
+        /// Renders a table inside `storage`: the pipes, the delimiter row and the spaces around the cells are hidden
+        /// (still real text), and every cell is placed in its column with `.kern` after (and before) the cell's
+        /// text, or a head indent for the first column. The text view draws the grid behind it from the returned
+        /// `TableGrid`. A table the selection touches, or wider than the container, keeps its source styling.
+        private func layoutTable(_ range: NSRange, in storage: NSTextStorage) {
+            grids[range.location] = nil
+            guard hidesMarkers, !shownTables.contains(range), NSMaxRange(range) <= storage.length,
+                  let grid = MarkdownTable.grid(in: storage.mutableString.substring(with: range), offsetBy: range.location) else { return }
+            let pad = Self.tableCellPadding
+            let widths = grid.rows.map { row in row.cells.map { cell in cell.length > 0 ? storage.attributedSubstring(from: cell).size().width : 0 } }
+            let columnWidths = TableMetrics.columnWidths(widths, columns: grid.columns)
+            var edges: [CGFloat] = [0]
+            for width in columnWidths { edges.append(edges[edges.count - 1] + width + 2 * pad) }
+            let natural = edges[edges.count - 1]
+            let rows = grid.rows.map(\.line)
+            let result = TableGrid(range: range, naturalWidth: natural, rendered: natural <= containerWidth, rows: rows,
+                                   delimiter: grid.delimiter, edges: edges)
+            defer { grids[range.location] = result }
+            guard result.rendered else { return }
+
+            let string = storage.mutableString
+            let baseStyle = base[.paragraphStyle] as? NSParagraphStyle
+            func paragraph(_ line: NSRange, indent: CGFloat, before: CGFloat, after: CGFloat, collapsed: Bool = false) {
+                let style = (baseStyle?.mutableCopy() as? NSMutableParagraphStyle) ?? NSMutableParagraphStyle()
+                style.firstLineHeadIndent = indent
+                style.headIndent = indent
+                style.paragraphSpacingBefore = before
+                style.paragraphSpacing = after
+                style.lineBreakMode = .byClipping
+                style.lineHeightMultiple = 1
+                if collapsed { style.maximumLineHeight = 1 }
+                storage.addAttribute(.paragraphStyle, value: style, range: RangeMath.lineRange(line, in: string))
+            }
+            var kerns: [Int: CGFloat] = [:]
+            for (r, row) in grid.rows.enumerated() {
+                var cursor = row.line.location
+                var indent: CGFloat = 0
+                for (c, cell) in row.cells.enumerated() {
+                    if cell.length > 0 {
+                        if cell.location > cursor { storage.addAttributes(palette.hiddenMarker, range: NSRange(location: cursor, length: cell.location - cursor)) }
+                        cursor = NSMaxRange(cell)
+                    }
+                    let alignment = c < grid.alignments.count ? grid.alignments[c] : TableAlignment.none
+                    let slack = TableMetrics.slack(cell: widths[r][c], column: columnWidths[c], alignment: alignment)
+                    if c == 0 { indent = pad + slack.before } else if cell.location > row.line.location { kerns[cell.location - 1, default: 0] += pad + slack.before }
+                    if NSMaxRange(cell) < NSMaxRange(row.line) { kerns[NSMaxRange(cell), default: 0] += slack.after + pad }
+                }
+                let end = NSMaxRange(row.line)
+                if end > cursor { storage.addAttributes(palette.hiddenMarker, range: NSRange(location: cursor, length: end - cursor)) }
+                let last = r == grid.rows.count - 1
+                paragraph(row.line, indent: indent, before: r == 0 ? 8 : 0, after: last ? 14 : TableGrid.rowGap)
+            }
+            for (index, kern) in kerns where index < storage.length {
+                storage.addAttribute(.kern, value: kern, range: NSRange(location: index, length: 1))
+            }
+            let delimiter = RangeMath.lineRange(grid.delimiter, in: string)
+            storage.addAttributes(palette.hiddenMarker, range: delimiter)
+            paragraph(grid.delimiter, indent: 0, before: 0, after: 0, collapsed: true)
+        }
+
+        // MARK: Bullets, quote bars and rules
+
+        /// `-`, `*` or `+` of a list item that is not a task (those keep their text).
+        private static func isBullet(_ range: NSRange, in string: NSString) -> Bool {
+            guard range.length == 1, range.location < string.length, [0x2D, 0x2A, 0x2B].contains(string.character(at: range.location)) else { return false }
+            let box = range.location + 2
+            return !(box + 2 < string.length && string.character(at: box) == 0x5B && string.character(at: box + 2) == 0x5D)
+        }
+
+        /// Whether `span` is drawn instead of written while markers are hidden: a bullet, a quote's `>`, a thematic break.
+        private func isDecorated(_ span: MarkdownSpan, in string: NSString) -> TextDecoration.Kind? {
+            switch span.kind {
+            case .listMarker where Self.isBullet(span.range, in: string): return .bullet
+            case .marker where Self.isQuoteMarker(span.range, in: string): return .quoteBar
+            case .horizontalRule: return .rule
+            default: return nil
+            }
+        }
+
+        private func syncDecorations(_ textView: NSTextView, string: NSString) {
+            var result: [TextDecoration] = []
+            if hidesMarkers {
+                for span in spans {
+                    guard let kind = isDecorated(span, in: string), !shownMarkers.contains(span.range) else { continue }
+                    result.append(TextDecoration(range: span.range, kind: kind))
+                }
+                result.sort { $0.range.location < $1.range.location }
+            }
+            (textView as? MarkdownTextView)?.decorations = result
+            if focusMode, let paragraph = dimmedFor?.paragraph { clearDecorationGlyphs(in: textView, outside: paragraph) }
+        }
+
         private static func reach(of spans: [MarkdownSpan]) -> [Int] {
             var result = [Int](), peak = 0
             result.reserveCapacity(spans.count)
@@ -486,24 +682,35 @@ struct MarkdownEditor: NSViewRepresentable {
             storage.setAttributes(base, range: target)
             let string = storage.mutableString
             var k = RangeMath.firstIndex(in: spanReach, endingAfter: target.location)
+            var tablesToLayout: [NSRange] = []
             while k < spans.count {
                 let span = spans[k]
                 k += 1
                 if span.range.location >= NSMaxRange(target) { break }
                 let range = NSIntersectionRange(span.range, target)
                 guard range.length > 0 else { continue }
+                if span.kind == .table {
+                    if range == span.range { tablesToLayout.append(range) }
+                    continue
+                }
+                let decorated = hidesMarkers && !shownMarkers.contains(span.range) && isDecorated(span, in: string) != nil
                 if span.kind == .marker, hidesMarkers, !shownMarkers.contains(span.range), !Self.isQuoteMarker(span.range, in: string) {
                     storage.addAttributes(palette.hiddenMarker, range: range)
                     continue
                 }
                 style(span.kind, in: range, of: storage)
+                // Drawn by the text view instead: same width, invisible glyph.
+                if decorated { storage.addAttribute(.foregroundColor, value: NSColor.clear, range: range) }
                 if span.kind == .codeBlock { highlightCode(in: span.range, within: target, of: storage, string: string) }
             }
+            for table in tablesToLayout { layoutTable(table, in: storage) }
         }
 
         private func style(_ kind: MarkdownSpan.Kind, in range: NSRange, of storage: NSTextStorage) {
             let colors = palette.colors
             switch kind {
+            case .table:
+                break
             case .tableHeader:
                 addTraits(.boldFontMask, to: storage, in: range)
             case .marker, .horizontalRule, .tableMarker:
@@ -693,8 +900,33 @@ final class MarkdownTextView: EditorTextView {
     /// Fenced code blocks (fence lines included) of the styled text, sorted; drawn as full-width bands under the text.
     /// Empty in source mode and for text too long to style.
     var codeBlocks: [NSRange] = [] {
-        didSet { if codeBlocks != oldValue { setNeedsDisplay(visibleRect) } }
+        didSet {
+            guard codeBlocks != oldValue else { return }
+            setNeedsDisplay(visibleRect)
+            updateCopyButton()
+        }
     }
+    /// Rendered pipe tables, sorted; their grids are drawn under the text.
+    var tableGrids: [TableGrid] = [] {
+        didSet { if tableGrids != oldValue { setNeedsDisplay(visibleRect) } }
+    }
+    /// Bullets, quote bars and thematic breaks drawn in place of their (invisible) marker characters.
+    var decorations: [TextDecoration] = [] {
+        didSet { if decorations != oldValue { setNeedsDisplay(visibleRect) } }
+    }
+    var decorationColor: NSColor?
+    /// Focus mode: the paragraph that is not dimmed; decorations elsewhere are drawn dimmed too.
+    var focusParagraph: NSRange? {
+        didSet { if focusParagraph != oldValue { setNeedsDisplay(visibleRect) } }
+    }
+    var tableLineColor: NSColor?
+    var tableHeaderColor: NSColor?
+    var copyButtonColor: NSColor = .secondaryLabelColor
+    var copyButton: CopyCodeButton?
+    /// The code block the copy button is shown on.
+    var hoveredCodeBlock: NSRange?
+    private var hoverArea: NSTrackingArea?
+    private var scrollObserver: NSObjectProtocol?
     var codeBlockColor: NSColor? {
         didSet { if codeBlockColor != oldValue { needsDisplay = true } }
     }
@@ -711,6 +943,8 @@ final class MarkdownTextView: EditorTextView {
 
     override func drawBands(in rect: NSRect) {
         drawCodeBlocks(in: rect)
+        drawTables(in: rect)
+        drawDecorations(in: rect)
         super.drawBands(in: rect)
     }
 
@@ -732,7 +966,25 @@ final class MarkdownTextView: EditorTextView {
             if block.location >= NSMaxRange(chars) { break }
             guard NSMaxRange(block) <= length, let band = lineBand(forCharacters: block), band.intersects(dirty) else { continue }
             fillBand(band, with: color, radius: bandCornerRadius)
+            drawLanguageLabel(of: block)
         }
+    }
+
+    /// The fence's language at the top-left of the block, where the hidden opening fence leaves an empty line.
+    private func drawLanguageLabel(of block: NSRange) {
+        guard let storage = textStorage, let layout = layoutManager, block.length > 0,
+              (storage.attribute(.font, at: block.location, effectiveRange: nil) as? NSFont)?.pointSize ?? 1 < 1 else { return }
+        let ns = storage.mutableString
+        let first = RangeMath.lineRange(NSRange(location: block.location, length: 0), in: ns)
+        let line = ns.substring(with: NSIntersectionRange(first, block))
+        let info = line.trimmingCharacters(in: CharacterSet(charactersIn: "`~").union(.whitespacesAndNewlines))
+            .split(whereSeparator: { $0 == " " || $0 == "{" }).first.map(String.init) ?? ""
+        guard !info.isEmpty else { return }
+        let rect = layout.lineFragmentRect(forGlyphAt: layout.glyphIndexForCharacter(at: block.location), effectiveRange: nil)
+        let attributes: [NSAttributedString.Key: Any] = [.font: NSFont.systemFont(ofSize: 11), .foregroundColor: copyButtonColor]
+        let size = (info as NSString).size(withAttributes: attributes)
+        let origin = textContainerOrigin
+        (info as NSString).draw(at: NSPoint(x: origin.x + 4, y: origin.y + rect.midY - size.height / 2 + 2), withAttributes: attributes)
     }
 
     /// Room for the images under a last line that has no line break (paragraph spacing needs one to take effect).
@@ -743,6 +995,30 @@ final class MarkdownTextView: EditorTextView {
         updateInsets(for: newSize)
         super.setFrameSize(NSSize(width: newSize.width, height: newSize.height + trailingImageHeight))
         if widthChanged { onLayoutWidthChange?() }
+        if copyButton?.isHidden == false { updateCopyButton() }
+    }
+
+    override func updateTrackingAreas() {
+        super.updateTrackingAreas()
+        if let hoverArea { removeTrackingArea(hoverArea) }
+        let area = NSTrackingArea(rect: .zero, options: [.mouseMoved, .mouseEnteredAndExited, .activeAlways, .inVisibleRect], owner: self, userInfo: nil)
+        addTrackingArea(area)
+        hoverArea = area
+    }
+
+    override func mouseMoved(with event: NSEvent) {
+        super.mouseMoved(with: event)
+        updateCopyButton()
+    }
+
+    override func mouseEntered(with event: NSEvent) {
+        super.mouseEntered(with: event)
+        updateCopyButton()
+    }
+
+    override func mouseExited(with event: NSEvent) {
+        super.mouseExited(with: event)
+        updateCopyButton()
     }
 
     private func updateInsets(for size: NSSize) {
@@ -758,6 +1034,16 @@ final class MarkdownTextView: EditorTextView {
         super.viewDidMoveToWindow()
         if let keyObserver { NotificationCenter.default.removeObserver(keyObserver) }
         keyObserver = nil
+        if let scrollObserver { NotificationCenter.default.removeObserver(scrollObserver) }
+        scrollObserver = nil
+        hideCopyButton()
+        if let clip = enclosingScrollView?.contentView {
+            clip.postsBoundsChangedNotifications = true
+            scrollObserver = NotificationCenter.default.addObserver(forName: NSView.boundsDidChangeNotification, object: clip, queue: .main) {
+                [weak self] _ in
+                MainActor.assumeIsolated { self?.updateCopyButton() }
+            }
+        }
         guard let window else { return }
         keyObserver = NotificationCenter.default.addObserver(forName: NSWindow.didBecomeKeyNotification, object: window, queue: .main) {
             [weak self] _ in
@@ -770,6 +1056,8 @@ final class MarkdownTextView: EditorTextView {
     /// Draws the images under their lines, in the room the coordinator reserved as paragraph spacing.
     override func draw(_ dirtyRect: NSRect) {
         super.draw(dirtyRect)
+        // The text may have moved under a still mouse (an edit above, a changed image).
+        if copyButton?.isHidden == false { updateCopyButton() }
         guard !imageSlots.isEmpty, let layout = layoutManager, let container = textContainer else { return }
         let origin = textContainerOrigin
         let width = container.size.width - 2 * container.lineFragmentPadding

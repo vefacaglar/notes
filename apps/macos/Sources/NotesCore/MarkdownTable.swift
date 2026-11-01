@@ -123,6 +123,38 @@ public enum MarkdownTable {
         return result
     }
 
+    // MARK: Rendering
+
+    /// A table as the live editor renders it: header and body rows with their cells, the delimiter row, alignments.
+    public struct Grid: Equatable, Sendable {
+        public struct Row: Equatable, Sendable {
+            /// The line without its break (indentation included).
+            public var line: NSRange
+            /// Trimmed cell texts; an empty cell is an empty range at the pipe that follows it.
+            public var cells: [NSRange]
+        }
+        /// Header first, then the body rows (the delimiter row is not among them).
+        public var rows: [Row]
+        /// The delimiter line without its break.
+        public var delimiter: NSRange
+        /// One per column of the header.
+        public var alignments: [TableAlignment]
+        public var columns: Int { rows.map(\.cells.count).max() ?? 0 }
+    }
+
+    /// The table whose header line starts at `location` of `text` (offsets are shifted by `base`), or `nil`.
+    public static func grid(in text: String, at location: Int = 0, offsetBy base: Int = 0) -> Grid? {
+        let s = Array(text.utf16)
+        guard let rows = rows(in: s, at: location), rows.count >= 2 else { return nil }
+        func range(_ r: Row) -> NSRange { NSRange(location: r.start + base, length: r.end - r.start) }
+        func shifted(_ c: NSRange) -> NSRange { NSRange(location: c.location + base, length: c.length) }
+        return Grid(
+            rows: ([rows[0]] + rows.dropFirst(2)).map { Grid.Row(line: range($0), cells: $0.cells.map(shifted)) },
+            delimiter: range(rows[1]),
+            alignments: rows[1].cells.map { alignment(s, $0) ?? .none }
+        )
+    }
+
     // MARK: Layout
 
     /// Columns taken by a cell's text: wide East Asian characters and emoji count 2, everything else 1.
@@ -443,5 +475,26 @@ public enum MarkdownTable {
         }
         fields.append(current)
         return fields
+    }
+}
+
+/// Pure geometry of a rendered table (the editor measures the text, this places it).
+public enum TableMetrics {
+    /// The widest cell of every column; `widths[row][column]`, rows may be shorter than `columns`.
+    public static func columnWidths(_ widths: [[CGFloat]], columns: Int) -> [CGFloat] {
+        var result = [CGFloat](repeating: 0, count: columns)
+        for row in widths { for (column, width) in row.enumerated() where column < columns { result[column] = max(result[column], width) } }
+        return result
+    }
+
+    /// The room left in a column around a cell of `cell` width: before and after it, by alignment (left and
+    /// unaligned: all after; right: all before; center: half each).
+    public static func slack(cell: CGFloat, column: CGFloat, alignment: TableAlignment) -> (before: CGFloat, after: CGFloat) {
+        let extra = max(column - cell, 0)
+        switch alignment {
+        case .right: return (extra, 0)
+        case .center: return (extra / 2, extra / 2)
+        case .none, .left: return (0, extra)
+        }
     }
 }

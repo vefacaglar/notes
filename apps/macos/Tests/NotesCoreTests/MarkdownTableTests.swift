@@ -129,3 +129,41 @@ struct MarkdownTableTests {
         #expect(convert("text\n⟦a,b⟧")?.hasPrefix("text\n\n| ⟦a⟧") == true)
     }
 }
+
+struct TableRenderingTests {
+    @Test func gridSplitsRowsAndAlignments() throws {
+        let text = "x\n| Ad | Şehir |\n| :-- | --: |\n| 🎉 | `a|b` |\n\nson"
+        let grid = try #require(MarkdownTable.grid(in: String(text.dropFirst(2)), offsetBy: 2))
+        let ns = text as NSString
+        #expect(grid.alignments == [.left, .right])
+        #expect(grid.rows.count == 2)
+        #expect(grid.rows[0].cells.map { ns.substring(with: $0) } == ["Ad", "Şehir"])
+        #expect(grid.rows[1].cells.map { ns.substring(with: $0) } == ["🎉", "`a|b`"])
+        #expect(ns.substring(with: grid.delimiter) == "| :-- | --: |")
+        #expect(ns.substring(with: grid.rows[1].line) == "| 🎉 | `a|b` |")
+        #expect(grid.columns == 2)
+    }
+
+    @Test func noGridWithoutDelimiterRow() {
+        #expect(MarkdownTable.grid(in: "a | b\nc | d") == nil)
+    }
+
+    @Test func columnWidthsAndSlack() {
+        #expect(TableMetrics.columnWidths([[10, 4], [6], [8, 12]], columns: 2) == [10, 12])
+        #expect(TableMetrics.slack(cell: 4, column: 10, alignment: .none) == (0, 6))
+        #expect(TableMetrics.slack(cell: 4, column: 10, alignment: .right) == (6, 0))
+        #expect(TableMetrics.slack(cell: 4, column: 10, alignment: .center) == (3, 3))
+        #expect(TableMetrics.slack(cell: 12, column: 10, alignment: .center) == (0, 0))
+    }
+
+    @Test func codeBlockText() {
+        func code(_ text: String) -> String { MarkdownCodeBlock.code(in: text, block: NSRange(location: 0, length: text.utf16.count)) }
+        #expect(code("```swift\nlet a = 1\n\nlet b = 2\n```") == "let a = 1\n\nlet b = 2")
+        #expect(code("~~~\n```\nx\n~~~") == "```\nx")
+        #expect(code("```\nunclosed\nlast\n") == "unclosed\nlast")
+        #expect(code("```\n```") == "")
+        #expect(code("```\r\na\r\n```") == "a")
+        #expect(code("````\n```\n````") == "```")
+        #expect(code("\t```\nx\n\t```") == "x")
+    }
+}

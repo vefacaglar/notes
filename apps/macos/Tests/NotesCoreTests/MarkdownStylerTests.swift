@@ -231,6 +231,7 @@ struct MarkdownStylerTests {
 
     @Test func tables() {
         expectStyled("| Ad | **Şehir** |\n| :-- | --: |\n| 🎉 | `a|b` |", [
+            ("| Ad | **Şehir** |\n| :-- | --: |\n| 🎉 | `a|b` |", .table),
             ("| Ad | **Şehir** |", .tableHeader), ("|", .tableMarker), ("|", .tableMarker),
             ("**", .marker), ("Şehir", .bold), ("**", .marker), ("|", .tableMarker),
             ("| :-- | --: |", .tableMarker),

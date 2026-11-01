@@ -30,6 +30,8 @@ public struct MarkdownSpan: Hashable, Sendable {
         case tableHeader
         /// Pipes and the delimiter row of a pipe table: dimmed like markers but never hidden, so the columns stay put.
         case tableMarker
+        /// A whole pipe table, its lines through the last line break; comes before the spans inside it.
+        case table
     }
 
     /// UTF-16 range, directly usable with `NSString` / `NSTextStorage`.
@@ -159,6 +161,7 @@ private struct Scanner {
     }
 
     private mutating func table(_ rows: [MarkdownTable.Row]) {
+        add(rows[0].start, min(rows[rows.count - 1].next, s.count), .table)
         for (index, row) in rows.enumerated() {
             if index == 1 {
                 add(row.first, row.end, .tableMarker)
