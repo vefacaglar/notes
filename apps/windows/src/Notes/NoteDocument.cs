@@ -37,7 +37,7 @@ internal sealed class NoteDocument
 
     public static IReadOnlyList<NoteDocument> All => Open;
 
-    private sealed record Loaded(string Text, NoteFile.Stamp? Stamp, bool IsReadOnly);
+    private sealed record Loaded(string Text, NoteFile.Stamp? Stamp, string? ReadOnlyReason);
 
     /// <summary>The open document for `path`, or a new one loaded from disk. Balance with <see cref="Release"/>.</summary>
     public static async Task<NoteDocument> OpenAsync(string path)
@@ -79,7 +79,7 @@ internal sealed class NoteDocument
             var key = Paths.Canonical(path);
             foreach (var (open, other) in candidates)
                 if (Paths.Same(Paths.Canonical(other), key)) return (open, (Loaded?)null);
-            return ((NoteDocument?)null, File.Exists(path) ? Load(path) : new Loaded("", null, false));
+            return ((NoteDocument?)null, File.Exists(path) ? Load(path) : new Loaded("", null, null));
         });
         var document = existing is not null && Open.Contains(existing) ? existing : Open.FirstOrDefault(d => Paths.Same(d.Path, path));
         if (document is not null)
@@ -88,7 +88,7 @@ internal sealed class NoteDocument
             return document;
         }
         // The match left Open while this ran: read the file after all.
-        loaded ??= await Task.Run(() => File.Exists(path) ? Load(path) : new Loaded("", null, false));
+        loaded ??= await Task.Run(() => File.Exists(path) ? Load(path) : new Loaded("", null, null));
         document = new NoteDocument(path, loaded) { IsDraft = true };
         Open.Add(document);
         return document;
@@ -97,7 +97,7 @@ internal sealed class NoteDocument
     /// <summary>A new empty draft in the draft store. Balance with <see cref="Release"/>.</summary>
     public static NoteDocument NewDraft(string path)
     {
-        var document = new NoteDocument(path, new Loaded("", null, false)) { IsDraft = true };
+        var document = new NoteDocument(path, new Loaded("", null, null)) { IsDraft = true };
         Open.Add(document);
         return document;
     }
@@ -108,7 +108,15 @@ internal sealed class NoteDocument
         if (size > NoteFile.MaxOpenSize) throw new NoteFileTooLargeException(size);
         var stamp = NoteFile.GetStamp(path);
         var text = NoteFile.Read(path);
-        return new Loaded(text, stamp, size > NoteFile.ReadOnlySize);
+        return new Loaded(text, stamp, ReadOnlyReasonOf(path, size));
+    }
+
+    /// <summary>Why the file at `path` opens read-only (too large, or the user may not write it), else null. Does I/O.</summary>
+    private static string? ReadOnlyReasonOf(string path, long size)
+    {
+        if (size > NoteFile.ReadOnlySize) return Loc.Get("ReadOnlyLarge");
+        try { return File.Exists(path) && !NoteFile.IsWritable(path) ? Loc.Get("ReadOnlyPermission") : null; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
     /// <summary>Flushes every open document; false if any of them needs the user's attention (see <see cref="FlushAsync"/>).</summary>
@@ -128,8 +136,21 @@ internal sealed class NoteDocument
     public Guid Id { get; } = Guid.NewGuid();
     public string Path { get; private set; }
     public string Text { get; private set; }
-    /// <summary>Large files open read-only; nothing is ever saved for them.</summary>
-    public bool IsReadOnly { get; }
+    /// <summary>Large files and files the user may not write open read-only; nothing is ever saved for them.</summary>
+    public bool IsReadOnly => ReadOnlyReason is not null;
+    /// <summary>Why the document is read-only (shown in a banner and as the tab's tooltip); null when it is editable.</summary>
+    public string? ReadOnlyReason { get; private set; }
+    public event Action? ReadOnlyChanged;
+
+    private void SetReadOnlyReason(string? reason)
+    {
+        if (ReadOnlyReason == reason) return;
+        ReadOnlyReason = reason;
+        saveTimer.Stop();
+        if (reason is null && HasUnsavedChanges && !abandoned && !released) saveTimer.Start();
+        ReadOnlyChanged?.Invoke();
+        StateChanged?.Invoke();
+    }
     /// <summary>Set for files in the notes folder only: renames an auto-named note to the given title after a save.
     /// Runs while <see cref="FileGate"/> is held.</summary>
     public Func<NoteDocument, string, Task>? AutoRename { get; set; }
@@ -172,7 +193,7 @@ internal sealed class NoteDocument
         Text = loaded.Text;
         savedText = loaded.Text;
         savedStamp = loaded.Stamp;
-        IsReadOnly = loaded.IsReadOnly;
+        ReadOnlyReason = loaded.ReadOnlyReason;
         isAutoNamed = IsNote && NoteStore.IsAutoNamed(Name, loaded.Text);
         saveTimer = DispatcherQueue.GetForCurrentThread().CreateTimer();
         saveTimer.Interval = TimeSpan.FromMilliseconds(500);
@@ -263,6 +284,7 @@ internal sealed class NoteDocument
     /// <summary>An edit from an editor (`origin`), autosaved after a pause.</summary>
     public void SetText(string text, object? origin)
     {
+        if (NoteFile.NeedsNormalizing(text)) text = NoteFile.Normalized(text);
         if (string.Equals(text, Text, StringComparison.Ordinal)) return;
         Text = text;
         TextChanged?.Invoke(origin);
@@ -275,7 +297,8 @@ internal sealed class NoteDocument
 
     private abstract record SaveOutcome;
     private sealed record Saved(NoteFile.Stamp? Stamp) : SaveOutcome;
-    private sealed record Failed(string Message) : SaveOutcome;
+    /// <summary>`Complete`: the message already says what failed and needs no "could not be saved" around it.</summary>
+    private sealed record Failed(string Message, bool Complete = false) : SaveOutcome;
     private sealed record Conflict(string Disk, NoteFile.Stamp Stamp, string Copy) : SaveOutcome;
     private sealed record MovedToCopy(string Copy, NoteFile.Stamp? Stamp) : SaveOutcome;
     /// <summary>A draft's store file changed under it: its text went to a new draft file.</summary>
@@ -415,7 +438,7 @@ internal sealed class NoteDocument
                 StateChanged?.Invoke();
                 return true;
             case Failed failed:
-                Error = Loc.Format("SaveFailed", fileName, failed.Message);
+                Error = failed.Complete ? failed.Message : Loc.Format("SaveFailed", fileName, failed.Message);
                 // The edits stay; the next edit's autosave (or Ctrl+S) tries again.
                 errorIsFailedSave = true;
                 return false;
@@ -477,40 +500,53 @@ internal sealed class NoteDocument
                 return new Failed(Paths.Describe(e));
             }
         }
-        if (!draft && NoteFile.GetStamp(path) is { } stamp && stamp != recordedStamp)
+        if (!draft && NoteFile.GetStamp(path) is { } stamp)
         {
             // Changed on disk since it was loaded or saved here; only a touch without a content change may be overwritten.
-            string disk;
-            try
+            // An unchanged stamp can still hide an edit on a coarse-timestamp volume (see NoteFile.NeedsContentCheck).
+            var changed = stamp != recordedStamp;
+            if (changed || NoteFile.NeedsContentCheck(stamp, DateTime.UtcNow))
             {
-                if (stamp.Size > NoteFile.MaxOpenSize) throw new NoteFileTooLargeException(stamp.Size ?? 0);
+                string? disk;
                 try
                 {
-                    disk = NoteFile.Read(path);
+                    if (stamp.Size > NoteFile.MaxOpenSize) throw new NoteFileTooLargeException(stamp.Size ?? 0);
+                    try
+                    {
+                        disk = NoteFile.Read(path);
+                    }
+                    catch (UnauthorizedAccessException)
+                    {
+                        // A file another program is replacing can be delete-pending for a moment: try once more.
+                        Thread.Sleep(100);
+                        disk = NoteFile.Read(path);
+                    }
                 }
-                catch (UnauthorizedAccessException)
+                catch (Exception e) when (changed && IsUnreadable(e))
                 {
-                    // A file another program is replacing can be delete-pending for a moment: try once more.
-                    Thread.Sleep(100);
-                    disk = NoteFile.Read(path);
+                    var (moved, failure) = WriteConflictCopy(path, snapshot);
+                    return moved is not null
+                        ? new MovedToCopy(moved, NoteFile.GetStamp(moved))
+                        : new CopyFailed(failure ?? "", Unreadable: true);
                 }
-            }
-            catch (Exception e) when (IsUnreadable(e))
-            {
-                var (moved, failure) = WriteConflictCopy(path, snapshot);
-                return moved is not null
-                    ? new MovedToCopy(moved, NoteFile.GetStamp(moved))
-                    : new CopyFailed(failure ?? "", Unreadable: true);
-            }
-            catch (Exception e)
-            {
-                return new Failed(Paths.Describe(e));
-            }
-            if (string.Equals(disk, snapshot, StringComparison.Ordinal)) return new Saved(stamp);
-            if (!string.Equals(disk, recordedText, StringComparison.Ordinal))
-            {
-                var (copy, error) = WriteConflictCopy(path, snapshot);
-                return copy is not null ? new Conflict(disk, stamp, copy) : new CopyFailed(error ?? "", Unreadable: false);
+                catch (Exception e) when (changed)
+                {
+                    return new Failed(Paths.Describe(e));
+                }
+                catch (Exception)
+                {
+                    // The stamp says it is still our version: a read that fails now does not stop the save.
+                    disk = null;
+                }
+                if (disk is not null)
+                {
+                    if (string.Equals(disk, snapshot, StringComparison.Ordinal)) return new Saved(stamp);
+                    if (!string.Equals(disk, recordedText, StringComparison.Ordinal))
+                    {
+                        var (copy, error) = WriteConflictCopy(path, snapshot);
+                        return copy is not null ? new Conflict(disk, stamp, copy) : new CopyFailed(error ?? "", Unreadable: false);
+                    }
+                }
             }
         }
         try
@@ -525,6 +561,10 @@ internal sealed class NoteDocument
                 Directory.CreateDirectory(System.IO.Path.GetDirectoryName(System.IO.Path.GetFullPath(path))!);
                 NoteFile.Write(snapshot, path);
             }
+        }
+        catch (Exception e) when (e is NoteFileNotWritableException or NoteFileBrokenLinkException)
+        {
+            return new Failed(e.Message + " " + Loc.Get("ChangesKept"), Complete: true);
         }
         catch (Exception e)
         {
@@ -620,34 +660,40 @@ internal sealed class NoteDocument
         if (abandoned || HasUnsavedChanges || ComposingCount > 0) return;
         var path = Path;
         var recorded = savedStamp;
-        NoteFileTooLargeException? tooLarge = null;
-        NoteFile.Stamp? seen = null;
+        var draft = IsDraft;
+        // Probing whether the file may be written creates a file in its folder: not on every file system event.
+        var recheckAccess = !draft && Environment.TickCount64 - accessChecked > 5000;
+        if (recheckAccess) accessChecked = Environment.TickCount64;
+        string? reason = null;
+        var reasonKnown = false;
         var result = await Task.Run(() =>
         {
-            if (NoteFile.GetStamp(path) is not { } stamp || stamp == recorded) return null;
-            seen = stamp;
+            if (NoteFile.GetStamp(path) is not { } stamp) return null;
+            if (!draft && stamp.Size > NoteFile.MaxOpenSize)
+            {
+                (reason, reasonKnown) = (Loc.Get("ReadOnlyGrew"), true);
+                return null;
+            }
+            if (!draft && (recheckAccess || stamp != recorded))
+            {
+                reason = ReadOnlyReasonOf(path, stamp.Size ?? 0);
+                reasonKnown = true;
+            }
+            // An unchanged stamp can hide an edit on a coarse-timestamp volume: compare the content then.
+            if (stamp == recorded && !(stamp.HasCoarseTimestamp && NoteFile.NeedsContentCheck(stamp, DateTime.UtcNow))) return null;
             try { return (Stamp: stamp, Text: NoteFile.Read(path)) as (NoteFile.Stamp Stamp, string Text)?; }
-            catch (NoteFileTooLargeException e) { tooLarge = e; return null; }
             catch (Exception) { return null; }
         });
         SyncRequested?.Invoke();
-        if (tooLarge is not null && !HasUnsavedChanges && Path == path)
-        {
-            // The tab keeps the old text; the next save sees the changed file and keeps a conflict copy.
-            // Reported once per version of the file, not on every activation.
-            if (seen != tooLargeReported)
-            {
-                tooLargeReported = seen;
-                Error = tooLarge.Message;
-            }
-            return;
-        }
-        if (result is not { } disk || HasUnsavedChanges || ComposingCount > 0 || Path != path) return;
+        if (HasUnsavedChanges || ComposingCount > 0 || Path != path) return;
+        // A file that grew beyond what can be opened keeps the text shown and becomes read-only.
+        if (reasonKnown) SetReadOnlyReason(reason);
+        if (result is not { } disk) return;
         if (string.Equals(disk.Text, savedText, StringComparison.Ordinal)) savedStamp = disk.Stamp;
         else Replace(disk.Text, disk.Stamp);
     });
 
-    private NoteFile.Stamp? tooLargeReported;
+    private long accessChecked = Environment.TickCount64;
 
     private void Replace(string content, NoteFile.Stamp stamp)
     {

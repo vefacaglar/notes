@@ -24,10 +24,10 @@ internal sealed class FolderWatcher : IDisposable
                 InternalBufferSize = 64 * 1024,
                 NotifyFilter = NotifyFilters.FileName | NotifyFilters.DirectoryName | NotifyFilters.LastWrite | NotifyFilters.Size,
             };
-            watcher.Created += (_, _) => Poke();
-            watcher.Changed += (_, _) => Poke();
-            watcher.Deleted += (_, _) => Poke();
-            watcher.Renamed += (_, _) => Poke();
+            watcher.Created += (_, e) => PokeUnlessTemporary(e.Name);
+            watcher.Changed += (_, e) => PokeUnlessTemporary(e.Name);
+            watcher.Deleted += (_, e) => PokeUnlessTemporary(e.Name);
+            watcher.Renamed += (_, e) => PokeUnlessTemporary(e.Name);
             // A buffer overflow loses events: re-read everything.
             watcher.Error += (_, _) => Poke();
             watcher.EnableRaisingEvents = true;
@@ -37,6 +37,15 @@ internal sealed class FolderWatcher : IDisposable
             watcher?.Dispose();
             watcher = null; // window activation still refreshes
         }
+    }
+
+    /// <summary>The app's own temporary files (atomic saves, write probes) are not changes of the folder: reacting to them
+    /// would make every check of the folder trigger the next one. The saved file itself is reported by its own name.</summary>
+    private void PokeUnlessTemporary(string? name)
+    {
+        var file = Path.GetFileName(name ?? "");
+        if (file.StartsWith(".notes-", StringComparison.Ordinal) && (file.EndsWith(".tmp", StringComparison.Ordinal) || file.EndsWith(".bak", StringComparison.Ordinal))) return;
+        Poke();
     }
 
     private void Poke() => queue.TryEnqueue(() =>
