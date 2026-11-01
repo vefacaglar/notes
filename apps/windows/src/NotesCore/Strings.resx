@@ -39,6 +39,7 @@
   <data name="CryptoNewerVersion" xml:space="preserve"><value>This encrypted note was made by a newer version of Notes.</value></data>
   <data name="CryptoWrongPassword" xml:space="preserve"><value>The password is wrong or the file is damaged.</value></data>
   <data name="NotWritable" xml:space="preserve"><value>“{0}” can't be saved because it is read-only or locked.</value></data>
+  <data name="CopyMarker" xml:space="preserve"><value>copy</value></data>
   <data name="BrokenLink" xml:space="preserve"><value>“{0}” is a link to a file that doesn't exist.</value></data>
   <data name="ThemeInvalidColor" xml:space="preserve"><value>Invalid color "{0}": it must be #RRGGBB or #RRGGBBAA.</value></data>
   <data name="ThemeInvalidJson" xml:space="preserve"><value>The file is not a valid JSON object.</value></data>

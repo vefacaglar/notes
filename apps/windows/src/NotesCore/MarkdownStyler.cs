@@ -171,7 +171,7 @@ public static class MarkdownStyler
                     Add(lineStart, end, MarkdownSpanKind.CodeBlock);
                     Add(lineStart, end, MarkdownSpanKind.Marker);
                 }
-                else if (TableRows(lineStart) is { } rows)
+                else if (MarkdownTable.Rows(s, lineStart) is { } rows)
                 {
                     Table(rows);
                     lineStart = rows[^1].Next;
@@ -186,7 +186,7 @@ public static class MarkdownStyler
             if (fence is { } unclosed) CloseFence(unclosed.spanIndex, s.Length);
         }
 
-        private void Table(List<TableRow> rows)
+        private void Table(List<MarkdownTable.TableRow> rows)
         {
             Add(rows[0].Start, Math.Min(rows[^1].Next, s.Length), MarkdownSpanKind.Table);
             for (int index = 0; index < rows.Count; index++)
@@ -511,19 +511,11 @@ public static class MarkdownStyler
             if (i + 1 >= end || s[i + 1] != '[') return null;
             int j = i + 2;
             while (j + 1 < end && s[j] != '[' && s[j] != ']') j++;
-            if (j + 1 >= end || s[j] != ']' || s[j + 1] != ']' || WikiName(Substr(i + 2, j)) is not { } target) return null;
+            if (j + 1 >= end || s[j] != ']' || s[j + 1] != ']' || NoteLinks.WikiName(Substr(i + 2, j)) is not { } target) return null;
             AddInline(i, i + 2, MarkdownSpanKind.Marker);
             AddInline(i + 2, j, MarkdownSpanKind.WikiLink(target));
             AddInline(j, j + 2, MarkdownSpanKind.Marker);
             return j + 2;
-        }
-
-        /// <summary>The note name of a wiki link's inner text: before <c>|</c> (alias) and <c>#</c> (heading), trimmed; <c>null</c> when empty.</summary>
-        private static string? WikiName(string inner)
-        {
-            var cut = inner.AsSpan().IndexOfAny('|', '#');
-            var name = (cut >= 0 ? inner[..cut] : inner).Trim();
-            return name.Length == 0 ? null : name;
         }
 
         /// <summary><c>[text](url)</c> starting at <paramref name="bracket"/>; <paramref name="start"/> is the <c>!</c> of an image or the bracket itself.</summary>
@@ -569,111 +561,6 @@ public static class MarkdownStyler
             AddInline(bracket + 1, close, MarkdownSpanKind.Link(Substr(urlStart, urlEnd)));
             AddInline(close, k + 1, MarkdownSpanKind.Marker);
             return k + 1;
-        }
-
-        // Pipe tables (GFM): the same detection as the macOS MarkdownTable.
-
-        private readonly record struct TableRow(int Start, int First, int End, int Next, List<MarkdownRange> Cells, List<int> Pipes);
-
-        private TableRow ScanRow(int start)
-        {
-            int nl = start;
-            while (nl < s.Length && s[nl] != '\n') nl++;
-            int end = nl > start && s[nl - 1] == '\r' ? nl - 1 : nl;
-            int i = start;
-            while (i < end && IsSpace(s[i])) i++;
-            int first = i;
-            var pipes = new List<int>();
-            while (i < end)
-            {
-                switch (s[i])
-                {
-                    case '\\':
-                        i += 2;
-                        break;
-                    case '`':
-                    {
-                        int j = i;
-                        while (j < end && s[j] == '`') j++;
-                        int k = j, close = -1;
-                        while (k < end)
-                        {
-                            if (s[k] != '`') { k++; continue; }
-                            int l = k;
-                            while (l < end && s[l] == '`') l++;
-                            if (l - k == j - i) { close = l; break; }
-                            k = l;
-                        }
-                        i = close >= 0 ? close : j;
-                        break;
-                    }
-                    case '|':
-                        pipes.Add(i);
-                        i++;
-                        break;
-                    default:
-                        i++;
-                        break;
-                }
-            }
-            var cuts = new List<(int A, int B)>();
-            int from = first;
-            foreach (var p in pipes) { cuts.Add((from, p)); from = p + 1; }
-            cuts.Add((from, end));
-            if (pipes.Count > 0 && pipes[0] == first) cuts.RemoveAt(0);
-            if (pipes.Count > 0 && cuts.Count > 0 && IsBlank(cuts[^1].A, cuts[^1].B)) cuts.RemoveAt(cuts.Count - 1);
-            var cells = new List<MarkdownRange>(cuts.Count);
-            foreach (var (ca, cb) in cuts)
-            {
-                int a = ca, b = cb;
-                while (a < b && IsSpace(s[a])) a++;
-                while (b > a && IsSpace(s[b - 1])) b--;
-                cells.Add(new MarkdownRange(a, b - a));
-            }
-            return new TableRow(start, first, end, nl + 1, cells, pipes);
-        }
-
-        private bool IsBlank(int from, int to)
-        {
-            for (int x = from; x < to; x++) if (!IsSpace(s[x])) return false;
-            return true;
-        }
-
-        private bool IsDelimiterRow(TableRow row)
-        {
-            if (row.Cells.Count == 0 || row.Pipes.Count == 0) return false;
-            foreach (var cell in row.Cells)
-            {
-                if (cell.Length == 0) return false;
-                int a = cell.Location, b = cell.End;
-                bool left = s[a] == ':';
-                bool right = s[b - 1] == ':' && b - a > (left ? 1 : 0);
-                int from = a + (left ? 1 : 0), to = b - (right ? 1 : 0);
-                if (to <= from) return false;
-                for (int x = from; x < to; x++) if (s[x] != '-') return false;
-            }
-            return true;
-        }
-
-        /// <summary>The rows of the table whose header line starts at <paramref name="start"/> (header, delimiter row, body rows), or <c>null</c>.</summary>
-        private List<TableRow>? TableRows(int start)
-        {
-            if (start >= s.Length) return null;
-            var header = ScanRow(start);
-            if (header.Pipes.Count == 0 || header.First - start > 3 || header.Next > s.Length) return null;
-            for (int x = start; x < header.First; x++) if (s[x] != ' ') return null;
-            var delimiter = ScanRow(header.Next);
-            if (delimiter.Cells.Count != header.Cells.Count || !IsDelimiterRow(delimiter)) return null;
-            var result = new List<TableRow> { header, delimiter };
-            int pos = delimiter.Next;
-            while (pos < s.Length)
-            {
-                var body = ScanRow(pos);
-                if (body.Pipes.Count == 0) break;
-                result.Add(body);
-                pos = body.Next;
-            }
-            return result;
         }
 
         private string Substr(int start, int end) => s.Substring(start, Math.Max(start, end) - start);

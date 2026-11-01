@@ -24,8 +24,9 @@ public sealed class NoteStoreException(NoteStoreError error, string name) : Exce
     };
 }
 
-/// <summary>An entry of the notes tree; equality is by value, children included.</summary>
-public sealed record NoteNode(string Path, string Name, bool IsFolder, IReadOnlyList<NoteNode>? Children)
+/// <summary>An entry of the notes tree; equality is by value, children included. <c>Modified</c> (files only) is not compared, so
+/// our own autosaves do not make a tree look changed.</summary>
+public sealed record NoteNode(string Path, string Name, bool IsFolder, IReadOnlyList<NoteNode>? Children, DateTime? Modified = null)
 {
     /// <summary><c>Path</c> relative to the store root, always "/"-separated.</summary>
     public string Id => Path;
@@ -215,9 +216,15 @@ public sealed partial class NoteStore
                 nodes.Add(new NoteNode(path, name, true, cycle ? [] : Children(entry.FullName, path + "/", depth + 1, [.. ancestors, final!])));
             }
             else if (IsListed(name))
-                nodes.Add(new NoteNode(path, DisplayName(name), false, null));
+                nodes.Add(new NoteNode(path, DisplayName(name), false, null, ModifiedOf(entry)));
         }
         return nodes.OrderBy(n => n.IsFolder ? 0 : 1).ThenBy(n => n.Name, DisplayOrder).ToList();
+    }
+
+    private static DateTime? ModifiedOf(FileSystemInfo entry)
+    {
+        try { return entry.LastWriteTimeUtc; }
+        catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return null; }
     }
 
     // MARK: Reading & writing

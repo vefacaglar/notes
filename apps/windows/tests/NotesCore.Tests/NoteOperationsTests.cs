@@ -227,4 +227,14 @@ public sealed class NoteOperationsTests : IDisposable
         Assert.Equal("Plan 2.md", NoteStore.UniqueItemName("Plan.md", false, null, root));
         Assert.Equal("Fresh.md", NoteStore.UniqueItemName("Fresh.md", false, null, root));
     }
+
+    [Fact]
+    public void TreeCarriesModificationDates()
+    {
+        Put("a.md");
+        Put("Work/b.md");
+        var tree = store.Tree();
+        Assert.Null(tree[0].Modified);
+        Assert.NotNull(tree[1].Modified);
+    }
 }

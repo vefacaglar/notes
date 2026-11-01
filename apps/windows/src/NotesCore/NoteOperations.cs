@@ -10,16 +10,7 @@ namespace NotesCore;
 public sealed partial class NoteStore
 {
     /// <summary>The word Duplicate appends to a copy's name ("Plan copy.md"; "Plan kopya.md" in Turkish), following the UI language.</summary>
-    internal static string CopyMarker
-    {
-        get
-        {
-            // TODO(l10n): key CopyMarker (en "copy", tr "kopya"); falls back to the culture until the key exists.
-            var marker = Strings.Get("CopyMarker");
-            if (marker != "CopyMarker") return marker;
-            return CultureInfo.CurrentUICulture.TwoLetterISOLanguageName == "tr" ? "kopya" : "copy";
-        }
-    }
+    internal static string CopyMarker => Strings.Get("CopyMarker");
 
     // MARK: Portable names
 

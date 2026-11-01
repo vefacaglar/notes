@@ -150,18 +150,8 @@ public static partial class MarkdownEditing
         return new TextEdit(selection, $"[{chosen}]()", new(selection.Location + chosen.Length + 3, 0));
     }
 
-    /// <summary>An http(s) address without whitespace (the macOS app asks <c>NoteLinks.classify</c> for a web URL with that scheme).</summary>
-    private static bool IsWebAddress(string s)
-    {
-        foreach (var c in s)
-            if (char.IsWhiteSpace(c)) return false;
-        var colon = s.IndexOf(':');
-        if (colon < 2 || !char.IsAsciiLetter(s[0])) return false;
-        foreach (var c in s.AsSpan(0, colon))
-            if (!(char.IsAsciiLetterOrDigit(c) || c is '+' or '-' or '.')) return false;
-        var scheme = s[..colon].ToLowerInvariant();
-        return scheme is "http" or "https";
-    }
+    private static bool IsWebAddress(string s) =>
+        NoteLinks.Classify(s) is LinkDestination.Web { Url.Scheme: "http" or "https" } && !s.Any(char.IsWhiteSpace);
 
     // Tasks
 
