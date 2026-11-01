@@ -1,5 +1,9 @@
 # State
 
+## Encrypted notes (macOS, 2026-11-01: 2505606, 97fcd9b)
+
+`.mdenc` notes (docs/format.md "Encrypted notes", with a test vector for the Windows port), lock/unlock, Encrypt / Remove Encryption / New Encrypted Note, auto-lock, password PDF, Export as Encrypted Note. Reviewed (Opus), all findings fixed. Verified in a test instance: locked open, wrong/right password, encrypted save (independently decrypted), Lock, restore opens locked, session.json paths only. Not verified by hand (window-focused commands couldn't run in the background): Encrypt / Remove Encryption / New Encrypted Note dialogs, PDF password panel, Export as Encrypted Note, image refusal, idle/sleep/screen-lock triggers, Settings picker; whether macOS saved window state captures an unlocked note. Windows: not implemented (ignores `.mdenc`).
+
 ## RESUME POINT (2026-10-31, before compact)
 
 macOS app on main (local, 20+ commits ahead of origin, NOT pushed): core, live Markdown/code editors, auto-naming, JSON format, themes + settings window + fonts, multi-root workspace, tabs, drafts, session restore, outside-file windows, EN/TR localization with language setting, VS Code macOS tasks, muted palette (1b8fdb7).
