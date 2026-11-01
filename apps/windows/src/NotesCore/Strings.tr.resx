@@ -8,7 +8,6 @@
   <data name="Conflict" xml:space="preserve"><value>çakışma</value></data>
   <data name="PlainText" xml:space="preserve"><value>Düz metin</value></data>
   <data name="FileTooLarge" xml:space="preserve"><value>Dosya çok büyük ({0} MB); en fazla {1} MB açılabilir.</value></data>
-  <data name="LinkTargetMissing" xml:space="preserve"><value>Bağlantının hedefi bulunamadı: {0}</value></data>
   <data name="LinkTargetUnresolved" xml:space="preserve"><value>Bağlantının hedefi çözülemedi: {0}</value></data>
   <data name="SaveRecovery" xml:space="preserve"><value>Kayıt başarısız oldu; özgün dosya "{0}" konumunda duruyor ve "{1}" yerine elle taşınmalı.</value></data>
   <data name="InvalidName" xml:space="preserve"><value>Geçersiz ad: "{0}"</value></data>
@@ -36,4 +35,57 @@
   <data name="JsonUnterminated" xml:space="preserve"><value>kapanmamış dizge</value></data>
   <data name="JsonBadNumber" xml:space="preserve"><value>geçersiz sayı</value></data>
   <data name="JsonUnexpectedChar" xml:space="preserve"><value>beklenmeyen karakter "{0}"</value></data>
+  <data name="CryptoDamaged" xml:space="preserve"><value>Bu şifreli not bozuk.</value></data>
+  <data name="CryptoNewerVersion" xml:space="preserve"><value>Bu şifreli not Notes'un daha yeni bir sürümüyle oluşturulmuş.</value></data>
+  <data name="CryptoWrongPassword" xml:space="preserve"><value>Parola yanlış ya da dosya bozuk.</value></data>
+  <data name="NotWritable" xml:space="preserve"><value>“{0}” salt okunur ya da kilitli olduğu için kaydedilemiyor.</value></data>
+  <data name="BrokenLink" xml:space="preserve"><value>“{0}”, var olmayan bir dosyaya bağlantı.</value></data>
+  <data name="ThemeInvalidColor" xml:space="preserve"><value>Geçersiz renk "{0}": #RRGGBB ya da #RRGGBBAA biçiminde olmalı.</value></data>
+  <data name="ThemeInvalidJson" xml:space="preserve"><value>Dosya geçerli bir JSON nesnesi değil.</value></data>
+  <data name="ThemeMalformedJson" xml:space="preserve"><value>JSON hatası, satır {0}: {1}</value></data>
+  <data name="ThemeNotUtf8" xml:space="preserve"><value>Dosya UTF-8 olarak kaydedilmeli (UTF-16 desteklenmez).</value></data>
+  <data name="ThemeMissingField" xml:space="preserve"><value>"{0}" alanı eksik.</value></data>
+  <data name="ThemeInvalidValue" xml:space="preserve"><value>"{0}" alanı geçersiz: {1}</value></data>
+  <data name="ThemeFileTooLarge" xml:space="preserve"><value>Dosya bir tema için fazla büyük (en çok 1.000.000 bayt).</value></data>
+  <data name="ThemeTooManyFiles" xml:space="preserve"><value>Klasörde en çok {0} tema dosyası okunur; bu dosya atlandı.</value></data>
+  <data name="ThemeUnreadable" xml:space="preserve"><value>Dosya okunamadı: {0}</value></data>
+  <data name="ThemeDuplicateId" xml:space="preserve"><value>"{0}" kimliği başka bir tema tarafından kullanılıyor; bu dosya yok sayıldı.</value></data>
+  <data name="ThemeMustNotBeEmpty" xml:space="preserve"><value>boş olamaz.</value></data>
+  <data name="ThemeMustNotBeNull" xml:space="preserve"><value>null olamaz.</value></data>
+  <data name="ThemeExpected" xml:space="preserve"><value>{0} bekleniyordu.</value></data>
+  <data name="ThemeExpectedString" xml:space="preserve"><value>metin</value></data>
+  <data name="ThemeExpectedNumber" xml:space="preserve"><value>sayı</value></data>
+  <data name="ThemeExpectedObject" xml:space="preserve"><value>nesne</value></data>
+  <data name="ThemeBadAppearance" xml:space="preserve"><value>"light" ya da "dark" olmalı.</value></data>
+  <data name="ThemeBadColor" xml:space="preserve"><value>#RRGGBB ya da #RRGGBBAA biçiminde bir renk olmalı.</value></data>
+  <data name="ThemeCouldNotBeRead" xml:space="preserve"><value>okunamadı.</value></data>
+  <data name="ThemeNotRegularFile" xml:space="preserve"><value>normal bir dosya değil.</value></data>
+  <data name="ThemeNoComments" xml:space="preserve"><value>yorumlara izin verilmez.</value></data>
+  <data name="ThemeFileEnded" xml:space="preserve"><value>dosya beklenmedik biçimde bitti.</value></data>
+  <data name="ThemeValueExpected" xml:space="preserve"><value>değer bekleniyordu.</value></data>
+  <data name="ThemeTrailingComma" xml:space="preserve"><value>sondaki virgüle izin verilmez.</value></data>
+  <data name="ThemeKeyExpected" xml:space="preserve"><value>tırnak içinde anahtar bekleniyordu.</value></data>
+  <data name="ThemeDuplicateKey" xml:space="preserve"><value>aynı anahtar birden fazla kez yazılmış.</value></data>
+  <data name="ThemeColonExpected" xml:space="preserve"><value>':' bekleniyordu.</value></data>
+  <data name="ThemeCommaOrBrace" xml:space="preserve"><value>',' ya da '}' bekleniyordu.</value></data>
+  <data name="ThemeCommaOrBracket" xml:space="preserve"><value>',' ya da ']' bekleniyordu.</value></data>
+  <data name="ThemeInvalidValueWord" xml:space="preserve"><value>geçersiz değer.</value></data>
+  <data name="ThemeBadNumber" xml:space="preserve"><value>geçersiz sayı.</value></data>
+  <data name="ThemeNumberTooLarge" xml:space="preserve"><value>sayı çok büyük.</value></data>
+  <data name="ThemeUnterminatedString" xml:space="preserve"><value>kapanmamış metin.</value></data>
+  <data name="ThemeControlChar" xml:space="preserve"><value>metin içinde kaçışsız kontrol karakteri var.</value></data>
+  <data name="ThemeBadEscape" xml:space="preserve"><value>geçersiz kaçış dizisi.</value></data>
+  <data name="ThemeBadUnicodeEscape" xml:space="preserve"><value>geçersiz \u kaçışı.</value></data>
+  <data name="ThemeUnpairedSurrogate" xml:space="preserve"><value>eşi olmayan UTF-16 vekil karakteri.</value></data>
+  <data name="ThemeExtraContent" xml:space="preserve"><value>JSON nesnesinden sonra fazladan içerik var.</value></data>
+  <data name="ThemeTooDeep" xml:space="preserve"><value>en çok {0} düzey iç içe nesne/dizi olabilir.</value></data>
+  <data name="ThemeDefaultLight" xml:space="preserve"><value>Varsayılan Açık</value></data>
+  <data name="ThemeDefaultDark" xml:space="preserve"><value>Varsayılan Koyu</value></data>
+  <data name="ThemeSepia" xml:space="preserve"><value>Sepya</value></data>
+  <data name="ThemePaper" xml:space="preserve"><value>Kağıt</value></data>
+  <data name="ThemeMidnight" xml:space="preserve"><value>Gece Mavisi</value></data>
+  <data name="ThemeOcean" xml:space="preserve"><value>Okyanus</value></data>
+  <data name="AppearanceSystem" xml:space="preserve"><value>Sistem</value></data>
+  <data name="AppearanceLight" xml:space="preserve"><value>Açık</value></data>
+  <data name="AppearanceDark" xml:space="preserve"><value>Koyu</value></data>
 </root>

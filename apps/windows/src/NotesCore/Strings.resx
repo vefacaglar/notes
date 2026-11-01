@@ -8,7 +8,6 @@
   <data name="Conflict" xml:space="preserve"><value>conflict</value></data>
   <data name="PlainText" xml:space="preserve"><value>Plain text</value></data>
   <data name="FileTooLarge" xml:space="preserve"><value>The file is too large ({0} MB); files up to {1} MB can be opened.</value></data>
-  <data name="LinkTargetMissing" xml:space="preserve"><value>The link target was not found: {0}</value></data>
   <data name="LinkTargetUnresolved" xml:space="preserve"><value>The link target could not be resolved: {0}</value></data>
   <data name="SaveRecovery" xml:space="preserve"><value>The save failed; the original file is kept at "{0}" and must be moved to "{1}" by hand.</value></data>
   <data name="InvalidName" xml:space="preserve"><value>Invalid name: "{0}"</value></data>
@@ -36,4 +35,57 @@
   <data name="JsonUnterminated" xml:space="preserve"><value>unterminated string</value></data>
   <data name="JsonBadNumber" xml:space="preserve"><value>invalid number</value></data>
   <data name="JsonUnexpectedChar" xml:space="preserve"><value>unexpected character "{0}"</value></data>
+  <data name="CryptoDamaged" xml:space="preserve"><value>This encrypted note is damaged.</value></data>
+  <data name="CryptoNewerVersion" xml:space="preserve"><value>This encrypted note was made by a newer version of Notes.</value></data>
+  <data name="CryptoWrongPassword" xml:space="preserve"><value>The password is wrong or the file is damaged.</value></data>
+  <data name="NotWritable" xml:space="preserve"><value>“{0}” can't be saved because it is read-only or locked.</value></data>
+  <data name="BrokenLink" xml:space="preserve"><value>“{0}” is a link to a file that doesn't exist.</value></data>
+  <data name="ThemeInvalidColor" xml:space="preserve"><value>Invalid color "{0}": it must be #RRGGBB or #RRGGBBAA.</value></data>
+  <data name="ThemeInvalidJson" xml:space="preserve"><value>The file is not a valid JSON object.</value></data>
+  <data name="ThemeMalformedJson" xml:space="preserve"><value>JSON error, line {0}: {1}</value></data>
+  <data name="ThemeNotUtf8" xml:space="preserve"><value>The file must be saved as UTF-8 (UTF-16 is not supported).</value></data>
+  <data name="ThemeMissingField" xml:space="preserve"><value>The field "{0}" is missing.</value></data>
+  <data name="ThemeInvalidValue" xml:space="preserve"><value>The field "{0}" is invalid: {1}</value></data>
+  <data name="ThemeFileTooLarge" xml:space="preserve"><value>The file is too large for a theme (1,000,000 bytes at most).</value></data>
+  <data name="ThemeTooManyFiles" xml:space="preserve"><value>At most {0} theme files are read from the folder; this file was skipped.</value></data>
+  <data name="ThemeUnreadable" xml:space="preserve"><value>The file could not be read: {0}</value></data>
+  <data name="ThemeDuplicateId" xml:space="preserve"><value>The id "{0}" is already used by another theme; this file was ignored.</value></data>
+  <data name="ThemeMustNotBeEmpty" xml:space="preserve"><value>must not be empty.</value></data>
+  <data name="ThemeMustNotBeNull" xml:space="preserve"><value>must not be null.</value></data>
+  <data name="ThemeExpected" xml:space="preserve"><value>Expected {0}.</value></data>
+  <data name="ThemeExpectedString" xml:space="preserve"><value>a string</value></data>
+  <data name="ThemeExpectedNumber" xml:space="preserve"><value>a number</value></data>
+  <data name="ThemeExpectedObject" xml:space="preserve"><value>an object</value></data>
+  <data name="ThemeBadAppearance" xml:space="preserve"><value>must be "light" or "dark".</value></data>
+  <data name="ThemeBadColor" xml:space="preserve"><value>must be a color like #RRGGBB or #RRGGBBAA.</value></data>
+  <data name="ThemeCouldNotBeRead" xml:space="preserve"><value>could not be read.</value></data>
+  <data name="ThemeNotRegularFile" xml:space="preserve"><value>not a regular file.</value></data>
+  <data name="ThemeNoComments" xml:space="preserve"><value>comments are not allowed.</value></data>
+  <data name="ThemeFileEnded" xml:space="preserve"><value>the file ended unexpectedly.</value></data>
+  <data name="ThemeValueExpected" xml:space="preserve"><value>a value was expected.</value></data>
+  <data name="ThemeTrailingComma" xml:space="preserve"><value>a trailing comma is not allowed.</value></data>
+  <data name="ThemeKeyExpected" xml:space="preserve"><value>a key in quotes was expected.</value></data>
+  <data name="ThemeDuplicateKey" xml:space="preserve"><value>the same key appears more than once.</value></data>
+  <data name="ThemeColonExpected" xml:space="preserve"><value>a colon was expected.</value></data>
+  <data name="ThemeCommaOrBrace" xml:space="preserve"><value>a comma or a closing brace was expected.</value></data>
+  <data name="ThemeCommaOrBracket" xml:space="preserve"><value>a comma or a closing bracket was expected.</value></data>
+  <data name="ThemeInvalidValueWord" xml:space="preserve"><value>invalid value.</value></data>
+  <data name="ThemeBadNumber" xml:space="preserve"><value>the number is not valid.</value></data>
+  <data name="ThemeNumberTooLarge" xml:space="preserve"><value>the number is too large.</value></data>
+  <data name="ThemeUnterminatedString" xml:space="preserve"><value>a string is not terminated.</value></data>
+  <data name="ThemeControlChar" xml:space="preserve"><value>unescaped control character in a string.</value></data>
+  <data name="ThemeBadEscape" xml:space="preserve"><value>invalid escape sequence in a string.</value></data>
+  <data name="ThemeBadUnicodeEscape" xml:space="preserve"><value>invalid \u escape in a string.</value></data>
+  <data name="ThemeUnpairedSurrogate" xml:space="preserve"><value>unpaired UTF-16 surrogate.</value></data>
+  <data name="ThemeExtraContent" xml:space="preserve"><value>unexpected content after the JSON object.</value></data>
+  <data name="ThemeTooDeep" xml:space="preserve"><value>objects and arrays can be nested {0} levels deep at most.</value></data>
+  <data name="ThemeDefaultLight" xml:space="preserve"><value>Default Light</value></data>
+  <data name="ThemeDefaultDark" xml:space="preserve"><value>Default Dark</value></data>
+  <data name="ThemeSepia" xml:space="preserve"><value>Sepia</value></data>
+  <data name="ThemePaper" xml:space="preserve"><value>Paper</value></data>
+  <data name="ThemeMidnight" xml:space="preserve"><value>Midnight</value></data>
+  <data name="ThemeOcean" xml:space="preserve"><value>Ocean</value></data>
+  <data name="AppearanceSystem" xml:space="preserve"><value>System</value></data>
+  <data name="AppearanceLight" xml:space="preserve"><value>Light</value></data>
+  <data name="AppearanceDark" xml:space="preserve"><value>Dark</value></data>
 </root>
