@@ -142,6 +142,13 @@
   <data name="HideOutline" xml:space="preserve"><value>Anahatı Gizle</value></data>
   <data name="Outline" xml:space="preserve"><value>Anahat</value></data>
   <data name="NoHeadings" xml:space="preserve"><value>Başlık yok</value></data>
+  <data name="ShowMarkdownSyntax" xml:space="preserve"><value>Markdown İşaretlerini Göster</value></data>
+  <data name="CopyCode" xml:space="preserve"><value>Kodu Kopyala</value></data>
+  <data name="Copied" xml:space="preserve"><value>Kopyalandı</value></data>
+  <data name="ImageFailedTitle" xml:space="preserve"><value>Görsel eklenemedi</value></data>
+  <data name="ImageUnreadable" xml:space="preserve"><value>Görsel okunamadı.</value></data>
+  <data name="ImageEncrypted" xml:space="preserve"><value>Şifreli bir nota görsel eklenemez, çünkü görsel dosyaları şifrelenmezdi.</value></data>
+  <data name="ImageNeedsFile" xml:space="preserve"><value>Görsel eklemek için önce notu kaydedin.</value></data>
   <data name="FocusMode" xml:space="preserve"><value>Odak Kipi</value></data>
   <data name="ShowSource" xml:space="preserve"><value>Kaynağı Göster</value></data>
   <data name="ReadingMode" xml:space="preserve"><value>Okuma Modu</value></data>

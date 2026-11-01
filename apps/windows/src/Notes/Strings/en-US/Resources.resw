@@ -142,6 +142,13 @@
   <data name="HideOutline" xml:space="preserve"><value>Hide Outline</value></data>
   <data name="Outline" xml:space="preserve"><value>Outline</value></data>
   <data name="NoHeadings" xml:space="preserve"><value>No headings</value></data>
+  <data name="ShowMarkdownSyntax" xml:space="preserve"><value>Show Markdown Syntax</value></data>
+  <data name="CopyCode" xml:space="preserve"><value>Copy Code</value></data>
+  <data name="Copied" xml:space="preserve"><value>Copied</value></data>
+  <data name="ImageFailedTitle" xml:space="preserve"><value>Couldn't add the image</value></data>
+  <data name="ImageUnreadable" xml:space="preserve"><value>The image couldn't be read.</value></data>
+  <data name="ImageEncrypted" xml:space="preserve"><value>Images can't be added to an encrypted note, because the image files would not be encrypted.</value></data>
+  <data name="ImageNeedsFile" xml:space="preserve"><value>Save the note first to add images.</value></data>
   <data name="FocusMode" xml:space="preserve"><value>Focus Mode</value></data>
   <data name="ShowSource" xml:space="preserve"><value>Show Source</value></data>
   <data name="ReadingMode" xml:space="preserve"><value>Reading Mode</value></data>

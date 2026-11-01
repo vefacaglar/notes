@@ -11,7 +11,7 @@ using Windows.System;
 namespace Notes.Editor;
 
 /// <summary>Plain-text Markdown editor with live syntax styling (port of MarkdownEditor.swift).</summary>
-internal sealed class MarkdownEditor : TextEditor
+internal sealed partial class MarkdownEditor : TextEditor
 {
     private const double BaseFontSize = 15;
     private const double BaseCodeSize = 13;
@@ -22,7 +22,17 @@ internal sealed class MarkdownEditor : TextEditor
 
     private List<MarkdownRange> codeBlocks = [];
     private List<MarkdownSpan> links = [];
+    private List<MarkdownSpan> spans = [];
+    /// <summary>Running maximum of the spans' ends (<see cref="MarkdownRendering.Reach"/>).</summary>
+    private int[] spanReach = [];
     private bool showsSource;
+    /// <summary>Whether the last styling pass hid the markers.</summary>
+    private bool hidesApplied;
+    /// <summary>The lines (through their break) with the selection, where markers can be shown while they are hidden elsewhere.
+    /// Null when markers are not hidden.</summary>
+    private MarkdownRange? revealed;
+    /// <summary>The hidden-elsewhere markers that are shown, all inside <see cref="revealed"/>.</summary>
+    private HashSet<MarkdownRange> shownMarkers = [];
     /// <summary>The paragraphs left bright by focus mode (everything else is dimmed).</summary>
     private MarkdownRange? bright;
     /// <summary>Set by <see cref="UpdateFocus"/>: the next styling pass restyles exactly these ranges.</summary>
@@ -55,6 +65,12 @@ internal sealed class MarkdownEditor : TextEditor
             previousSelection = currentSelection;
             currentSelection = now;
         };
+        // While the mouse is down the reveal waits for the button to come up, so the text doesn't shift under the pointer.
+        var released = new PointerEventHandler((_, _) =>
+            Box.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, RevealSettled));
+        Box.AddHandler(UIElement.PointerReleasedEvent, released, true);
+        Box.AddHandler(UIElement.PointerCanceledEvent, released, true);
+        InitializeRendering();
     }
 
     /// <summary>Show Source: the text as plain monospaced source (same text and undo history).</summary>
@@ -67,9 +83,7 @@ internal sealed class MarkdownEditor : TextEditor
             showsSource = value;
             bright = null;
             if (!IsReady) return;
-            NeedsFullRestyle = true;
-            Styled(Restyle);
-            QueueSelectionSettled();
+            RestyleAll();
         }
     }
 
@@ -84,10 +98,38 @@ internal sealed class MarkdownEditor : TextEditor
 
     protected override void SettingChanged(string key)
     {
-        if (key != "focusMode") return;
-        UpdateFocus();
-        if (CentersCaret) QueueSelectionSettled();
+        switch (key)
+        {
+            case "focusMode":
+                UpdateFocus();
+                if (CentersCaret) QueueSelectionSettled();
+                break;
+            case "showMarkdownSyntax":
+                if (IsReady && HidesMarkers != hidesApplied) RestyleAll();
+                break;
+            case "limitLineWidth" or "zoom":
+                RefitSoon();
+                break;
+        }
     }
+
+    protected override void ReadingChanged()
+    {
+        if (IsReady && HidesMarkers != hidesApplied) RestyleAll();
+        else if (IsReady) QueueSelectionSettled();
+    }
+
+    /// <summary>Styles the whole text again (a mode changed) and brings the revealed markers in line with the selection.</summary>
+    private void RestyleAll()
+    {
+        NeedsFullRestyle = true;
+        Styled(Restyle);
+        QueueSelectionSettled();
+        InvalidateOverlay();
+    }
+
+    /// <summary>Markdown syntax is hidden: the setting says so (or reading mode does), and the source view is not shown.</summary>
+    private bool HidesMarkers => (!AppSettings.ShowMarkdownSyntax || Reading) && !ShowsSource;
 
     // MARK: Styling
 
@@ -95,63 +137,111 @@ internal sealed class MarkdownEditor : TextEditor
     {
         var text = LastText;
         var length = text.Length;
+        hidesApplied = HidesMarkers;
         if (ShowsSource || length > MaxStyledLength)
         {
             // Source view, or too long to scan on every keystroke: plain text, styled once.
             if (NeedsFullRestyle) ApplyBase(0, length);
+            else if (PendingEdit is { } plain)
+            {
+                var lines = MarkdownStyler.RestyleRange(new MarkdownRange(plain.Start, plain.End - plain.Start), text);
+                ApplyBase(lines.Location, lines.End);
+            }
             codeBlocks = [];
             links = [];
+            spans = [];
+            spanReach = [];
+            revealed = null;
+            shownMarkers = [];
+            ResetRendering();
             PendingEdit = null;
             NeedsFullRestyle = false;
             forcedTargets = null;
             bright = null;
             return;
         }
-        var spans = MarkdownStyler.Spans(text);
-        var blocks = spans.Where(s => s.Kind.Kind == MarkdownKind.CodeBlock).Select(s => s.Range).ToList();
+        var scanned = MarkdownStyler.Spans(text);
+        var blocks = scanned.Where(s => s.Kind.Kind == MarkdownKind.CodeBlock).Select(s => s.Range).ToList();
+        var reveal = HidesMarkers ? RevealRange() : (MarkdownRange?)null;
+        var oldGrids = grids;
+        var oldTables = tables;
+        containerWidth = TextWidth;
+        tables = scanned.Where(s => s.Kind.Kind == MarkdownKind.Table).Select(s => s.Range).ToList();
+        grids = [];
+        shownTables = TablesShown(reveal);
 
         List<MarkdownRange> targets;
+        (int Start, int End, int Delta)? moved = null;
         if (forcedTargets is { } forced)
         {
             targets = [.. forced.Select(r => new MarkdownRange(Math.Min(r.Location, length), Math.Min(r.Length, Math.Max(0, length - Math.Min(r.Location, length)))))];
+            targets = Expanded(targets, RenderedTables());
         }
         else
         {
             var target = new MarkdownRange(0, length);
-            // Only fenced code spans lines, so unless the fences moved, restyling the edited lines is enough.
+            targets = [target];
+            // Only fenced code spans lines, so unless the fences moved, restyling the edited lines is enough (plus the lines whose
+            // markers were or are now revealed).
             if (!NeedsFullRestyle && PendingEdit is { } edit && Shift(codeBlocks, edit).SequenceEqual(blocks))
             {
+                moved = edit;
                 target = MarkdownStyler.RestyleRange(new MarkdownRange(edit.Start, edit.End - edit.Start), text);
-            }
-            targets = [target];
-            // An edit that moved the caret to another paragraph (undo, replace): the old bright one must be dimmed again.
-            if (AppSettings.FocusMode && bright is { } old && target.Length < length && PendingEdit is { } moved)
-            {
-                var shifted = Shift([old], moved).First();
-                var location = Math.Min(shifted.Location, length);
-                var oldLine = new MarkdownRange(location, Math.Clamp(shifted.Length, 0, length - location));
-                if (oldLine != FocusParagraph()) targets.Add(oldLine);
+                // A fence or a comment/string opener can change the colours of the whole block.
+                foreach (var block in blocks)
+                {
+                    if (block.Location < target.End && block.End > target.Location)
+                    {
+                        var start = Math.Min(target.Location, block.Location);
+                        target = new MarkdownRange(start, Math.Max(target.End, block.End) - start);
+                    }
+                }
+                targets = [target];
+                if (revealed is { } old) targets.Add(ShiftLines(old, edit, text));
+                if (reveal is { } now) targets.Add(now);
+                // An edit in one row can change every column: tables it touches, before or after it, are restyled whole.
+                foreach (var table in oldTables)
+                {
+                    if (!oldGrids.TryGetValue(table.Location, out var grid) || !grid.Rendered) continue;
+                    var shifted = ShiftLines(table, edit, text);
+                    if (Intersects(shifted, target)) targets.Add(shifted);
+                }
+                // An edit that moved the caret to another paragraph (undo, replace): the old bright one must be dimmed again.
+                if (AppSettings.FocusMode && bright is { } brightOld)
+                {
+                    var shifted = ShiftLines(brightOld, edit, text);
+                    if (shifted != FocusParagraph()) targets.Add(shifted);
+                }
+                targets = Expanded(targets, RenderedTables());
             }
         }
         forcedTargets = null;
+        // Tables that are not restyled keep the layout they had.
+        foreach (var table in tables)
+        {
+            if (targets.Any(t => Intersects(t, table))) continue;
+            var before = moved is { } m && table.Location >= m.End ? table.Location - m.Delta : table.Location;
+            if (oldGrids.TryGetValue(before, out var kept)) grids[table.Location] = kept.Moved(table);
+        }
         codeBlocks = blocks;
-        links = spans.Where(s => s.Kind.Kind is MarkdownKind.Link or MarkdownKind.WikiLink).ToList();
+        spans = scanned;
+        spanReach = MarkdownRendering.Reach(scanned);
+        links = scanned.Where(s => s.Kind.Kind is MarkdownKind.Link or MarkdownKind.WikiLink).ToList();
         PendingEdit = null;
         NeedsFullRestyle = false;
+        revealed = reveal;
+        shownMarkers = reveal is { } lines2
+            ? MarkdownRendering.ShownMarkers(scanned, spanReach, [CurrentSelection()], lines2, text, Reading)
+            : [];
 
-        foreach (var target in targets)
+        var merged = Merged(targets);
+        foreach (var target in merged)
         {
-            ApplyBase(target.Location, target.End);
-            foreach (var span in spans)
-            {
-                if (span.Range.Location >= target.End) break;
-                var start = Math.Max(span.Range.Location, target.Location);
-                var end = Math.Min(span.Range.End, target.End);
-                if (end > start) Apply(span.Kind, start, end);
-            }
+            if (target.Length > 0 || length == 0) ApplyTarget(target);
         }
-        if (AppSettings.FocusMode) Dim(targets);
+        if (AppSettings.FocusMode) Dim(merged);
         else bright = null;
+        UpdateImageSlots();
     }
 
     /// <summary>Maps code block ranges from before an edit to where they would be after it, if the edit left fences alone.</summary>
@@ -179,11 +269,19 @@ internal sealed class MarkdownEditor : TextEditor
         format.Italic = FormatEffect.Off;
         format.Underline = UnderlineType.None;
         format.Strikethrough = FormatEffect.Off;
+        format.Hidden = FormatEffect.Off;
+        format.Spacing = 0;
         format.ForegroundColor = Palette.Text;
         format.BackgroundColor = Colors.Transparent;
-        range.ParagraphFormat.SetLineSpacing(LineSpacingRule.Multiple, (float)AppSettings.LineSpacing);
-        range.ParagraphFormat.SpaceAfter = ShowsSource ? 0 : 4;
+        var paragraph = range.ParagraphFormat;
+        paragraph.SetLineSpacing(LineSpacingRule.Multiple, (float)AppSettings.LineSpacing);
+        paragraph.SpaceBefore = 0;
+        paragraph.SpaceAfter = ShowsSource ? 0 : BaseSpaceAfter;
+        paragraph.SetIndents(0, 0, 0);
     }
+
+    /// <summary>Space after a paragraph, in points.</summary>
+    private const float BaseSpaceAfter = 4;
 
     private void Apply(MarkdownSpanKind kind, int start, int end)
     {
@@ -217,7 +315,8 @@ internal sealed class MarkdownEditor : TextEditor
                 var size = Range(start, start + 1).CharacterFormat.Size;
                 format.Name = EditorFonts.Mono;
                 format.Size = size * 0.9f;
-                format.BackgroundColor = Palette.CodeBackground;
+                // Fenced blocks get a full-width band from the overlay instead of a background behind the glyphs.
+                if (kind.Kind == MarkdownKind.InlineCode) format.BackgroundColor = Palette.CodeBackground;
                 break;
             case MarkdownKind.ListMarker:
                 format.ForegroundColor = Palette.Tertiary;
@@ -266,7 +365,11 @@ internal sealed class MarkdownEditor : TextEditor
             }
             var from = Math.Max(target.Location, paragraph.End);
             if (end > from) Range(from, end).CharacterFormat.ForegroundColor = dim;
+            // The dim would show the glyphs of drawn markers (-, >, ---) over their drawings: keep them clear.
+            ClearDecorationGlyphs(target.Location, Math.Min(paragraph.Location, target.End));
+            ClearDecorationGlyphs(Math.Max(target.Location, paragraph.End), target.End);
         }
+        InvalidateOverlay();
     }
 
     /// <summary>The selection moved: the old and the new paragraphs are styled again, which also dims the right ones.</summary>
@@ -296,6 +399,7 @@ internal sealed class MarkdownEditor : TextEditor
             UpdateFocus();
             return;
         }
+        if (!byMouse) RevealSettled();
         SetActiveFormat(MarkdownEditing.GetActiveFormat(LastText, CurrentSelection()));
         UpdateFocus();
         // Typing and arrow keys keep the caret line in the middle; a click leaves the text where the user put it.

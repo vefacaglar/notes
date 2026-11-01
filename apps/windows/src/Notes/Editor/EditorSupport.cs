@@ -47,6 +47,8 @@ internal abstract partial class TextEditor
     /// <summary>The editor has been in the visual tree and holds the document's text.</summary>
     protected bool IsReady => loaded;
     private bool composing;
+    /// <summary>An input method is composing text: formatting must not change meanwhile.</summary>
+    protected bool IsComposing => composing;
     /// <summary>RichEdit reported a content change (not just formatting) that hasn't been processed yet.</summary>
     private bool contentChanged;
     /// <summary>The next change is its own undo step (paste, cut, format…), never merged with typing.</summary>
@@ -150,6 +152,12 @@ internal abstract partial class TextEditor
         Note.ReadOnlyChanged -= OnReadOnlyChanged;
         EndComposition(process: false);
         ReleaseFeatures();
+        OnDetach();
+    }
+
+    /// <summary>The editor goes away: release what it subscribed to.</summary>
+    protected virtual void OnDetach()
+    {
     }
 
     public void Focus() => Box.Focus(FocusState.Programmatic);
@@ -208,7 +216,16 @@ internal abstract partial class TextEditor
         if (loaded) return;
         loaded = true;
         scroller = FindScroller(Box);
-        if (scroller is not null) scroller.ViewChanged += (_, _) => UpdateCurrentLine();
+        if (scroller is not null)
+        {
+            scroller.ViewChanging += (_, _) => SyncOverlayShift();
+            scroller.ViewChanged += (_, _) =>
+            {
+                UpdateCurrentLine();
+                SyncOverlayShift();
+                InvalidateOverlay(90);
+            };
+        }
         Load(Note.Text);
         if (pendingView is { } view)
         {
@@ -298,6 +315,7 @@ internal abstract partial class TextEditor
         Loading(LastText);
         Styled(Restyle);
         Box.Document.Selection.SetRange(0, 0);
+        InvalidateOverlay();
     }
 
     /// <summary>Called with the new text before the first styling pass of a load.</summary>
@@ -330,6 +348,7 @@ internal abstract partial class TextEditor
         LastText = text;
         PendingEdit = (prefix, newEnd, text.Length - old.Length);
         Styled(Restyle);
+        InvalidateOverlay();
         Note.SetText(text, this);
     }
 
@@ -415,7 +434,7 @@ internal abstract partial class TextEditor
 
     // MARK: Clipboard and keys
 
-    public void Paste()
+    public virtual void Paste()
     {
         Sync();
         if (Box.IsReadOnly) return;
@@ -534,13 +553,17 @@ internal abstract partial class TextEditor
                     e.Handled = true;
                     Redo();
                     return;
+                // Copying and cutting go through the editor, which reads the text (hidden Markdown syntax included) itself.
                 case VirtualKey.X:
-                    Sync();
-                    history.Break();
-                    discreteNext = true;
+                    e.Handled = true;
+                    Cut();
+                    return;
+                case VirtualKey.C or VirtualKey.Insert:
+                    e.Handled = true;
+                    Copy();
                     return;
                 // Editing and navigation pass through to RichEdit.
-                case VirtualKey.A or VirtualKey.C or VirtualKey.V or VirtualKey.Insert or VirtualKey.Back or VirtualKey.Delete
+                case VirtualKey.A or VirtualKey.V or VirtualKey.Back or VirtualKey.Delete
                     or VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down or VirtualKey.Home or VirtualKey.End
                     or VirtualKey.PageUp or VirtualKey.PageDown or VirtualKey.Tab or VirtualKey.O:
                     return;
@@ -549,6 +572,12 @@ internal abstract partial class TextEditor
                     e.Handled = true;
                     return;
             }
+        }
+        if (!ctrl && !alt && shift && e.Key == VirtualKey.Delete)
+        {
+            e.Handled = true;
+            Cut();
+            return;
         }
         if (Box.IsReadOnly || ctrl || alt) return;
         if (e.Key == VirtualKey.Enter)

@@ -20,6 +20,11 @@ internal abstract partial class TextEditor
         IsHitTestVisible = false,
         CornerRadius = new CornerRadius(4),
     };
+    private readonly Grid underHost = new() { IsHitTestVisible = false };
+    private readonly Grid overHost = new();
+    private readonly TranslateTransform underShift = new(), overShift = new();
+    private Microsoft.UI.Dispatching.DispatcherQueueTimer? overlayTimer;
+    private bool overlayStale;
     private bool reading;
     private bool pointerDown;
     private bool selectionQueued;
@@ -42,14 +47,138 @@ internal abstract partial class TextEditor
             reading = value;
             Sync();
             Box.IsReadOnly = Note.IsReadOnly || !IsFaithful || reading;
+            ReadingChanged();
             ReadOnlyStateChanged?.Invoke();
         }
     }
 
+    /// <summary>Reading mode was switched on or off (the editor is already read-only or editable again).</summary>
+    protected virtual void ReadingChanged()
+    {
+    }
+
+    // MARK: Overlay layers
+
+    /// <summary>
+    /// Drawings behind the text (code bands, table grids) and over it (bullets, images, buttons). Elements are placed in
+    /// document coordinates (a range's client rectangle plus <see cref="ScrollY"/>) and both canvases are shifted by the scroll
+    /// offset, so scrolling moves them with the text without re-measuring; <see cref="RenderOverlay"/> refills them for the
+    /// visible part (and a margin) a moment after a change.
+    /// </summary>
+    protected Canvas UnderCanvas { get; } = new();
+    protected Canvas OverCanvas { get; } = new();
+
+    protected double ScrollY => scroller?.VerticalOffset ?? 0;
+
+    private void SyncOverlayShift()
+    {
+        var y = -ScrollY;
+        if (underShift.Y != y) underShift.Y = y;
+        if (overShift.Y != y) overShift.Y = y;
+        OverlayShifted(y);
+    }
+
+    /// <summary>The overlay moved with the scroll position (`y` is minus the offset).</summary>
+    protected virtual void OverlayShifted(double y)
+    {
+    }
+
+    /// <summary>Asks for <see cref="RenderOverlay"/> soon; calls in between are merged.</summary>
+    protected void InvalidateOverlay(int delayMilliseconds = 30)
+    {
+        if (!loaded) return;
+        if (Box.XamlRoot is null)
+        {
+            overlayStale = true;
+            return;
+        }
+        if (overlayTimer is null)
+        {
+            overlayTimer = Box.DispatcherQueue.CreateTimer();
+            overlayTimer.IsRepeating = false;
+            overlayTimer.Tick += (_, _) =>
+            {
+                if (!loaded || Box.XamlRoot is null) return;
+                try { RenderOverlay(); }
+                catch (Exception e) when (e is System.Runtime.InteropServices.COMException or InvalidOperationException or ArgumentException) { }
+            };
+        }
+        if (overlayTimer.IsRunning) return;
+        overlayTimer.Interval = TimeSpan.FromMilliseconds(delayMilliseconds);
+        overlayTimer.Start();
+    }
+
+    /// <summary>Redraws the overlay canvases for the current text and scroll position.</summary>
+    protected virtual void RenderOverlay()
+    {
+    }
+
+    /// <summary>The width of the area the text may use (the box without its padding).</summary>
+    protected double TextWidth => Math.Max(0, Box.ActualWidth - Box.Padding.Left - Box.Padding.Right);
+
+    /// <summary>The client rectangle of a range, or null when RichEdit can't give one (not laid out).</summary>
+    protected Rect? RectOf(int start, int end)
+    {
+        try
+        {
+            Box.Document.GetRange(start, end).GetRect(PointOptions.ClientCoordinates, out var rect, out _);
+            return rect.Height > 0 || rect.Width > 0 ? rect : null;
+        }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or ArgumentException)
+        {
+            return null;
+        }
+    }
+
+    /// <summary>The first and last characters on screen, grown by about `margin` pixels of lines above and below.</summary>
+    protected (int First, int Last) VisibleCharacters(double margin)
+    {
+        var text = LastText;
+        var length = text.Length;
+        var height = scroller?.ViewportHeight ?? Box.ActualHeight;
+        int At(double y, int fallback)
+        {
+            try
+            {
+                return Math.Clamp(Box.Document.GetRangeFromPoint(new Point(Box.Padding.Left + 4, y), PointOptions.ClientCoordinates).StartPosition, 0, length);
+            }
+            catch (Exception e) when (e is System.Runtime.InteropServices.COMException or ArgumentException)
+            {
+                return fallback;
+            }
+        }
+        var first = At(1, 0);
+        var last = At(Math.Max(1, height - 1), length);
+        // Whole lines of text stand in for the margin (about 18 pixels each; wrapped lines make the margin a little shorter).
+        for (var i = (int)(margin / 18); i > 0 && first > 0; i--)
+        {
+            var previous = text.LastIndexOf('\n', first - 1);
+            first = previous < 0 ? 0 : previous;
+        }
+        for (var i = (int)(margin / 18); i > 0 && last < length; i--)
+        {
+            var next = text.IndexOf('\n', last + 1);
+            last = next < 0 ? length : next;
+        }
+        return (first, last);
+    }
+
     private void InitializeFeatures()
     {
+        underHost.Children.Add(UnderCanvas);
+        overHost.Children.Add(OverCanvas);
+        UnderCanvas.RenderTransform = underShift;
+        OverCanvas.RenderTransform = overShift;
+        Host.Children.Add(underHost);
         Host.Children.Add(band);
         Host.Children.Add(Box);
+        Host.Children.Add(overHost);
+        Host.SizeChanged += (_, e) =>
+        {
+            var rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height);
+            underHost.Clip = new RectangleGeometry { Rect = rect };
+            overHost.Clip = new RectangleGeometry { Rect = rect };
+        };
         try
         {
             var accent = (Windows.UI.Color)Application.Current.Resources["SystemAccentColor"];
@@ -69,9 +198,16 @@ internal abstract partial class TextEditor
         {
             UpdatePadding();
             UpdateCurrentLine();
+            BoxResized();
+            InvalidateOverlay();
         };
         Box.Loaded += (_, _) =>
         {
+            if (overlayStale && loaded)
+            {
+                overlayStale = false;
+                InvalidateOverlay();
+            }
             if (!settingsStale || !loaded) return;
             settingsStale = false;
             ApplyFontSettings();
@@ -84,7 +220,16 @@ internal abstract partial class TextEditor
         UpdatePadding();
     }
 
-    private void ReleaseFeatures() => AppSettings.EditorSettingChanged -= OnSettingChanged;
+    private void ReleaseFeatures()
+    {
+        AppSettings.EditorSettingChanged -= OnSettingChanged;
+        overlayTimer?.Stop();
+    }
+
+    /// <summary>The box changed size (the text column may have changed width).</summary>
+    protected virtual void BoxResized()
+    {
+    }
 
     // MARK: Settings
 

@@ -125,7 +125,7 @@ internal static class AppSettings
 
     private static bool viewLoaded;
     private static double zoom = 1, lineSpacing = 1.2;
-    private static bool showStatusBar = true, showFormattingBar = true, focusMode, spellCheck, highlightCurrentLine, limitLineWidth, codeWrap = true;
+    private static bool showStatusBar = true, showFormattingBar = true, focusMode, spellCheck, highlightCurrentLine, limitLineWidth, codeWrap = true, showMarkdownSyntax, codeLineNumbers = true;
 
     /// <summary>Reads the saved values once; a missing or bad value keeps its own default. A test run starts from the defaults
     /// and keeps changes in memory only.</summary>
@@ -153,6 +153,8 @@ internal static class AppSettings
         highlightCurrentLine = Flag("highlightCurrentLine", false);
         limitLineWidth = Flag("limitLineWidth", false);
         codeWrap = Flag("codeWrap", true);
+        showMarkdownSyntax = Flag("showMarkdownSyntax", false);
+        codeLineNumbers = Flag("codeLineNumbers", true);
     }
 
     /// <summary>Clamped to the range and rounded to a step, so repeated steps never drift (0.7000000001).</summary>
@@ -210,6 +212,12 @@ internal static class AppSettings
 
     /// <summary>Code editor: long lines wrap; off, the editor scrolls sideways.</summary>
     public static bool CodeWrap { get { EnsureViewLoaded(); return codeWrap; } set { EnsureViewLoaded(); SetFlag(ref codeWrap, value, "codeWrap"); } }
+
+    /// <summary>Markdown editor: the syntax stays visible (dimmed) everywhere; off (default), markers are hidden except at the caret.</summary>
+    public static bool ShowMarkdownSyntax { get { EnsureViewLoaded(); return showMarkdownSyntax; } set { EnsureViewLoaded(); SetFlag(ref showMarkdownSyntax, value, "showMarkdownSyntax"); } }
+
+    /// <summary>Code editor: a column of line numbers beside the text.</summary>
+    public static bool CodeLineNumbers { get { EnsureViewLoaded(); return codeLineNumbers; } set { EnsureViewLoaded(); SetFlag(ref codeLineNumbers, value, "codeLineNumbers"); } }
 
     /// <summary>Line height of both editors as a multiple of the font's, 1.0 to 2.0 (default 1.2).</summary>
     public static double LineSpacing

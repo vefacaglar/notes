@@ -195,6 +195,7 @@ public sealed partial class MainWindow
         sidebarItem = AddItem(v, "HideSidebar", () => SetSidebarOpen(!Split.IsPaneOpen, save: true), new(VirtualKey.B, Ctrl | Shift));
         AddSeparator(v);
         AddToggle(v, "ShowSource", ToggleSource, () => model.ActiveTab?.ShowsSource == true, new(VirtualKey.R, Ctrl | Shift), () => Edit is MarkdownEditor);
+        AddToggle(v, "ShowMarkdownSyntax", () => AppSettings.ShowMarkdownSyntax = !AppSettings.ShowMarkdownSyntax, () => AppSettings.ShowMarkdownSyntax, new(VirtualKey.M, Ctrl | Shift), () => Edit is MarkdownEditor);
         AddToggle(v, "ReadingMode", ToggleReading, () => model.ActiveTab?.Reading == true, new(VirtualKey.E, Ctrl | Shift), () => model.ActiveDocument is not null);
         outlineItem = AddItem(v, "ShowOutline", () => (Edit as MarkdownEditor)?.ToggleOutline(), new(VirtualKey.D, Ctrl | Shift), () => Edit is MarkdownEditor);
         AddToggle(v, "FocusMode", () => AppSettings.FocusMode = !AppSettings.FocusMode, () => AppSettings.FocusMode, new(VirtualKey.J, Ctrl | Shift));
