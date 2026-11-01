@@ -87,4 +87,29 @@
   <data name="AllFiles" xml:space="preserve"><value>Tüm dosyalar</value></data>
   <data name="DraftsInOtherWindow" xml:space="preserve"><value>Taslaklar başka bir Notes penceresinde açık; burada açılan taslaklar ayrı tutulur ve mümkün olduğunda oraya taşınır.</value></data>
   <data name="DraftsUnavailable" xml:space="preserve"><value>Bu oturumda taslaklar saklanamıyor; burada açılan yeni taslaklar Notes kapanınca kaybolur.</value></data>
+  <data name="ReadOnlyLarge" xml:space="preserve"><value>Bu dosya 20 MB'tan büyük olduğu için salt okunur açılır.</value></data>
+  <data name="ReadOnlyPermission" xml:space="preserve"><value>Bu dosyayı değiştirme izniniz olmadığı için salt okunur açılır.</value></data>
+  <data name="ReadOnlyGrew" xml:space="preserve"><value>Bu dosya diskte değişti ve artık açılamayacak kadar büyük; okunan son sürüm gösteriliyor.</value></data>
+  <data name="ChangesKept" xml:space="preserve"><value>Değişiklikleriniz bu pencerede tutuluyor.</value></data>
+  <data name="MenuFile" xml:space="preserve"><value>Dosya</value></data>
+  <data name="MenuEdit" xml:space="preserve"><value>Düzenle</value></data>
+  <data name="MenuFormat" xml:space="preserve"><value>Biçimlendir</value></data>
+  <data name="MenuView" xml:space="preserve"><value>Görünüm</value></data>
+  <data name="MenuHelp" xml:space="preserve"><value>Yardım</value></data>
+  <data name="AddFolderToWorkspace" xml:space="preserve"><value>Çalışma Alanına Klasör Ekle…</value></data>
+  <data name="CloseTab" xml:space="preserve"><value>Sekmeyi Kapat</value></data>
+  <data name="CloseOtherTabs" xml:space="preserve"><value>Diğer Sekmeleri Kapat</value></data>
+  <data name="SaveAs" xml:space="preserve"><value>Farklı Kaydet…</value></data>
+  <data name="Exit" xml:space="preserve"><value>Çıkış</value></data>
+  <data name="SearchNotes" xml:space="preserve"><value>Notlarda Ara</value></data>
+  <data name="Bold" xml:space="preserve"><value>Kalın</value></data>
+  <data name="Italic" xml:space="preserve"><value>İtalik</value></data>
+  <data name="ShowNextTab" xml:space="preserve"><value>Sonraki Sekmeyi Göster</value></data>
+  <data name="ShowPreviousTab" xml:space="preserve"><value>Önceki Sekmeyi Göster</value></data>
+  <data name="SelectNextTab" xml:space="preserve"><value>Sonraki Sekmeyi Seç</value></data>
+  <data name="SelectPreviousTab" xml:space="preserve"><value>Önceki Sekmeyi Seç</value></data>
+  <data name="AboutNotes" xml:space="preserve"><value>Notlar Hakkında</value></data>
+  <data name="VersionFormat" xml:space="preserve"><value>Sürüm {0}</value></data>
+  <data name="AboutDescription" xml:space="preserve"><value>Düz .md dosyaları için sade bir Markdown not uygulaması.</value></data>
+  <data name="Retry" xml:space="preserve"><value>Tekrar Dene</value></data>
 </root>

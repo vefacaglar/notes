@@ -15,7 +15,7 @@ public static partial class Program
         WinRT.ComWrappersSupport.InitializeComWrappers();
         var options = LaunchOptions.Parse(args);
         // `--root` is for this run only: the settings are neither read nor written.
-        AppSettings.IsPersistent = options.Roots.Count == 0 && options.Drafts is null;
+        AppSettings.IsPersistent = options.Roots.Count == 0 && options.Drafts is null && options.Support is null;
         var instance = AppInstance.FindOrRegisterForKey(options.InstanceKey);
         if (!instance.IsCurrent)
         {
@@ -24,7 +24,8 @@ public static partial class Program
             return 0;
         }
         AppSettings.ThemeOverride = options.Theme;
-        Notes.Drafts.Override = options.Drafts;
+        Notes.Drafts.Override = options.Drafts ?? (options.Support is null ? null : Path.Combine(options.Support, "Drafts"));
+        SessionStore.Folder = options.Support ?? (AppSettings.IsPersistent ? Notes.Drafts.AppFolder : null);
         Notes.Drafts.Acquire();
         Loc.Initialize(options.Language ?? AppSettings.Language);
         instance.Activated += (_, e) => App.Redirected(e);
@@ -43,9 +44,11 @@ public static partial class Program
 
 /// <summary>
 /// Command line: file paths to open, plus <c>--root &lt;path&gt;</c> (repeatable) to use other root folders for this run
-/// only; such a run never writes the settings. <c>--lang en|tr</c> overrides the UI language for this run.
+/// only; such a run never writes the settings. <c>--lang en|tr</c> overrides the UI language for this run. <c>--support
+/// &lt;dir&gt;</c> keeps the session file and the drafts in that folder instead of the app's own one (like macOS
+/// <c>-supportFolder</c>); without it a <c>--root</c> run keeps no session.
 /// </summary>
-public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<string> Files, string? Language = null, ElementTheme? Theme = null, string? Drafts = null)
+public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<string> Files, string? Language = null, ElementTheme? Theme = null, string? Drafts = null, string? Support = null)
 {
     public static LaunchOptions Parse(IEnumerable<string> args)
     {
@@ -53,7 +56,7 @@ public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<st
         var files = new List<string>();
         string? language = null;
         ElementTheme? theme = null;
-        string? drafts = null;
+        string? drafts = null, support = null;
         using var e = args.GetEnumerator();
         while (e.MoveNext())
         {
@@ -69,6 +72,10 @@ public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<st
             {
                 if (e.MoveNext() && e.Current.Length > 0) drafts = Path.GetFullPath(e.Current);
             }
+            else if (e.Current == "--support")
+            {
+                if (e.MoveNext() && e.Current.Length > 0) support = Path.GetFullPath(e.Current);
+            }
             else if (e.Current == "--theme")
             {
                 if (e.MoveNext()) theme = e.Current switch { "light" => ElementTheme.Light, "dark" => ElementTheme.Dark, _ => null };
@@ -78,14 +85,14 @@ public sealed record LaunchOptions(IReadOnlyList<string> Roots, IReadOnlyList<st
                 files.Add(Path.GetFullPath(e.Current));
             }
         }
-        return new LaunchOptions(roots, files, language, theme, drafts);
+        return new LaunchOptions(roots, files, language, theme, drafts, support);
     }
 
     /// <summary>Launches share one window only with the same roots, so a test run never reaches the real workspace.</summary>
-    public string InstanceKey => Roots.Count == 0 && Drafts is null
+    public string InstanceKey => Roots.Count == 0 && Drafts is null && Support is null
         ? "main"
         : "main-" + Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(
-            System.Text.Encoding.UTF8.GetBytes(string.Join('|', Roots).ToUpperInvariant() + "||" + Drafts?.ToUpperInvariant())))[..16];
+            System.Text.Encoding.UTF8.GetBytes(string.Join('|', Roots).ToUpperInvariant() + "||" + Drafts?.ToUpperInvariant() + "||" + Support?.ToUpperInvariant())))[..16];
 
     /// <summary>Splits a command line as Windows does; a leading path to this executable is dropped.</summary>
     public static LaunchOptions FromCommandLine(string commandLine)

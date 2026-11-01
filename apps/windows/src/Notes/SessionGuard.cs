@@ -29,6 +29,9 @@ internal static partial class SessionGuard
     [return: MarshalAs(UnmanagedType.Bool)]
     private static partial bool ShutdownBlockReasonDestroy(IntPtr window);
 
+    /// <summary>Called before a logoff or shutdown is allowed: writes the session synchronously.</summary>
+    public static Action? BeforeEnd { get; set; }
+
     // Kept alive for the life of the process: the window calls it.
     private static readonly SubclassProc Proc = WindowProc;
 
@@ -45,6 +48,7 @@ internal static partial class SessionGuard
             case QueryEndSession:
                 if (NoteDocument.SaveAllNow())
                 {
+                    BeforeEnd?.Invoke();
                     ShutdownBlockReasonDestroy(window);
                     return 1;
                 }

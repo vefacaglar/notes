@@ -38,7 +38,8 @@ internal static class Drafts
         return folder;
     });
 
-    private static string AppFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Notes");
+    /// <summary>The app's own folder for drafts and the session.</summary>
+    public static string AppFolder => Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Notes");
     private static string RealFolder => Path.Combine(AppFolder, "Drafts");
     private static string PendingRoot => Path.Combine(AppFolder, "PendingDrafts");
 

@@ -5,7 +5,7 @@ namespace Notes;
 
 /// <summary>
 /// App settings in <c>%APPDATA%\Notes\settings.json</c> (an unpackaged app has no LocalSettings): the workspace's root
-/// folders in order, and whether the sidebar is collapsed, and the UI language. A <c>--root</c> test run reads defaults and never writes.
+/// folders in order, and the UI language. A <c>--root</c> test run reads defaults and never writes.
 /// </summary>
 internal static class AppSettings
 {
@@ -68,9 +68,22 @@ internal static class AppSettings
         }
     }
 
+    /// <summary>The very first run: no roots saved yet and no default notes folder. Only then the default folder is created
+    /// and the window opens on an empty draft.</summary>
+    public static bool IsFirstRun
+    {
+        get
+        {
+            if (!IsPersistent) return false;
+            try { return Load()[RootsKey] is null && !Directory.Exists(DefaultNotesFolder); }
+            catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return false; }
+        }
+    }
+
     public static void SaveRoots(IEnumerable<string> roots) =>
         Update(RootsKey, new JsonArray(roots.Select(r => (JsonNode?)JsonValue.Create(r)).ToArray()));
 
+    /// <summary>Earlier versions kept the sidebar state here; it now lives in the session (used when there is none yet).</summary>
     public static bool SidebarCollapsed
     {
         get
@@ -79,8 +92,6 @@ internal static class AppSettings
             catch (Exception e) when (e is InvalidOperationException or FormatException) { return false; }
         }
     }
-
-    public static void SaveSidebarCollapsed(bool collapsed) => Update(SidebarCollapsedKey, collapsed);
 
     /// <summary>"system" (default: Turkish when Windows is Turkish, else English), "en" or "tr".</summary>
     public static string Language

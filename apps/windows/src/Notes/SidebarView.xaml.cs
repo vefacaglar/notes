@@ -54,6 +54,9 @@ public sealed partial class SidebarView : UserControl
 {
     private NotesModel? model;
     private MainWindow? owner;
+
+    /// <summary>A folder was expanded or collapsed (the session remembers which).</summary>
+    internal event Action? ExpansionChanged;
     /// <summary>Set while the view itself changes the selection, so that doesn't count as the user's choice.</summary>
     private bool syncing;
 
@@ -125,7 +128,7 @@ public sealed partial class SidebarView : UserControl
         {
             Sync(node.Children, root, root.Tree);
             // A node without children loses its expansion; sections stay open unless the user closed them.
-            if (!collapsedRoots.Contains(root)) node.IsExpanded = true;
+            if (!collapsedRoots.Contains(root.Root)) node.IsExpanded = true;
         }
         finally
         {
@@ -134,17 +137,56 @@ public sealed partial class SidebarView : UserControl
         SyncSelection();
     }
 
-    /// <summary>Root sections the user collapsed.</summary>
-    private readonly HashSet<RootFolder> collapsedRoots = [];
+    /// <summary>Root sections the user collapsed (root paths), and the subfolders that are open (full paths). Both come back
+    /// with the session, so they can name folders whose root hasn't loaded yet.</summary>
+    private readonly HashSet<string> collapsedRoots = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HashSet<string> expandedFolders = new(StringComparer.OrdinalIgnoreCase);
+
+    internal void RestoreExpansion(IEnumerable<string>? collapsed, IEnumerable<string>? expanded)
+    {
+        collapsedRoots.Clear();
+        expandedFolders.Clear();
+        foreach (var path in collapsed ?? []) collapsedRoots.Add(path);
+        foreach (var path in expanded ?? []) expandedFolders.Add(path);
+    }
+
+    internal List<string> CollapsedRootPaths => [.. collapsedRoots.Order(StringComparer.OrdinalIgnoreCase)];
+
+    /// <summary>The open subfolders; those a loaded tree no longer has are dropped.</summary>
+    internal List<string> ExpandedFolderPaths => [.. expandedFolders.Where(StillExists).Order(StringComparer.OrdinalIgnoreCase)];
+
+    private bool StillExists(string path)
+    {
+        var root = model?.Roots.FirstOrDefault(r => Paths.IsInside(path, r.Root));
+        if (root is null || root.Tree.Count == 0 || Paths.Relative(path, root.Root) is not { } relative) return true;
+        IReadOnlyList<NoteNode> nodes = root.Tree;
+        foreach (var part in relative.Split('/'))
+        {
+            var next = nodes.FirstOrDefault(n => n.IsFolder && string.Equals(n.Name, part, StringComparison.OrdinalIgnoreCase));
+            if (next is null) return false;
+            nodes = next.Children ?? [];
+        }
+        return true;
+    }
+
+    private static string FullPath(RootFolder root, string path) => System.IO.Path.Join(root.Root, path.Replace('/', '\\'));
 
     private void Tree_Expanding(TreeView sender, TreeViewExpandingEventArgs args)
     {
-        if (args.Node.Content is SidebarItem { Node: null } item) collapsedRoots.Remove(item.Item.Root);
+        if (args.Node.Content is not SidebarItem item) return;
+        var changed = item.Node is null
+            ? collapsedRoots.Remove(item.Item.Root.Root)
+            : item.IsFolder && expandedFolders.Add(FullPath(item.Item.Root, item.Item.Path));
+        if (changed) ExpansionChanged?.Invoke();
     }
 
     private void Tree_Collapsed(TreeView sender, TreeViewCollapsedEventArgs args)
     {
-        if (!syncing && args.Node.Content is SidebarItem { Node: null } item) collapsedRoots.Add(item.Item.Root);
+        if (syncing || args.Node.Content is not SidebarItem item) return;
+        var changed = item.Node is null
+            ? collapsedRoots.Add(item.Item.Root.Root)
+            : item.IsFolder && expandedFolders.Remove(FullPath(item.Item.Root, item.Item.Path));
+        if (changed) ExpansionChanged?.Invoke();
     }
 
     /// <summary>Brings the tree view in line with the model, reusing nodes so expansion, selection and scrolling stay.</summary>
@@ -166,7 +208,7 @@ public sealed partial class SidebarView : UserControl
                 TreeViewNode node;
                 if (index < 0)
                 {
-                    node = new TreeViewNode { Content = new SidebarItem(new ItemRef(root, ""), null), IsExpanded = true };
+                    node = new TreeViewNode { Content = new SidebarItem(new ItemRef(root, ""), null), IsExpanded = !collapsedRoots.Contains(root.Root) };
                     nodes.Insert(i, node);
                 }
                 else
@@ -179,7 +221,7 @@ public sealed partial class SidebarView : UserControl
                     }
                 }
                 Sync(node.Children, root, root.Tree);
-                if (!collapsedRoots.Contains(root)) node.IsExpanded = true;
+                if (!collapsedRoots.Contains(root.Root)) node.IsExpanded = true;
             }
         }
         finally
@@ -187,11 +229,59 @@ public sealed partial class SidebarView : UserControl
             syncing = false;
         }
         SyncSelection();
+        SyncUnavailable();
+    }
+
+    // MARK: Unavailable roots
+
+    private void SyncUnavailable()
+    {
+        UnavailableList.Children.Clear();
+        if (model is not null)
+        {
+            foreach (var root in model.UnavailableRoots) UnavailableList.Children.Add(BuildUnavailable(root));
+        }
+        UnavailableScroll.Visibility = UnavailableList.Children.Count > 0 && model?.IsSearching != true ? Visibility.Visible : Visibility.Collapsed;
+    }
+
+    /// <summary>A folder of the workspace that can't be opened right now: its name and the reason, greyed, with Retry and Remove.</summary>
+    private UIElement BuildUnavailable(UnavailableRoot root)
+    {
+        var secondary = (Microsoft.UI.Xaml.Media.Brush)Application.Current.Resources["TextFillColorSecondaryBrush"];
+        var title = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        title.Children.Add(new FontIcon { Glyph = "\uE8B7", FontSize = 16, Foreground = secondary });
+        title.Children.Add(new TextBlock { Text = root.Name, FontWeight = FontWeights.SemiBold, Foreground = secondary, TextTrimming = TextTrimming.CharacterEllipsis });
+        var retry = new Button { Content = Loc.Get("Retry"), Padding = new Thickness(10, 2, 10, 3) };
+        retry.Click += (_, _) => _ = model?.RetryRootAsync(root);
+        var remove = new Button { Content = Loc.Get("RemoveFromWorkspace"), Padding = new Thickness(10, 2, 10, 3) };
+        remove.Click += (_, _) => _ = model?.RemoveUnavailableRootAsync(root);
+        var panel = new StackPanel { Spacing = 4, Padding = new Thickness(4, 0, 4, 0) };
+        panel.Children.Add(title);
+        panel.Children.Add(new TextBlock
+        {
+            Text = root.Reason,
+            Style = (Style)Application.Current.Resources["CaptionTextBlockStyle"],
+            Foreground = secondary,
+            TextWrapping = TextWrapping.Wrap,
+            MaxLines = 3,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+        });
+        panel.Children.Add(new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8, Children = { retry, remove } });
+        ToolTipService.SetToolTip(panel, root.Path);
+        var menu = new MenuFlyout();
+        var retryItem = new MenuFlyoutItem { Text = Loc.Get("Retry") };
+        retryItem.Click += (_, _) => _ = model?.RetryRootAsync(root);
+        var removeItem = new MenuFlyoutItem { Text = Loc.Get("RemoveFromWorkspace") };
+        removeItem.Click += (_, _) => _ = model?.RemoveUnavailableRootAsync(root);
+        menu.Items.Add(retryItem);
+        menu.Items.Add(removeItem);
+        panel.ContextFlyout = menu;
+        return panel;
     }
 
     /// <summary>Makes `nodes` match `items` in order, reusing the node of each existing item. Linear: unchanged lists
     /// only compare, changed ones are rebuilt from a path lookup.</summary>
-    private static void Sync(IList<TreeViewNode> nodes, RootFolder root, IReadOnlyList<NoteNode> items)
+    private void Sync(IList<TreeViewNode> nodes, RootFolder root, IReadOnlyList<NoteNode> items)
     {
         static (string, bool) Key(NoteNode node) => (node.Path, node.IsFolder);
 
@@ -206,7 +296,11 @@ public sealed partial class SidebarView : UserControl
             {
                 nodes.Add(existing.TryGetValue(Key(item), out var node)
                     ? node
-                    : new TreeViewNode { Content = new SidebarItem(new ItemRef(root, item.Path), item) });
+                    : new TreeViewNode
+                    {
+                        Content = new SidebarItem(new ItemRef(root, item.Path), item),
+                        IsExpanded = item.IsFolder && expandedFolders.Contains(FullPath(root, item.Path)),
+                    });
             }
         }
         for (var i = 0; i < items.Count; i++)
@@ -360,6 +454,7 @@ public sealed partial class SidebarView : UserControl
         if (model is null) return;
         var searching = model.IsSearching;
         Tree.Visibility = searching ? Visibility.Collapsed : Visibility.Visible;
+        SyncUnavailable();
         var items = new List<HitItem>();
         if (searching)
         {

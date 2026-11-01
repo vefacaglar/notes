@@ -4,12 +4,12 @@ The storage contract shared by the macOS and Windows apps. The folder on disk is
 
 ## Layout
 
-- **Root**: a folder chosen by the user (macOS default: `~/Documents/Notes`, Windows default: `%USERPROFILE%\Documents\Notes`). Created if missing. An app may show several roots side by side (a workspace, like VS Code); each root follows this contract on its own, paths are relative to their root, and roots may not be nested inside one another. The list of roots is app preference, not stored in the folders.
+- **Root**: a folder chosen by the user (macOS default: `~/Documents/Notes`, Windows default: `%USERPROFILE%\Documents\Notes`). Only that default folder is created when missing, and only on the very first run (no roots saved yet); a configured root that can't be opened later (deleted, an unmounted volume) is never recreated: it stays in the list and is shown as unavailable (greyed, with the reason, and Retry / Remove Folder from Workspace), and comes back by itself when the folder does. An app may show several roots side by side (a workspace, like VS Code); each root follows this contract on its own, paths are relative to their root, and roots may not be nested inside one another. The list of roots is app preference, not stored in the folders.
 - **Notes**: every regular file whose extension is `md` (case-insensitive) is a note. The note's display name is the file name without the extension. Only notes are created by New Note and named automatically.
 - **Encrypted notes**: regular files whose extension is `mdenc` (case-insensitive) are password-protected Markdown notes (see *Encrypted notes*). Their display name is the file name without the extension. They are listed, opened in the Markdown editor once unlocked and shown with the Markdown-only filter, but they are not notes in the sense of the rules below: New Note does not create them and they are never named automatically. An app that does not implement *Encrypted notes* does not list them (they are ignored like unlisted files).
 - **Other text files**: regular files with one of these extensions (case-insensitive) are listed, searched and editable too, but are not notes: `json`, `swift`, `js` `mjs` `cjs` `jsx` `ts` `tsx` `mts` `cts`, `py`, `sh` `bash` `zsh`, `yaml` `yml`, `xml` `html` `htm` `plist` `svg`, `css`, `c` `h` `cc` `cpp` `hpp` `m` `mm` `java` `kt` `kts` `cs` `go` `rs`, `sql`, `toml` `ini`, `markdown` `mdown` `mkd`, `txt`, `log`, `csv`. They are shown with their full file name (extension included). Markdown files with the longer extensions open in the Markdown editor, the rest in a code editor with syntax highlighting; JSON can be reformatted ("Format"). They are never renamed automatically.
 - **Large files**: files over 20 MB open read-only; files over 200 MB are not opened. Sizes are checked again when a file is reloaded after an external change: past 200 MB the last text read stays on screen, read-only. Styling is skipped for texts over 2,000,000 UTF-16 code units.
-- **Read-only files**: a file the user may not write (permissions, locked item, a folder that refuses writes) opens read-only with a notice instead of failing every save. A symbolic link whose target is missing is not opened or written.
+- **Read-only files**: a file the user may not write (permissions, locked item, a folder that refuses writes) opens read-only with a notice instead of failing every save. The reason ("larger than 20 MB", "no permission to change this file") is shown in a notice above the editor and as the tab's tooltip, and the tab shows a lock; the reason is re-evaluated when the file is reloaded. A symbolic link whose target is missing is not opened or written.
 - **Folders**: every subdirectory is a folder, nested to any depth. Empty folders are kept and shown.
 - **Ignored**: any file or folder whose name starts with `.` or that the OS marks hidden (macOS hidden flag, Windows Hidden attribute, e.g. `desktop.ini`), and everything below it (e.g. `.git/`), and every file without one of the extensions above (including files without an extension). Apps never list, modify or delete ignored entries.
 - **No sidecar files**: apps write nothing but the files and folders themselves (and conflict copies, see *External changes*). Pinning, ordering, tags, timestamps etc. are not stored; modification time comes from the file system.
@@ -135,6 +135,28 @@ Links in Markdown files are followed from the editor with a plain click or a ⌘
 - A target that does not exist is reported with a neutral message ("There is no note named …"); nothing is created. An opened target goes to a tab: an already open tab is focused, otherwise a new tab opens next to the current one.
 - `[[…]]` is styled like a link (brackets as dimmed markers, name as link text). Inside code spans and fenced code it is plain text. Brackets inside the name, or an empty name, make it plain text.
 
+## Keyboard shortcuts (window level)
+
+macOS ⌘ is Ctrl on Windows. Ctrl+Alt is AltGr on Turkish and most European keyboards (it types characters), so a macOS ⌥⌘ or ⌃⌘ shortcut is never mapped to a Ctrl+Alt combination at window level; where one is needed a free Ctrl+Shift combination is used and listed here. The editor passes these to the window; the shortcuts of the editing helpers (formatting, Tab, Return) are listed with them below.
+
+| Command | macOS | Windows |
+| --- | --- | --- |
+| New Note / New Tab / New Folder | ⌘N / ⌘T / ⇧⌘N | Ctrl+N / Ctrl+T / Ctrl+Shift+N |
+| Add Folder to Workspace | ⇧⌘O | Ctrl+Shift+O |
+| Close Tab (no tab left: the window) | ⌘W | Ctrl+W |
+| Save / Save As | ⌘S / ⇧⌘S | Ctrl+S / Ctrl+Shift+S |
+| Find in the note | ⌘F | Ctrl+F |
+| Search the sidebar (shows it, focuses the search field) | ⇧⌘F | Ctrl+Shift+F |
+| Show / Hide Sidebar | ⌃⌘S | Ctrl+Shift+B |
+| Format (JSON) | ⌥⇧F | Shift+Alt+F |
+| Bold / Italic | ⌘B / ⌘I | Ctrl+B / Ctrl+I |
+| Next / previous tab | ⌃Tab / ⌃⇧Tab | Ctrl+Tab / Ctrl+Shift+Tab |
+| Select next / previous tab | ⇧⌘] / ⇧⌘[ | Ctrl+Shift+] / Ctrl+Shift+[ (the keys of `]` and `[` on a US keyboard) |
+| Tab 1 to 8, last tab | ⌘1…⌘8, ⌘9 | Ctrl+1…Ctrl+8, Ctrl+9 |
+| Rename the selected item | | F2 |
+
+Windows shows the shortcuts in a menu bar in the title bar (File, Edit, Format, View, Help) that mirrors the macOS menu bar.
+
 ## Editing helpers (Markdown editor)
 
 Each is one undo step. Ranges are UTF-16 offsets; text in the editor has LF line breaks.
@@ -219,5 +241,7 @@ A file that is not inside any root of the main window (opened from Finder, "Open
 ## App state (not part of the format)
 
 Besides drafts, apps keep their own state outside the notes folders; none of it is shared or needed to read a folder. The macOS app keeps the list of roots of the main window in its preferences (a root that can't be opened, e.g. an unmounted volume, stays in the list and is shown as unavailable; only the default `~/Documents/Notes` is created when missing, and only on the first run) and the open windows in `~/Library/Application Support/Notes/session.json` (written atomically, only by the process that owns the draft store): per window its outside folder (the main window has none, its roots live in the preferences), the open files by absolute path and drafts by draft file name, the active tab, the source-view toggle, whether the tab is in reading mode (an optional flag; absent means write mode), the selection (UTF-16 offsets) and scroll position of each tab, whether the sidebar is shown, and which sidebar folders are open (roots the user collapsed, subfolders the user expanded, by absolute path). Files and folders that are gone are skipped silently on restore.
+
+**Windows** keeps its roots in `%APPDATA%\Notes\settings.json` (the same rules: a root that can't be opened stays in the list; the very first run, with no roots saved and no default notes folder yet, creates the default folder and opens the window on one empty draft) and its one window in `%LOCALAPPDATA%\Notes\session.json`, next to the draft store, written atomically and only by the process that owns the draft store. The file has the shape described above with a single window (`isMain`), plus `bounds` (`x`, `y`, `width`, `height` in physical pixels of the restored window, and `maximized`): on restore the window is moved onto the work area of the nearest monitor and made no larger than it. Per tab it holds the file path or draft name, the selection (UTF-16 offsets) and the scroll position, and the source and reading flags (reserved until those modes exist); never note contents. It is written a second after tabs, the sidebar or the window change, when the window loses focus and when it closes. Files that are gone are skipped silently on restore, and the drafts that are not in the session follow as tabs. Dragging a tab in the strip reorders it, and the order is kept (drafts too). Test runs: `--support <folder>` keeps the session and the drafts in that folder (like macOS `-supportFolder`); a `--root` run without it keeps no session. Windows has no state of "running without windows": closing the last tab (the close button, middle click, Ctrl+W, a draft's Save / Don't Save answer) closes the window, which ends the app after saving; the next launch brings back the same folders, sidebar state and window, with no tabs. Tabs that disappear because their file was deleted or its folder went missing leave the window open.
 
 **Pinned and recent files** are app state too, never stored in a notes folder. The macOS app keeps them next to `session.json` in `pins.json` (pinned files, in pin order) and `recents.json` (the last 10 opened files, newest first), each `{"version": 1, "paths": [absolute paths]}`, written atomically and only by the process that owns the draft store. A pin follows its file when the app renames or moves it (folders included) and is dropped when the app moves it to the Trash; a path that is missing is hidden, not deleted, so a pin on an unmounted volume comes back with it. The pinned files show in a "Pinned" section at the top of the main window's sidebar; the recent files in File > Open Recent. A run without a support folder (a test run) keeps both in memory only.

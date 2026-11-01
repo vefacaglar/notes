@@ -22,12 +22,15 @@ public partial class App : Application
     {
         dispatcher = DispatcherQueue.GetForCurrentThread();
         var model = this.model = new NotesModel();
-        var window = new MainWindow(model);
+        // Read before the window exists: it opens where and as the last session left it.
+        var session = SessionStore.ReadMain();
+        var window = new MainWindow(model, session);
         window.Activated += (_, e) =>
         {
             if (e.WindowActivationState == WindowActivationState.Deactivated)
             {
                 _ = NoteDocument.FlushAllAsync();
+                _ = window.SaveSessionAsync();
             }
             else
             {
@@ -41,15 +44,20 @@ public partial class App : Application
             Exit();
         };
         window.Activate();
-        _ = StartAsync(model);
+        _ = StartAsync(model, window, session);
     }
 
-    private async Task StartAsync(NotesModel model)
+    private async Task StartAsync(NotesModel model, MainWindow window, SessionWindow? session)
     {
-        await model.StartAsync(options.Roots.Count > 0 ? options.Roots : AppSettings.Roots);
-        if (options.Files.Count > 0) await model.OpenFilesAsync(options.Files);
+        var firstRun = options.Roots.Count == 0 && AppSettings.IsFirstRun;
+        await model.StartAsync(options.Roots.Count > 0 ? options.Roots : AppSettings.Roots, createDefault: firstRun);
         await Task.Run(Drafts.AdoptPending);
-        await model.RestoreDraftsAsync();
+        // The last session's tabs (and the drafts after them); files named on the command line open on top of them.
+        await model.RestoreAsync(session);
+        if (options.Files.Count > 0) await model.OpenFilesAsync(options.Files);
+        // The very first run opens on one empty draft.
+        if (firstRun && model.Tabs.Count == 0) model.NewTab();
+        window.EnableSession();
         if (Drafts.SharedWithOtherWindow) model.ShowError(Loc.Get("DraftsInOtherWindow"));
         else if (Drafts.Unavailable) model.ShowError(Loc.Get("DraftsUnavailable"));
         List<string> early;

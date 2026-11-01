@@ -9,6 +9,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Horizontal" Spacing="4">
@@ -70,6 +71,11 @@
                 </DataTemplate>
             </ListView.ItemTemplate>
         </ListView>
+
+        <!-- Configured folders that couldn't be opened: greyed, with the reason, Retry and Remove. -->
+        <ScrollViewer x:Name="UnavailableScroll" Grid.Row="3" MaxHeight="240" Visibility="Collapsed">
+            <StackPanel x:Name="UnavailableList" Spacing="8" Padding="0,8,0,8" />
+        </ScrollViewer>
 
         <TextBlock x:Name="NoResults" Grid.Row="2" Visibility="Collapsed" HorizontalAlignment="Center" Margin="0,24,0,0"
                    TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

@@ -17,6 +17,7 @@
         <Grid x:Name="TitleBar" Background="Transparent">
             <Grid.ColumnDefinitions>
                 <ColumnDefinition Width="Auto" />
+                <ColumnDefinition Width="Auto" />
                 <ColumnDefinition Width="*" />
                 <ColumnDefinition x:Name="CaptionColumn" Width="138" />
             </Grid.ColumnDefinitions>
@@ -24,9 +25,12 @@
                     Background="Transparent" BorderThickness="0" Click="SidebarToggle_Click">
                 <FontIcon Glyph="&#xE90C;" FontSize="16" />
             </Button>
-            <TabView x:Name="Tabs" Grid.Column="1" VerticalAlignment="Bottom" TabWidthMode="SizeToContent" CanReorderTabs="False"
-                     CanDragTabs="False" IsAddTabButtonVisible="True" AddTabButtonClick="Tabs_AddTabButtonClick"
-                     TabCloseRequested="Tabs_TabCloseRequested" SelectionChanged="Tabs_SelectionChanged">
+            <!-- The command surface: File / Edit / Format / View / Help, filled in code (MainWindow.Commands.cs). -->
+            <MenuBar x:Name="Menu" Grid.Column="1" VerticalAlignment="Center" HorizontalAlignment="Left" />
+            <TabView x:Name="Tabs" Grid.Column="2" VerticalAlignment="Bottom" TabWidthMode="SizeToContent" CanReorderTabs="True"
+                     CanDragTabs="True" IsAddTabButtonVisible="True" AddTabButtonClick="Tabs_AddTabButtonClick"
+                     TabCloseRequested="Tabs_TabCloseRequested" SelectionChanged="Tabs_SelectionChanged"
+                     TabItemsChanged="Tabs_TabItemsChanged">
                 <TabView.Resources>
                   <ResourceDictionary>
                     <SolidColorBrush x:Key="TabViewBackground" Color="Transparent" />
@@ -63,7 +67,7 @@
                     <RowDefinition Height="Auto" />
                     <RowDefinition Height="*" />
                 </Grid.RowDefinitions>
-                <InfoBar x:Name="ErrorBar" x:Uid="ErrorBar" Severity="Error" Margin="12,12,12,0" CloseButtonClick="ErrorBar_CloseButtonClick" />
+                <InfoBar x:Name="ErrorBar" x:Uid="ErrorBar" Severity="Informational" Margin="12,12,12,0" CloseButtonClick="ErrorBar_CloseButtonClick" />
                 <Border x:Name="EditorHost" Grid.Row="1" />
                 <StackPanel x:Name="Placeholder" Grid.Row="1" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" MaxWidth="360">
                     <FontIcon Glyph="&#xE8A5;" FontSize="40" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />

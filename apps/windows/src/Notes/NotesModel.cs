@@ -29,10 +29,21 @@ internal sealed class PathRef(RootFolder root, string path)
     public string Path { get; set; } = path;
 }
 
+/// <summary>A configured root that couldn't be opened (missing folder, unmounted drive…); shown greyed in the sidebar.</summary>
+internal sealed record UnavailableRoot(string Path, string Reason)
+{
+    public string Name => System.IO.Path.GetFileName(System.IO.Path.TrimEndingDirectorySeparator(Path)) is { Length: > 0 } name ? name : Path;
+}
+
 /// <summary>A tab of the main window: one open file, or empty.</summary>
 internal sealed class NoteTab
 {
     public NoteDocument? Document { get; set; }
+    /// <summary>Show Source and Reading Mode (batch 2 gives them an effect); kept so a session round-trips them.</summary>
+    public bool ShowsSource { get; set; }
+    public bool Reading { get; set; }
+    /// <summary>Selection and scroll position restored from the session; applied when the tab's editor first appears.</summary>
+    public EditorViewState? ViewState { get; set; }
 }
 
 /// <summary>
@@ -42,9 +53,13 @@ internal sealed class NoteTab
 internal sealed class NotesModel
 {
     private readonly List<RootFolder> roots = [];
+    private readonly List<UnavailableRoot> unavailable = [];
+    /// <summary>The workspace as the user configured it, in order: open roots and unavailable ones. This is what is saved.</summary>
+    private readonly List<string> configuredRoots = [];
     private readonly List<NoteTab> tabs = [];
 
     public IReadOnlyList<RootFolder> Roots => roots;
+    public IReadOnlyList<UnavailableRoot> UnavailableRoots => unavailable;
     public IReadOnlyList<NoteTab> Tabs => tabs;
     public NoteTab? ActiveTab { get; private set; }
     public NoteDocument? ActiveDocument => ActiveTab?.Document;
@@ -94,25 +109,91 @@ internal sealed class NotesModel
 
     // MARK: Roots
 
-    /// <summary>Opens the given roots (a `--root` test run never writes them back; see <see cref="AppSettings.IsPersistent"/>).</summary>
-    public async Task StartAsync(IReadOnlyList<string> paths)
+    /// <summary>
+    /// Opens the configured roots (a `--root` test run never writes them back; see <see cref="AppSettings.IsPersistent"/>).
+    /// A root that can't be opened stays configured and shows as unavailable; only the default notes folder of the very
+    /// first run (`createDefault`) is created when missing.
+    /// </summary>
+    public async Task StartAsync(IReadOnlyList<string> paths, bool createDefault = false)
     {
         foreach (var path in paths)
         {
-            try
+            if (configuredRoots.Any(c => Paths.Same(c, path))) continue;
+            configuredRoots.Add(path);
+            await OpenConfiguredAsync(path, createDefault && Paths.Same(path, AppSettings.DefaultNotesFolder));
+        }
+        if (createDefault) await SaveRootsAsync();
+    }
+
+    /// <summary>Opens `path` as a root; when that fails it is listed as unavailable with the reason instead.</summary>
+    private async Task<bool> OpenConfiguredAsync(string path, bool createIfMissing)
+    {
+        string problem;
+        try
+        {
+            var root = await CreateRootAsync(path, createIfMissing);
+            if (Validate(root) is not { } invalid)
             {
-                if (await CreateRootAsync(path) is { } root && Validate(root) is null) AddRoot(root);
+                unavailable.RemoveAll(u => Paths.Same(u.Path, path));
+                AddRoot(root);
+                return true;
             }
-            catch (Exception e)
-            {
-                ShowError(Loc.Format("OpenFailed", path, Paths.Describe(e)));
-            }
+            problem = invalid;
+        }
+        catch (Exception e)
+        {
+            problem = Paths.Describe(e);
+        }
+        unavailable.RemoveAll(u => Paths.Same(u.Path, path));
+        unavailable.Add(new UnavailableRoot(path, problem));
+        RootsChanged?.Invoke();
+        return false;
+    }
+
+    /// <summary>Retry on an unavailable root (the volume may be back, the folder restored).</summary>
+    public async Task RetryRootAsync(UnavailableRoot root)
+    {
+        if (!unavailable.Contains(root)) return;
+        if (!await OpenConfiguredAsync(root.Path, createIfMissing: false) && unavailable.FirstOrDefault(u => Paths.Same(u.Path, root.Path)) is { } still)
+        {
+            ShowError(still.Reason);
         }
     }
 
-    private static Task<RootFolder> CreateRootAsync(string path) => Task.Run(() =>
+    /// <summary>"Remove Folder from Workspace" on an unavailable root: forgets it. Nothing on disk changes.</summary>
+    public async Task RemoveUnavailableRootAsync(UnavailableRoot root)
     {
-        var store = new NoteStore(path);
+        if (unavailable.RemoveAll(u => u == root) == 0) return;
+        configuredRoots.RemoveAll(c => Paths.Same(c, root.Path));
+        RootsChanged?.Invoke();
+        await SaveRootsAsync();
+    }
+
+    /// <summary>Unavailable roots whose folder exists again are opened (on activation and file system events).</summary>
+    private async void RetryUnavailableRoots()
+    {
+        if (unavailable.Count == 0 || retrying) return;
+        retrying = true;
+        try
+        {
+            var candidates = unavailable.ToList();
+            var back = await Task.Run(() => candidates.Where(c => Directory.Exists(c.Path)).ToList());
+            foreach (var item in back)
+            {
+                if (unavailable.Contains(item)) await OpenConfiguredAsync(item.Path, createIfMissing: false);
+            }
+        }
+        finally
+        {
+            retrying = false;
+        }
+    }
+
+    private bool retrying;
+
+    private static Task<RootFolder> CreateRootAsync(string path, bool createIfMissing) => Task.Run(() =>
+    {
+        var store = new NoteStore(path, createIfMissing);
         return new RootFolder(store, Paths.Canonical(store.Root));
     });
 
@@ -143,13 +224,17 @@ internal sealed class NotesModel
     {
         try
         {
-            var root = await CreateRootAsync(path);
+            var root = await CreateRootAsync(path, createIfMissing: false);
             if (Validate(root) is { } problem)
             {
                 ShowError(problem);
                 return;
             }
+            // Picked while listed as unavailable: it simply came back.
+            unavailable.RemoveAll(u => Paths.Same(u.Path, path));
             AddRoot(root);
+            configuredRoots.RemoveAll(c => Paths.Same(c, path));
+            configuredRoots.Add(path);
             await SaveRootsAsync();
         }
         catch (Exception e)
@@ -173,6 +258,7 @@ internal sealed class NotesModel
         foreach (var tab in inside) RemoveTab(tab);
         root.Watcher?.Dispose();
         roots.Remove(root);
+        configuredRoots.RemoveAll(c => Paths.Same(c, root.Root));
         if (Selection?.Root == root) SetSelection(null);
         tracked.RemoveAll(t => t.Root == root);
         RootsChanged?.Invoke();
@@ -182,7 +268,7 @@ internal sealed class NotesModel
 
     private async Task SaveRootsAsync()
     {
-        var list = roots.Select(r => r.Root).ToList();
+        var list = configuredRoots.ToList();
         try { await Task.Run(() => AppSettings.SaveRoots(list)); }
         catch (Exception e) { ShowError(Loc.Format("WorkspaceSaveFailed", Paths.Describe(e))); }
     }
@@ -230,6 +316,7 @@ internal sealed class NotesModel
     public void Refresh()
     {
         foreach (var root in roots) Refresh(root);
+        RetryUnavailableRoots();
         CheckOpenDocuments();
         if (IsSearching) ScheduleSearch();
     }
@@ -295,8 +382,35 @@ internal sealed class NotesModel
         ActivateTab(tabs[((index + delta) % tabs.Count + tabs.Count) % tabs.Count]);
     }
 
+    /// <summary>Ctrl+1..8 pick that tab, Ctrl+9 the last one.</summary>
+    public NoteTab? SelectTab(int number)
+    {
+        if (tabs.Count == 0) return null;
+        var index = number == 9 ? tabs.Count - 1 : number - 1;
+        if (index < 0 || index >= tabs.Count) return null;
+        ActivateTab(tabs[index]);
+        return tabs[index];
+    }
+
+    /// <summary>Drag and drop in the tab strip: `order` holds the same tabs in their new order.</summary>
+    public void ReorderTabs(IReadOnlyList<NoteTab> order)
+    {
+        if (order.Count != tabs.Count || order.SequenceEqual(tabs) || !order.ToHashSet().SetEquals(tabs)) return;
+        tabs.Clear();
+        tabs.AddRange(order);
+        TabsChanged?.Invoke();
+    }
+
     /// <summary>Ctrl+T: a blank draft note in a tab after the active one; nothing is written to a notes folder.</summary>
     public NoteTab NewTab() => NewEmptyTab(Track(NoteDocument.NewDraft(Drafts.NewPath())));
+
+    /// <summary>Hooks a file's document up to automatic naming, relocation and the recreate-folders-below-the-root rule.</summary>
+    private void Configure(NoteDocument document)
+    {
+        document.AutoRename = AutoRenameLockedAsync;
+        document.Relocated = Follow;
+        document.RootOf = d => Locate(d.Path)?.Root.Root;
+    }
 
     /// <summary>A draft that moved to a new store file (the old one changed under it) is a new item in the saved order.</summary>
     private NoteDocument Track(NoteDocument draft)
@@ -339,12 +453,62 @@ internal sealed class NotesModel
         }
     }
 
-    /// <summary>Opens the saved drafts as tabs after the others, in their previous order.</summary>
-    public async Task RestoreDraftsAsync()
+    /// <summary>
+    /// Reopens the last session's tabs (files that are gone are skipped silently), then every other saved draft after
+    /// them in its saved order. Without a session this is the plain restore of the drafts.
+    /// </summary>
+    public async Task RestoreAsync(SessionWindow? session)
     {
         var saved = await Task.Run(Drafts.Saved);
+        var drafts = new Dictionary<string, string>(StringComparer.Ordinal);
+        foreach (var path in saved) drafts[Path.GetFileName(path)] = path;
+        var restored = new HashSet<string>(StringComparer.Ordinal);
+        NoteTab? active = null;
+        var sessionTabs = session?.Tabs ?? [];
+        for (var index = 0; index < sessionTabs.Count; index++)
+        {
+            var entry = sessionTabs[index];
+            NoteDocument? document = null;
+            try
+            {
+                if (entry.Draft is { } name)
+                {
+                    if (!drafts.TryGetValue(name, out var path) || !restored.Add(name)) continue;
+                    document = Track(await NoteDocument.OpenDraftAsync(path));
+                }
+                else if (entry.File is { Length: > 0 } file)
+                {
+                    if (!await Task.Run(() => File.Exists(file))) continue;
+                    document = await NoteDocument.OpenAsync(file);
+                    Configure(document);
+                }
+            }
+            catch (Exception e)
+            {
+                ShowError(Loc.Format("OpenFailed", Path.GetFileName(entry.File ?? entry.Draft ?? ""), Paths.Describe(e)));
+                continue;
+            }
+            if (document is null) continue;
+            // The same file twice in a session (or already open): one tab.
+            if (tabs.Any(t => t.Document == document))
+            {
+                document.Release();
+                if (index == session!.ActiveTab) active = tabs.First(t => t.Document == document);
+                continue;
+            }
+            var tab = new NoteTab
+            {
+                Document = document,
+                ShowsSource = entry.ShowsSource && document.Language == CodeLanguage.Markdown,
+                Reading = entry.Reading ?? false,
+                ViewState = entry.View?.ToState(),
+            };
+            tabs.Add(tab);
+            if (index == session!.ActiveTab) active = tab;
+        }
         foreach (var path in saved)
         {
+            if (restored.Contains(Path.GetFileName(path))) continue;
             try
             {
                 var document = await NoteDocument.OpenDraftAsync(path);
@@ -362,7 +526,7 @@ internal sealed class NotesModel
         }
         draftsRestored = true;
         TabsChanged?.Invoke();
-        if (ActiveTab is null && tabs.Count > 0) ActivateTab(tabs[0]);
+        if (ActiveTab is null && tabs.Count > 0) ActivateTab(active ?? tabs[0]);
     }
 
     private bool draftsRestored;
@@ -427,9 +591,7 @@ internal sealed class NotesModel
                     stamp = NoteFile.GetStamp(full);
                     return created;
                 });
-                document.AutoRename = AutoRenameLockedAsync;
-                document.Relocated = Follow;
-                document.RootOf = d => Locate(d.Path)?.Root.Root;
+                Configure(document);
                 document.BecomeFile(root.Store.FullPath(relative), text, stamp);
             });
             if (relative is null) return true;
@@ -573,9 +735,7 @@ internal sealed class NotesModel
                 opened.Release();
                 return;
             }
-            opened.AutoRename = AutoRenameLockedAsync;
-            opened.Relocated = Follow;
-            opened.RootOf = d => Locate(d.Path)?.Root.Root;
+            Configure(opened);
             opened.FocusOnOpen = focus;
             // Edits typed into the old file while this one loaded keep it in its tab.
             if (target is null || !tabs.Contains(target)
@@ -885,11 +1045,16 @@ internal sealed class NotesModel
     /// <summary>Parent window for shell prompts (Recycle Bin).</summary>
     public IntPtr OwnerWindow { get; set; }
 
-    public void RevealInExplorer(ItemRef item)
+    public void RevealInExplorer(ItemRef item) => Reveal(item.IsRoot ? $"\"{item.Root.Root}\"" : $"/select,\"{item.FullPath}\"");
+
+    /// <summary>Shows a file in Explorer, selected.</summary>
+    public void RevealFileInExplorer(string path) => Reveal($"/select,\"{path}\"");
+
+    private void Reveal(string arguments)
     {
         try
         {
-            System.Diagnostics.Process.Start("explorer.exe", item.IsRoot ? $"\"{item.Root.Root}\"" : $"/select,\"{item.FullPath}\"");
+            System.Diagnostics.Process.Start("explorer.exe", arguments);
         }
         catch (Exception e)
         {

@@ -9,6 +9,7 @@ using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
 using NotesCore;
 using Windows.Foundation;
+using Windows.Foundation.Collections;
 using Windows.Graphics;
 using Windows.Storage.Pickers;
 using Windows.System;
@@ -25,24 +26,28 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<NoteTab, (NoteDocument Document, Action Update)> tabWatchers = [];
     private bool syncingTabs;
     private RectInt32[] passthrough = [];
-
-    internal MainWindow(NotesModel model)
+    internal MainWindow(NotesModel model, SessionWindow? session = null)
     {
         this.model = model;
         InitializeComponent();
         if (AppSettings.ThemeOverride is { } theme) Root.RequestedTheme = theme;
         Root.LayoutUpdated += (_, _) => UpdateStrokeGap();
-        WindowSupport.Resize(this, 1100, 720);
+        WindowSupport.Place(this, session?.Bounds, 1100, 720);
+        TrackWindow();
         WindowSupport.ExtendIntoTitleBar(this, TitleBar);
         WindowSupport.GuardClose(this, PrepareToCloseAsync);
         // The tabs and the strip's buttons move when the window or a tab changes size, and after tabs are added.
         TitleBar.SizeChanged += (_, _) => UpdatePassthrough();
         Tabs.SizeChanged += (_, _) => UpdatePassthrough();
+        Menu.SizeChanged += (_, _) => UpdatePassthrough();
         SessionGuard.Install(this);
+        SessionGuard.BeforeEnd = SaveSessionNow;
         model.OwnerWindow = WinRT.Interop.WindowNative.GetWindowHandle(this);
 
         ((ThemeShadow)EditorLayer.Shadow).Receivers.Add(ShadowReceiver);
-        SetSidebarOpen(!AppSettings.SidebarCollapsed, save: false);
+        Sidebar.RestoreExpansion(session?.CollapsedRoots, session?.ExpandedFolders);
+        Sidebar.ExpansionChanged += SaveSessionSoon;
+        SetSidebarOpen(session?.SidebarVisible ?? !AppSettings.SidebarCollapsed, save: false);
         Sidebar.Attach(model, this);
         model.TabsChanged += SyncTabs;
         model.ActiveTabChanged += ShowActiveTab;
@@ -59,44 +64,111 @@ public sealed partial class MainWindow : Window
             editors.Clear();
         };
 
-        const VirtualKeyModifiers ctrl = VirtualKeyModifiers.Control, shift = VirtualKeyModifiers.Shift;
-        Accelerator(VirtualKey.N, ctrl, () => _ = model.NewNoteAsync());
-        Accelerator(VirtualKey.N, ctrl | shift, () => _ = NewFolderAsync(null));
-        Accelerator(VirtualKey.O, ctrl | shift, () => _ = AddRootAsync());
-        Accelerator(VirtualKey.F, ctrl, () =>
-        {
-            SetSidebarOpen(true, save: true);
-            Sidebar.FocusSearch();
-        });
-        Accelerator(VirtualKey.S, ctrl, () => _ = model.SaveActiveAsync());
-        Accelerator(VirtualKey.S, ctrl | shift, () => _ = SaveAsAsync());
-        Accelerator(VirtualKey.F, shift | VirtualKeyModifiers.Menu, () => ActiveEditor?.Format());
-        Accelerator(VirtualKey.F2, VirtualKeyModifiers.None, () =>
-        {
-            if (model.Selection is { IsRoot: false } item) _ = RenameAsync(item);
-        });
-        Accelerator(VirtualKey.T, ctrl, () => model.NewTab());
-        Accelerator(VirtualKey.W, ctrl, () =>
-        {
-            if (model.ActiveTab is { } tab) _ = CloseTabAsync(tab);
-        });
-        Accelerator(VirtualKey.Tab, ctrl, () => model.CycleTab(1));
-        Accelerator(VirtualKey.Tab, ctrl | shift, () => model.CycleTab(-1));
-        Accelerator(VirtualKey.B, ctrl, () => SetSidebarOpen(!Split.IsPaneOpen, save: true));
-
+        BuildMenu();
         SyncTabs();
         ShowError();
     }
 
-    private void Accelerator(VirtualKey key, VirtualKeyModifiers modifiers, Action action)
+    // MARK: Session
+
+    private bool sessionEnabled;
+    private readonly Microsoft.UI.Dispatching.DispatcherQueueTimer sessionTimer = Microsoft.UI.Dispatching.DispatcherQueue.GetForCurrentThread().CreateTimer();
+
+    /// <summary>Called once the workspace and the last session's tabs are back: from now on changes are saved.</summary>
+    internal void EnableSession()
     {
-        var accelerator = new KeyboardAccelerator { Key = key, Modifiers = modifiers };
-        accelerator.Invoked += (_, e) =>
+        sessionEnabled = true;
+        sessionTimer.Interval = TimeSpan.FromSeconds(1);
+        sessionTimer.IsRepeating = false;
+        sessionTimer.Tick += (_, _) =>
         {
-            e.Handled = true;
-            action();
+            sessionTimer.Stop();
+            _ = SaveSessionAsync();
         };
-        Root.KeyboardAccelerators.Add(accelerator);
+        model.TabsChanged += SaveSessionSoon;
+        model.ActiveTabChanged += SaveSessionSoon;
+    }
+
+    /// <summary>Something worth restoring changed: saved a moment later.</summary>
+    internal void SaveSessionSoon()
+    {
+        if (!sessionEnabled) return;
+        sessionTimer.Stop();
+        sessionTimer.Start();
+    }
+
+    /// <summary>Captures the window on the UI thread (selection and scroll are read from the editors now) and writes it off it.</summary>
+    internal Task SaveSessionAsync()
+    {
+        if (!sessionEnabled || !SessionStore.CanWrite) return Task.CompletedTask;
+        sessionTimer.Stop();
+        var state = CaptureSession();
+        return Task.Run(() => SessionStore.Write(state));
+    }
+
+    /// <summary>Logoff and shutdown: nothing may wait for the dispatcher.</summary>
+    private void SaveSessionNow()
+    {
+        if (!sessionEnabled || !SessionStore.CanWrite) return;
+        SessionStore.Write(CaptureSession());
+    }
+
+    private SessionWindow CaptureSession()
+    {
+        var tabs = new List<SessionTab>();
+        int? active = null;
+        foreach (var tab in model.Tabs)
+        {
+            if (tab.Document is not { } document) continue;
+            if (tab == model.ActiveTab) active = tabs.Count;
+            var view = editors.TryGetValue(tab, out var editor) ? editor.CaptureViewState() : tab.ViewState;
+            tabs.Add(new SessionTab
+            {
+                File = document.IsDraft ? null : document.Path,
+                Draft = document.IsDraft ? System.IO.Path.GetFileName(document.Path) : null,
+                ShowsSource = tab.ShowsSource,
+                View = SessionView.From(view),
+                Reading = tab.Reading ? true : null,
+            });
+        }
+        return new SessionWindow
+        {
+            Tabs = tabs,
+            ActiveTab = active,
+            SidebarVisible = Split.IsPaneOpen,
+            CollapsedRoots = Sidebar.CollapsedRootPaths,
+            ExpandedFolders = Sidebar.ExpandedFolderPaths,
+            Bounds = windowBounds?.Copy(),
+        };
+    }
+
+    private SessionBounds? windowBounds;
+
+    /// <summary>Remembers where the window is while it is neither maximized nor minimized, and whether it is maximized.</summary>
+    private void TrackWindow()
+    {
+        void Update()
+        {
+            if (AppWindow.Presenter is not OverlappedPresenter presenter || presenter.State == OverlappedPresenterState.Minimized) return;
+            var maximized = presenter.State == OverlappedPresenterState.Maximized;
+            if (maximized && windowBounds is { } known)
+            {
+                known.Maximized = true;
+                return;
+            }
+            windowBounds = new SessionBounds
+            {
+                X = AppWindow.Position.X, Y = AppWindow.Position.Y, Width = AppWindow.Size.Width, Height = AppWindow.Size.Height,
+                Maximized = maximized,
+            };
+        }
+        Update();
+        AppWindow.Changed += (_, e) =>
+        {
+            if (!e.DidSizeChange && !e.DidPositionChange && !e.DidPresenterChange) return;
+            Update();
+            SaveSessionSoon();
+        };
     }
 
     [LibraryImport("user32.dll")]
@@ -118,7 +190,7 @@ public sealed partial class MainWindow : Window
         if (Content.XamlRoot is not { } root) return;
         var scale = root.RasterizationScale;
         CaptionColumn.Width = new GridLength(AppWindow.TitleBar.RightInset / scale);
-        var elements = new List<FrameworkElement> { SidebarToggle };
+        var elements = new List<FrameworkElement> { SidebarToggle, Menu };
         Collect(Tabs, elements);
         var rects = elements
             .Where(e => e.Visibility == Visibility.Visible && e.ActualWidth > 0 && e.ActualHeight > 0)
@@ -146,11 +218,10 @@ public sealed partial class MainWindow : Window
     {
         Split.IsPaneOpen = open;
         var label = open ? Loc.Get("HideSidebar") : Loc.Get("ShowSidebar");
-        ToolTipService.SetToolTip(SidebarToggle, $"{label} (Ctrl+B)");
+        ToolTipService.SetToolTip(SidebarToggle, $"{label} (Ctrl+Shift+B)");
+        if (sidebarItem is not null) sidebarItem.Text = label;
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(SidebarToggle, label);
-        if (!save) return;
-        try { AppSettings.SaveSidebarCollapsed(!open); }
-        catch (Exception e) { model.ShowError(Loc.Format("SettingSaveFailed", Paths.Describe(e))); }
+        if (save) SaveSessionSoon();
     }
 
     // MARK: Tabs
@@ -175,6 +246,15 @@ public sealed partial class MainWindow : Window
                 {
                     item = new TabViewItem { Tag = tab };
                     item.SizeChanged += (_, _) => UpdatePassthrough();
+                    item.ContextFlyout = BuildTabMenu(tab);
+                    var created = item;
+                    // WinUI closes a tab on a middle click itself; this covers the case where it does not (closing is re-entrancy safe).
+                    item.AddHandler(UIElement.PointerReleasedEvent, new PointerEventHandler((_, e) =>
+                    {
+                        if (e.GetCurrentPoint(created).Properties.PointerUpdateKind != PointerUpdateKind.MiddleButtonReleased) return;
+                        e.Handled = true;
+                        _ = CloseTabAsync(tab);
+                    }), true);
                     tabItems[tab] = item;
                 }
                 var index = Tabs.TabItems.IndexOf(item);
@@ -216,16 +296,71 @@ public sealed partial class MainWindow : Window
         DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, UpdatePassthrough);
     }
 
+    private bool reorderQueued;
+
+    /// <summary>A drag in the tab strip reordered the items: the model follows (after the whole move: remove, then insert).</summary>
+    private void Tabs_TabItemsChanged(TabView sender, IVectorChangedEventArgs args)
+    {
+        if (syncingTabs || reorderQueued) return;
+        reorderQueued = true;
+        DispatcherQueue.TryEnqueue(() =>
+        {
+            reorderQueued = false;
+            if (syncingTabs) return;
+            model.ReorderTabs([.. Tabs.TabItems.OfType<TabViewItem>().Select(i => i.Tag).OfType<NoteTab>()]);
+        });
+    }
+
+    private MenuFlyout BuildTabMenu(NoteTab tab)
+    {
+        var menu = new MenuFlyout();
+        var close = new MenuFlyoutItem { Text = Loc.Get("CloseTab"), KeyboardAcceleratorTextOverride = "Ctrl+W" };
+        close.Click += (_, _) => _ = CloseTabAsync(tab);
+        var others = new MenuFlyoutItem { Text = Loc.Get("CloseOtherTabs") };
+        others.Click += (_, _) => _ = CloseOtherTabsAsync(tab);
+        var separator = new MenuFlyoutSeparator();
+        var reveal = new MenuFlyoutItem { Text = Loc.Get("ShowInExplorer") };
+        reveal.Click += (_, _) =>
+        {
+            if (tab.Document is { IsDraft: false } document) model.RevealFileInExplorer(document.Path);
+        };
+        menu.Items.Add(close);
+        menu.Items.Add(others);
+        menu.Items.Add(separator);
+        menu.Items.Add(reveal);
+        menu.Opening += (_, _) =>
+        {
+            others.IsEnabled = model.Tabs.Count > 1;
+            var isFile = tab.Document is { IsDraft: false };
+            separator.Visibility = reveal.Visibility = isFile ? Visibility.Visible : Visibility.Collapsed;
+        };
+        return menu;
+    }
+
+    /// <summary>Closes every tab but `keep`, one after the other; a draft with text or a failed save asks first, and the
+    /// rest stays open when the user cancels.</summary>
+    private async Task CloseOtherTabsAsync(NoteTab keep)
+    {
+        model.ActivateTab(keep);
+        foreach (var other in model.Tabs.Where(t => t != keep).ToList())
+        {
+            await CloseTabAsync(other);
+            if (model.Tabs.Contains(other)) return;
+        }
+    }
+
     /// <summary>What each tab header shows, so a keystroke only rebuilds it when the title or the dot changes.</summary>
-    private readonly Dictionary<NoteTab, (string? Title, bool Dirty, string? Path)> headers = [];
+    private readonly Dictionary<NoteTab, (string? Title, bool Dirty, string? Path, string? ReadOnly)> headers = [];
 
     /// <summary>Display name, a dot while there are unsaved edits, the path as tooltip.</summary>
     private void UpdateHeader(NoteTab tab)
     {
         if (!tabItems.TryGetValue(tab, out var item)) return;
         var document = tab.Document;
-        var state = (document?.Title, document?.ShowsUnsavedDot == true, document?.Path);
+        var state = (document?.Title, document?.ShowsUnsavedDot == true, document?.Path, document?.ReadOnlyReason);
         if (headers.TryGetValue(tab, out var shown) && shown == state && item.Header is not null) return;
+        // A file that was renamed (automatically or by hand) changes the session.
+        if (shown.Path != state.Path) SaveSessionSoon();
         headers[tab] = state;
         // Inherits the tab's text colour, so it follows the theme.
         var dot = new TextBlock
@@ -236,14 +371,22 @@ public sealed partial class MainWindow : Window
             VerticalAlignment = VerticalAlignment.Center,
             Visibility = document?.ShowsUnsavedDot == true ? Visibility.Visible : Visibility.Collapsed,
         };
-        item.Header = new StackPanel
+        var header = new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 6,
-            Children = { new TextBlock { Text = document?.Title ?? Loc.Get("NewTab"), MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis }, dot },
+            Children = { new TextBlock { Text = document?.Title ?? Loc.Get("NewTab"), MaxWidth = 220, TextTrimming = TextTrimming.CharacterEllipsis } },
         };
+        if (document?.ReadOnlyReason is not null)
+        {
+            header.Children.Add(new FontIcon { Glyph = "", FontSize = 11, Opacity = 0.7, VerticalAlignment = VerticalAlignment.Center });
+        }
+        header.Children.Add(dot);
+        item.Header = header;
         item.IconSource = new FontIconSource { Glyph = document is null ? "" : SidebarView.Glyph(document.FileName) };
-        ToolTipService.SetToolTip(item, document is { IsDraft: false } ? document.Path : null);
+        var tip = document is { IsDraft: false } ? document.Path : null;
+        if (document?.ReadOnlyReason is { } reason) tip = tip is null ? reason : tip + "\n" + reason;
+        ToolTipService.SetToolTip(item, tip);
         Microsoft.UI.Xaml.Automation.AutomationProperties.SetName(item, document?.Title ?? Loc.Get("NewTab"));
         if (tab == model.ActiveTab) UpdateTitle();
     }
@@ -265,10 +408,13 @@ public sealed partial class MainWindow : Window
         {
             editor = new NoteEditorView(document);
             editors[tab] = editor;
+            if (tab.ViewState is { } view) editor.ApplyViewState(view);
+            tab.ViewState = null;
         }
         if (EditorHost.Child != editor) EditorHost.Child = editor;
         Placeholder.Visibility = editor is null ? Visibility.Visible : Visibility.Collapsed;
         UpdateTitle();
+        RefreshMenu();
     }
 
     private void UpdateTitle() => Title = model.ActiveDocument?.Title ?? Loc.Get("AppName");
@@ -320,7 +466,10 @@ public sealed partial class MainWindow : Window
                 if (model.Tabs.Contains(tab)) return false;
             }
         }
-        return await model.PrepareToCloseAsync(ConfirmDropAsync);
+        if (!await model.PrepareToCloseAsync(ConfirmDropAsync)) return false;
+        // After the saves: an automatic rename may have changed a path. The editors are still alive to read the caret from.
+        await SaveSessionAsync();
+        return true;
     }
 
     private static string Synced(NoteDocument draft)
@@ -329,15 +478,34 @@ public sealed partial class MainWindow : Window
         return draft.Text;
     }
 
-    /// <summary>Closes a tab. A draft needs no saving to close the window, but closing its tab asks when it has text.</summary>
+    private readonly HashSet<NoteTab> closing = [];
+
+    /// <summary>Closes a tab (the close button, a middle click, Ctrl+W, the menus). A draft needs no saving to close the
+    /// window, but closing its tab asks when it has text. Closing the last tab closes the window, as in other tabbed apps
+    /// with one window (docs/format.md, "App state").</summary>
     private async Task CloseTabAsync(NoteTab tab)
+    {
+        if (!model.Tabs.Contains(tab) || !closing.Add(tab)) return;
+        try
+        {
+            if (!await TryCloseTabAsync(tab)) return;
+        }
+        finally
+        {
+            closing.Remove(tab);
+        }
+        if (model.Tabs.Count == 0) Close();
+    }
+
+    /// <summary>True when the tab is gone.</summary>
+    private async Task<bool> TryCloseTabAsync(NoteTab tab)
     {
         if (tab.Document is { IsDraft: true } draft)
         {
             draft.Sync();
             if (draft.Text.Length > 0)
             {
-                if (Content.XamlRoot is not { } root) return;
+                if (Content.XamlRoot is not { } root) return false;
                 var dialog = new ContentDialog
                 {
                     Title = Loc.Format("SaveDraftTitle", draft.Name),
@@ -350,22 +518,22 @@ public sealed partial class MainWindow : Window
                 switch (await Dialogs.ShowAsync(root, dialog))
                 {
                     case ContentDialogResult.Primary:
-                        if (!await model.SaveDraftAsync(draft)) return;
+                        if (!await model.SaveDraftAsync(draft)) return false;
                         break;
                     case ContentDialogResult.Secondary:
                         await model.DiscardDraftAsync(tab);
-                        return;
+                        return true;
                     default:
-                        return;
+                        return false;
                 }
             }
             else
             {
                 await model.DiscardDraftAsync(tab);
-                return;
+                return true;
             }
         }
-        await model.CloseTabAsync(tab, ConfirmDropAsync);
+        return await model.CloseTabAsync(tab, ConfirmDropAsync);
     }
 
     /// <summary>Ctrl+Shift+S: the active note (a draft or a file) to a file the user picks, which the tab then shows.</summary>

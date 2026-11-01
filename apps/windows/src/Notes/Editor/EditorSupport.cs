@@ -102,7 +102,7 @@ internal abstract class TextEditor
         Box.Paste += (_, e) =>
         {
             e.Handled = true;
-            PastePlainText();
+            Paste();
         };
         // Only plain text may be dropped (no pictures, files or other objects); RichEdit drops RTF as styled text,
         // which the next restyle turns back into plain text.
@@ -124,6 +124,14 @@ internal abstract class TextEditor
         };
         Note.TextChanged += OnNoteTextChanged;
         Note.SyncRequested += Sync;
+        Note.ReadOnlyChanged += OnReadOnlyChanged;
+    }
+
+    /// <summary>The file became (or stopped being) read-only while open.</summary>
+    private void OnReadOnlyChanged()
+    {
+        Sync();
+        Box.IsReadOnly = Note.IsReadOnly || !IsFaithful;
     }
 
     /// <summary>Stops following the document; call when the editor goes away. Unreported typing is handed over first.</summary>
@@ -132,10 +140,52 @@ internal abstract class TextEditor
         Sync();
         Note.TextChanged -= OnNoteTextChanged;
         Note.SyncRequested -= Sync;
+        Note.ReadOnlyChanged -= OnReadOnlyChanged;
         EndComposition(process: false);
     }
 
     public void Focus() => Box.Focus(FocusState.Programmatic);
+
+    // MARK: Session state
+
+    /// <summary>A state to apply when the editor has loaded (restoring a session).</summary>
+    private EditorViewState? pendingView;
+
+    /// <summary>The selection and scroll position now, for the session file.</summary>
+    public EditorViewState CaptureViewState()
+    {
+        if (!loaded) return pendingView ?? new EditorViewState(0, 0, 0, 0);
+        var selection = Box.Document.Selection;
+        var start = Math.Min(selection.StartPosition, LastText.Length);
+        var end = Math.Min(selection.EndPosition, LastText.Length);
+        return new EditorViewState(start, end - start, scroller?.HorizontalOffset ?? 0, scroller?.VerticalOffset ?? 0);
+    }
+
+    /// <summary>Puts the selection and scroll position back (clamped to the text); before the editor has loaded, once it has.</summary>
+    public void ApplyViewState(EditorViewState state)
+    {
+        if (!loaded)
+        {
+            pendingView = state;
+            return;
+        }
+        var length = LastText.Length;
+        var start = Math.Clamp(state.Location, 0, length);
+        var end = Math.Clamp(state.Location + Math.Max(state.Length, 0), start, length);
+        Box.Document.Selection.SetRange(start, end);
+        if (scroller is not { } view || state.ScrollY <= 0) return;
+        // The text is laid out a moment after loading: try until the scroll range reaches the position.
+        var tries = 0;
+        var timer = Box.DispatcherQueue.CreateTimer();
+        timer.Interval = TimeSpan.FromMilliseconds(30);
+        timer.IsRepeating = true;
+        timer.Tick += (_, _) =>
+        {
+            view.ChangeView(state.ScrollX, state.ScrollY, null, true);
+            if (++tries >= 10 || Math.Abs(view.VerticalOffset - state.ScrollY) < 1) timer.Stop();
+        };
+        timer.Start();
+    }
 
     private void EndComposition(bool process)
     {
@@ -151,6 +201,11 @@ internal abstract class TextEditor
         loaded = true;
         scroller = FindScroller(Box);
         Load(Note.Text);
+        if (pendingView is { } view)
+        {
+            pendingView = null;
+            ApplyViewState(view);
+        }
         if (Note.FocusOnOpen)
         {
             Note.FocusOnOpen = false;
@@ -343,7 +398,7 @@ internal abstract class TextEditor
 
     // MARK: Clipboard and keys
 
-    private void PastePlainText()
+    public void Paste()
     {
         Sync();
         if (Box.IsReadOnly) return;
@@ -357,13 +412,29 @@ internal abstract class TextEditor
     }
 
 
+    /// <summary>Whether the text can be changed (not read-only, and RichEdit holds it unchanged).</summary>
+    public bool IsEditable => !Box.IsReadOnly;
+
+    public bool HasSelection => Box.Document.Selection.Length != 0;
+
+    public void SelectAll() => Box.Document.Selection.SetRange(0, LastText.Length);
+
+    /// <summary>Format &gt; Bold / Italic; only the Markdown editor has them.</summary>
+    public virtual void ToggleBold()
+    {
+    }
+
+    public virtual void ToggleItalic()
+    {
+    }
+
     private string SelectedText()
     {
         Box.Document.Selection.GetText(TextGetOptions.None, out var text);
         return text.Replace('\r', '\n');
     }
 
-    private void CopySelection()
+    public void Copy()
     {
         var text = SelectedText();
         if (text.Length == 0) return;
@@ -372,11 +443,11 @@ internal abstract class TextEditor
         Clipboard.SetContent(package);
     }
 
-    private void CutSelection()
+    public void Cut()
     {
         Sync();
         if (Box.IsReadOnly) return;
-        CopySelection();
+        Copy();
         var selection = Box.Document.Selection;
         var start = selection.StartPosition;
         var end = Math.Min(selection.EndPosition, LastText.Length);
@@ -396,11 +467,11 @@ internal abstract class TextEditor
         var undo = Item(Loc.Get("Undo"), "Ctrl+Z", Undo);
         var redo = Item(Loc.Get("Redo"), "Ctrl+Y", Redo);
         menu.Items.Add(new MenuFlyoutSeparator());
-        var cut = Item(Loc.Get("Cut"), "Ctrl+X", CutSelection);
-        var copy = Item(Loc.Get("Copy"), "Ctrl+C", CopySelection);
-        var paste = Item(Loc.Get("Paste"), "Ctrl+V", PastePlainText);
+        var cut = Item(Loc.Get("Cut"), "Ctrl+X", Cut);
+        var copy = Item(Loc.Get("Copy"), "Ctrl+C", Copy);
+        var paste = Item(Loc.Get("Paste"), "Ctrl+V", Paste);
         menu.Items.Add(new MenuFlyoutSeparator());
-        Item(Loc.Get("SelectAll"), "Ctrl+A", () => Box.Document.Selection.SetRange(0, LastText.Length));
+        Item(Loc.Get("SelectAll"), "Ctrl+A", SelectAll);
         AddMenuItems(menu);
         menu.Opening += (_, _) =>
         {
@@ -417,6 +488,9 @@ internal abstract class TextEditor
     protected virtual void AddMenuItems(MenuFlyout menu)
     {
     }
+
+    /// <summary>VK_OEM_4 and VK_OEM_6, the keys of "[" and "]" on a US keyboard.</summary>
+    private const VirtualKey OemOpenBrackets = (VirtualKey)0xDB, OemCloseBrackets = (VirtualKey)0xDD;
 
     protected static bool IsDown(VirtualKey key) =>
         InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(CoreVirtualKeyStates.Down);
@@ -445,15 +519,15 @@ internal abstract class TextEditor
                     history.Break();
                     discreteNext = true;
                     return;
-                case VirtualKey.B when shift:
-                    e.Handled = true;
-                    if (!Box.IsReadOnly) HandleShortcut(e.Key, shift);
-                    return;
-                // Editing, navigation and the app's own shortcuts pass through.
+                // Editing, navigation and the app's own shortcuts pass through (Ctrl+B is Bold, handled below; Ctrl+Shift+B,
+                // Ctrl+F, Ctrl+Shift+F, Ctrl+1..9 and Ctrl+Shift+[ ] belong to the window).
                 case VirtualKey.A or VirtualKey.C or VirtualKey.V or VirtualKey.Insert or VirtualKey.Back or VirtualKey.Delete
                     or VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down or VirtualKey.Home or VirtualKey.End
                     or VirtualKey.PageUp or VirtualKey.PageDown or VirtualKey.Tab
-                    or VirtualKey.N or VirtualKey.S or VirtualKey.F or VirtualKey.O or VirtualKey.B or VirtualKey.T or VirtualKey.W:
+                    or VirtualKey.N or VirtualKey.S or VirtualKey.F or VirtualKey.O or VirtualKey.T or VirtualKey.W:
+                case VirtualKey.B when shift:
+                case >= VirtualKey.Number1 and <= VirtualKey.Number9 when !shift:
+                case OemOpenBrackets or OemCloseBrackets when shift:
                     return;
                 default:
                     // Everything else is a RichEdit formatting shortcut (alignment, lists, line spacing…): swallowed.

@@ -163,14 +163,20 @@ internal sealed class MarkdownEditor : TextEditor
 
     protected override void HandleShortcut(VirtualKey key, bool shift)
     {
-        if (key == VirtualKey.B && shift) ToggleWrap("**");
-        else if (key == VirtualKey.I && !shift) ToggleWrap("*");
+        if (shift) return;
+        if (key == VirtualKey.B) ToggleBold();
+        else if (key == VirtualKey.I) ToggleItalic();
     }
+
+    public override void ToggleBold() => ToggleWrap("**");
+
+    public override void ToggleItalic() => ToggleWrap("*");
 
     /// <summary>Wraps the selection in `marker`, or unwraps it when it is already wrapped.</summary>
     private void ToggleWrap(string marker)
     {
         Sync();
+        if (Box.IsReadOnly) return;
         var text = LastText;
         var selection = Box.Document.Selection;
         var start = Math.Min(selection.StartPosition, text.Length);
