@@ -255,6 +255,9 @@ public static class NoteLinks
         "app", "command", "sh", "bash", "zsh", "csh", "ksh", "fish", "pkg", "mpkg", "scpt", "scptd", "workflow", "action", "terminal",
         "exe", "com", "bat", "cmd", "ps1", "psm1", "vbs", "vbe", "wsf", "msi", "msp", "lnk", "scr", "jar", "dmg", "appref-ms",
         "js", "jse", "wsh", "hta", "cpl", "reg", "pif", "msc",
+        "url", "website", "application", "appinstaller", "appx", "appxbundle", "msix", "msixbundle", "settingcontent-ms", "library-ms",
+        "search-ms", "searchconnector-ms", "chm", "diagcab", "xbap", "wsc", "sct", "inf", "gadget", "ws", "msh", "msh1", "msh2",
+        "mshxml", "msh1xml", "msh2xml", "ps1xml", "ps2", "ps2xml", "psc1", "psc2", "vb", "vbscript",
     };
 
     /// <summary>Windows ignores trailing dots and spaces in a file name, so <c>tool.exe.</c> is <c>tool.exe</c>.</summary>

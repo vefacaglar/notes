@@ -39,11 +39,12 @@ internal static class AppSettings
     }
 
     /// <summary>Changes one setting, keeping the others; writes atomically and throws on failure.</summary>
-    private static void Update(string key, JsonNode? value)
+    private static void Update(string key, JsonNode? value, long? ticket = null)
     {
         if (!IsPersistent) return;
         lock (saveLock)
         {
+            if (ticket is { } t && viewTickets.GetValueOrDefault(key) != t) return;
             var settings = Load();
             settings[key] = value;
             Directory.CreateDirectory(Path.GetDirectoryName(FilePath)!);
@@ -53,6 +54,9 @@ internal static class AppSettings
 
     /// <summary>Read-modify-write of the file must not interleave (view settings are saved off the UI thread).</summary>
     private static readonly object saveLock = new();
+
+    /// <summary>Latest save issued per view key: an older queued save is dropped so the newest value is written last.</summary>
+    private static readonly Dictionary<string, long> viewTickets = [];
 
     /// <summary>The saved roots; the default notes folder when nothing usable is saved.</summary>
     public static IReadOnlyList<string> Roots
@@ -159,9 +163,11 @@ internal static class AppSettings
         EditorSettingChanged?.Invoke(key);
         if (!IsPersistent) return;
         // A view preference is never worth an error message: if it can't be written it stays in effect until the app closes.
+        long ticket;
+        lock (saveLock) ticket = viewTickets[key] = viewTickets.GetValueOrDefault(key) + 1;
         _ = Task.Run(() =>
         {
-            try { Update(key, value); }
+            try { Update(key, value, ticket); }
             catch (Exception e) when (e is IOException or UnauthorizedAccessException) { }
         });
     }

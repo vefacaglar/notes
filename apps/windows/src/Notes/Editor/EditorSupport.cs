@@ -208,6 +208,7 @@ internal abstract partial class TextEditor
         if (loaded) return;
         loaded = true;
         scroller = FindScroller(Box);
+        if (scroller is not null) scroller.ViewChanged += (_, _) => UpdateCurrentLine();
         Load(Note.Text);
         if (pendingView is { } view)
         {
@@ -361,7 +362,15 @@ internal abstract partial class TextEditor
         if (Box.IsReadOnly || string.Equals(text, LastText, StringComparison.Ordinal)) return false;
         history.Break();
         var caret = Math.Min(Box.Document.Selection.StartPosition, text.Length);
-        Edit(0, LastText.Length, text, caret, caret, typing: false);
+        var old = LastText;
+        var limit = Math.Min(old.Length, text.Length);
+        var prefix = 0;
+        while (prefix < limit && old[prefix] == text[prefix]) prefix++;
+        if (prefix > 0 && char.IsHighSurrogate(old[prefix - 1])) prefix--;
+        var suffix = 0;
+        while (suffix < limit - prefix && old[old.Length - 1 - suffix] == text[text.Length - 1 - suffix]) suffix++;
+        if (suffix > 0 && char.IsLowSurrogate(old[old.Length - suffix])) suffix--;
+        Edit(prefix, old.Length - prefix - suffix, text.Substring(prefix, text.Length - prefix - suffix), caret, caret, typing: false);
         return true;
     }
 

@@ -116,6 +116,10 @@ public sealed class NoteLinksTests
     [InlineData("a.scr")]
     [InlineData("a.vbs")]
     [InlineData("a.js")]
+    [InlineData("tool.url")]
+    [InlineData("a.application")]
+    [InlineData("a.settingcontent-ms")]
+    [InlineData("a.chm")]
     [InlineData("tool.exe.")]
     [InlineData("tool.exe ")]
     public void WindowsProgramsAreRevealedNotRun(string fileName) => Assert.True(NoteLinks.IsProgram(fileName));

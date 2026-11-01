@@ -27,7 +27,12 @@ internal sealed class MarkdownEditor : TextEditor
     private MarkdownRange? bright;
     /// <summary>Set by <see cref="UpdateFocus"/>: the next styling pass restyles exactly these ranges.</summary>
     private List<MarkdownRange>? forcedTargets;
-    private (Point Position, string Link)? press;
+    private (Point Position, string Link, bool Ctrl, int Index)? press;
+    private (long Tick, int Index)? lastToggle;
+
+    [System.Runtime.InteropServices.DllImport("user32.dll", ExactSpelling = true)]
+    private static extern uint GetDoubleClickTime();
+
     private string? contextLink;
     private MarkdownRange previousSelection, currentSelection;
 
@@ -119,6 +124,14 @@ internal sealed class MarkdownEditor : TextEditor
                 target = MarkdownStyler.RestyleRange(new MarkdownRange(edit.Start, edit.End - edit.Start), text);
             }
             targets = [target];
+            // An edit that moved the caret to another paragraph (undo, replace): the old bright one must be dimmed again.
+            if (AppSettings.FocusMode && bright is { } old && target.Length < length && PendingEdit is { } moved)
+            {
+                var shifted = Shift([old], moved).First();
+                var location = Math.Min(shifted.Location, length);
+                var oldLine = new MarkdownRange(location, Math.Clamp(shifted.Length, 0, length - location));
+                if (oldLine != FocusParagraph()) targets.Add(oldLine);
+            }
         }
         forcedTargets = null;
         codeBlocks = blocks;
@@ -410,6 +423,11 @@ internal sealed class MarkdownEditor : TextEditor
         if (!Box.IsReadOnly && index < text.Length && text[index] is '[' or ' ' or 'x' or 'X' or ']'
             && MarkdownEditing.ToggleTask(text, index) is { } toggle)
         {
+            // Only the first click of a double click toggles (macOS: clickCount == 1).
+            var now = Environment.TickCount64;
+            var doubled = lastToggle is { } last && last.Index == index && now - last.Tick <= GetDoubleClickTime();
+            lastToggle = (now, index);
+            if (doubled) return;
             // RichEdit puts the caret under the click, before or after this handler: put it back where it was.
             var keep = currentSelection.Location >= index && currentSelection.End <= index + 3 && currentSelection.Length == 0
                 ? previousSelection : currentSelection;
@@ -417,7 +435,7 @@ internal sealed class MarkdownEditor : TextEditor
             Box.DispatcherQueue.TryEnqueue(Microsoft.UI.Dispatching.DispatcherQueuePriority.Low, () => SetSelection(keep.Location, keep.End));
             return;
         }
-        if (LinkAt(index) is { } link) press = (point.Position, link);
+        if (LinkAt(index) is { } link) press = (point.Position, link, IsDown(VirtualKey.Control), index);
     }
 
     private void OnPointerReleased(object sender, PointerRoutedEventArgs e)
@@ -426,7 +444,8 @@ internal sealed class MarkdownEditor : TextEditor
         press = null;
         var position = e.GetCurrentPoint(Box).Position;
         if (Math.Abs(position.X - started.Position.X) > 4 || Math.Abs(position.Y - started.Position.Y) > 4) return;
-        if (Box.Document.Selection.Length != 0) return;
+        if (started.Ctrl) Box.Document.Selection.SetRange(started.Index, started.Index);
+        else if (Box.Document.Selection.Length != 0) return;
         LinkActivated?.Invoke(started.Link);
     }
 
