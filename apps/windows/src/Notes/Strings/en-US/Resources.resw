@@ -178,4 +178,9 @@
   <data name="FindNoResults" xml:space="preserve"><value>No results</value></data>
   <data name="FindMatches" xml:space="preserve"><value>{0} matches</value></data>
   <data name="FindPosition" xml:space="preserve"><value>{0} of {1}</value></data>
+  <data name="MenuSortBy.Text" xml:space="preserve"><value>Sort by</value></data>
+  <data name="SortNameItem.Text" xml:space="preserve"><value>Name</value></data>
+  <data name="SortModifiedItem.Text" xml:space="preserve"><value>Date Modified</value></data>
+  <data name="ShowOtherFilesItem.Text" xml:space="preserve"><value>Show other text and code files</value></data>
+  <data name="ShowPreviewItem.Text" xml:space="preserve"><value>Show preview in sidebar</value></data>
 </root>

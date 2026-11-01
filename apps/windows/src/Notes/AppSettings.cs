@@ -126,6 +126,8 @@ internal static class AppSettings
     private static bool viewLoaded;
     private static double zoom = 1, lineSpacing = 1.2;
     private static bool showStatusBar = true, showFormattingBar = true, focusMode, spellCheck, highlightCurrentLine, limitLineWidth, codeWrap = true, showMarkdownSyntax, codeLineNumbers = true;
+    private static string sidebarSort = "name";
+    private static bool showOtherFiles = true, showSidebarPreview = true;
 
     /// <summary>Reads the saved values once; a missing or bad value keeps its own default. A test run starts from the defaults
     /// and keeps changes in memory only.</summary>
@@ -155,6 +157,10 @@ internal static class AppSettings
         codeWrap = Flag("codeWrap", true);
         showMarkdownSyntax = Flag("showMarkdownSyntax", false);
         codeLineNumbers = Flag("codeLineNumbers", true);
+        showOtherFiles = Flag("showNonMarkdownFiles", true);
+        showSidebarPreview = Flag("showSidebarPreview", true);
+        try { sidebarSort = settings["sidebarSort"]?.GetValue<string>() is "modified" ? "modified" : "name"; }
+        catch (Exception e) when (e is InvalidOperationException or FormatException) { }
     }
 
     /// <summary>Clamped to the range and rounded to a step, so repeated steps never drift (0.7000000001).</summary>
@@ -218,6 +224,26 @@ internal static class AppSettings
 
     /// <summary>Code editor: a column of line numbers beside the text.</summary>
     public static bool CodeLineNumbers { get { EnsureViewLoaded(); return codeLineNumbers; } set { EnsureViewLoaded(); SetFlag(ref codeLineNumbers, value, "codeLineNumbers"); } }
+
+    /// <summary>Sidebar: "name" (default) or "modified" (files newest first; folders stay first, by name).</summary>
+    public static string SidebarSort
+    {
+        get { EnsureViewLoaded(); return sidebarSort; }
+        set
+        {
+            EnsureViewLoaded();
+            value = value == "modified" ? "modified" : "name";
+            if (value == sidebarSort) return;
+            sidebarSort = value;
+            SaveView("sidebarSort", value);
+        }
+    }
+
+    /// <summary>Sidebar and search: off, only Markdown files are listed (folders always).</summary>
+    public static bool ShowOtherFiles { get { EnsureViewLoaded(); return showOtherFiles; } set { EnsureViewLoaded(); SetFlag(ref showOtherFiles, value, "showNonMarkdownFiles"); } }
+
+    /// <summary>Sidebar: the modified date and a one-line preview under each file's name.</summary>
+    public static bool ShowSidebarPreview { get { EnsureViewLoaded(); return showSidebarPreview; } set { EnsureViewLoaded(); SetFlag(ref showSidebarPreview, value, "showSidebarPreview"); } }
 
     /// <summary>Line height of both editors as a multiple of the font's, 1.0 to 2.0 (default 1.2).</summary>
     public static double LineSpacing

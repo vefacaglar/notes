@@ -178,4 +178,9 @@
   <data name="FindNoResults" xml:space="preserve"><value>Sonuç yok</value></data>
   <data name="FindMatches" xml:space="preserve"><value>{0} eşleşme</value></data>
   <data name="FindPosition" xml:space="preserve"><value>{0} / {1}</value></data>
+  <data name="MenuSortBy.Text" xml:space="preserve"><value>Sıralama</value></data>
+  <data name="SortNameItem.Text" xml:space="preserve"><value>Ad</value></data>
+  <data name="SortModifiedItem.Text" xml:space="preserve"><value>Değiştirilme Tarihi</value></data>
+  <data name="ShowOtherFilesItem.Text" xml:space="preserve"><value>Diğer metin ve kod dosyalarını göster</value></data>
+  <data name="ShowPreviewItem.Text" xml:space="preserve"><value>Kenar çubuğunda önizlemeyi göster</value></data>
 </root>

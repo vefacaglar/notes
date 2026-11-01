@@ -50,7 +50,7 @@ internal sealed class NoteTab
 /// The workspace: its root folders and their trees, search, the sidebar selection and the open tabs. UI thread only;
 /// file I/O runs on the thread pool, and everything that writes goes through <see cref="FileGate"/>.
 /// </summary>
-internal sealed class NotesModel
+internal sealed partial class NotesModel
 {
     private readonly List<RootFolder> roots = [];
     private readonly List<UnavailableRoot> unavailable = [];
@@ -92,8 +92,19 @@ internal sealed class NotesModel
         ErrorChanged?.Invoke();
     }
 
+    /// <summary>The sidebar settings as the store's listing options.</summary>
+    public static ListingOptions Listing => new(
+        AppSettings.SidebarSort == "modified" ? ListingOrder.Modified : ListingOrder.Name,
+        MarkdownOnly: !AppSettings.ShowOtherFiles);
+
     public NotesModel()
     {
+        AppSettings.EditorSettingChanged += key =>
+        {
+            if (key is not ("sidebarSort" or "showNonMarkdownFiles")) return;
+            foreach (var root in roots) Refresh(root);
+            ScheduleSearch();
+        };
         // Only once the saved drafts are back: earlier tab changes must not overwrite their remembered order.
         TabsChanged += () =>
         {
@@ -332,13 +343,16 @@ internal sealed class NotesModel
     {
         var version = ++root.ScanVersion;
         IReadOnlyList<NoteNode> tree;
-        try { tree = await Task.Run(root.Store.Tree); }
+        var options = Listing;
+        try { tree = await Task.Run(() => root.Store.Tree(options)); }
         catch (Exception) { return; }
         if (!roots.Contains(root) || version != root.ScanVersion) return;
         if (tree.SequenceEqual(root.Tree))
         {
             // Same structure, so the sidebar stays as it is, but the stored tree keeps the current modification dates.
-            if (!SameDates(tree, root.Tree)) root.Tree = tree;
+            if (SameDates(tree, root.Tree)) return;
+            root.Tree = tree;
+            if (AppSettings.ShowSidebarPreview) TreeChanged?.Invoke(root);
             return;
         }
         root.Tree = tree;
@@ -1112,6 +1126,7 @@ internal sealed class NotesModel
         var cancel = searchCancel = new CancellationTokenSource();
         var query = Query;
         var searched = roots.ToList();
+        var listing = Listing;
         _ = Run();
 
         async Task Run()
@@ -1119,7 +1134,7 @@ internal sealed class NotesModel
             try
             {
                 await Task.Delay(150, cancel.Token);
-                var hits = await Task.Run(() => searched.SelectMany(r => r.Store.Search(query).Select(h => (r, h))).ToList(), cancel.Token);
+                var hits = await Task.Run(() => searched.SelectMany(r => r.Store.Search(query, listing: listing).Select(h => (r, h))).ToList(), cancel.Token);
                 if (cancel.IsCancellationRequested) return;
                 Hits = hits;
                 HitsChanged?.Invoke();

@@ -27,8 +27,28 @@ public sealed class SidebarItem
     public string Glyph => Node is null ? "" : Node.IsFolder ? "" : SidebarView.Glyph(Node.Path);
     public FontWeight Weight => Node is null ? FontWeights.SemiBold : FontWeights.Normal;
     public string? ToolTip => Node is null ? Item.Root.Root : null;
+    /// <summary>With "Show preview in sidebar": the modified date and the first line after the title, under the name. Reading it
+    /// asks the cache for the preview, which only rows that appear do.</summary>
+    public string Detail => SidebarPreview.Detail(Item, Node);
+    public Visibility DetailVisibility => Detail.Length > 0 ? Visibility.Visible : Visibility.Collapsed;
     /// <summary>The tree item's accessible name.</summary>
     public override string ToString() => Name;
+}
+
+/// <summary>The date and preview line of a file row.</summary>
+internal static class SidebarPreview
+{
+    public static string Detail(ItemRef item, NoteNode? node)
+    {
+        if (node is not { IsFolder: false } || !AppSettings.ShowSidebarPreview) return "";
+        string full;
+        try { full = item.FullPath; }
+        catch (NoteStoreException) { return ""; }
+        PreviewCache.Shared.Request(full, node.Modified);
+        var date = node.Modified is { } modified ? PreviewCache.DateText(modified) : "";
+        var preview = PreviewCache.Shared.Get(full);
+        return preview is null ? date : date.Length == 0 ? preview : date + "  " + preview;
+    }
 }
 
 /// <summary>A search result, or the header of a root's results when there are several roots.</summary>
@@ -75,6 +95,8 @@ public sealed partial class SidebarView : UserControl
         model.SelectionChanged += SyncSelection;
         model.HitsChanged += ShowHits;
         model.QueryChanged += SyncQuery;
+        PreviewCache.Shared.Loaded += OnPreviewLoaded;
+        AppSettings.EditorSettingChanged += OnSettingChanged;
         SyncTree();
         SyncQuery();
     }
@@ -87,6 +109,35 @@ public sealed partial class SidebarView : UserControl
         model.SelectionChanged -= SyncSelection;
         model.HitsChanged -= ShowHits;
         model.QueryChanged -= SyncQuery;
+        PreviewCache.Shared.Loaded -= OnPreviewLoaded;
+        AppSettings.EditorSettingChanged -= OnSettingChanged;
+    }
+
+    /// <summary>A preview arrived: its row shows it (a node whose content is replaced is bound again).</summary>
+    private void OnPreviewLoaded(string fullPath)
+    {
+        if (model is null || !AppSettings.ShowSidebarPreview) return;
+        if (model.Locate(fullPath) is { } item && Find(item) is { } node) Refresh(node);
+    }
+
+    private static void Refresh(TreeViewNode node)
+    {
+        if (node.Content is SidebarItem old) node.Content = new SidebarItem(old.Item, old.Node);
+    }
+
+    private void OnSettingChanged(string key)
+    {
+        if (key == "showSidebarPreview") RefreshAll(Tree.RootNodes);
+        if (key is "sidebarSort" or "showNonMarkdownFiles" or "showSidebarPreview") SyncMoreMenu();
+    }
+
+    private static void RefreshAll(IList<TreeViewNode> nodes)
+    {
+        foreach (var node in nodes)
+        {
+            if (node.Content is SidebarItem { Node: { IsFolder: false } }) Refresh(node);
+            else RefreshAll(node.Children);
+        }
     }
 
     public void FocusSearch()
@@ -304,7 +355,11 @@ public sealed partial class SidebarView : UserControl
             }
         }
         for (var i = 0; i < items.Count; i++)
+        {
             if (items[i].IsFolder) Sync(nodes[i].Children, root, items[i].Children ?? []);
+            // A saved file: its date (and so its preview) changed.
+            else if (ItemOf(nodes[i]).Node?.Modified != items[i].Modified) nodes[i].Content = new SidebarItem(new ItemRef(root, items[i].Path), items[i]);
+        }
     }
     private TreeViewNode? Find(ItemRef item)
     {
@@ -398,10 +453,39 @@ public sealed partial class SidebarView : UserControl
         Label(NewFolderButton, "NewFolder", "NewFolderTip");
         Label(AddFolderButton, "AddFolder", "AddFolderTip");
         Label(MoreButton, "MoreOptions", "MoreOptions");
+        SyncMoreMenu();
         var current = AppSettings.Language;
         LangSystem.IsChecked = current == "system";
         LangEnglish.IsChecked = current == "en";
         LangTurkish.IsChecked = current == "tr";
+    }
+
+    private void SyncMoreMenu()
+    {
+        SortName.IsChecked = AppSettings.SidebarSort == "name";
+        SortModified.IsChecked = AppSettings.SidebarSort == "modified";
+        ShowOtherFiles.IsChecked = AppSettings.ShowOtherFiles;
+        ShowPreview.IsChecked = AppSettings.ShowSidebarPreview;
+    }
+
+    private void MoreMenu_Opening(object sender, object e) => SyncMoreMenu();
+
+    private void Sort_Click(object sender, RoutedEventArgs e)
+    {
+        if (sender is FrameworkElement { Tag: string sort }) AppSettings.SidebarSort = sort;
+        SyncMoreMenu();
+    }
+
+    private void ShowOtherFiles_Click(object sender, RoutedEventArgs e)
+    {
+        AppSettings.ShowOtherFiles = !AppSettings.ShowOtherFiles;
+        SyncMoreMenu();
+    }
+
+    private void ShowPreview_Click(object sender, RoutedEventArgs e)
+    {
+        AppSettings.ShowSidebarPreview = !AppSettings.ShowSidebarPreview;
+        SyncMoreMenu();
     }
 
     private static void Label(Button button, string name, string tip)

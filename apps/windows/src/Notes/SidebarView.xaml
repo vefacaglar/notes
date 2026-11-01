@@ -25,7 +25,14 @@
             <Button x:Name="MoreButton">
                 <FontIcon Glyph="&#xE712;" FontSize="16" />
                 <Button.Flyout>
-                    <MenuFlyout>
+                    <MenuFlyout Opening="MoreMenu_Opening">
+                        <MenuFlyoutSubItem x:Uid="MenuSortBy">
+                            <RadioMenuFlyoutItem x:Uid="SortNameItem" x:Name="SortName" GroupName="Sort" Tag="name" Click="Sort_Click" />
+                            <RadioMenuFlyoutItem x:Uid="SortModifiedItem" x:Name="SortModified" GroupName="Sort" Tag="modified" Click="Sort_Click" />
+                        </MenuFlyoutSubItem>
+                        <ToggleMenuFlyoutItem x:Uid="ShowOtherFilesItem" x:Name="ShowOtherFiles" Click="ShowOtherFiles_Click" />
+                        <ToggleMenuFlyoutItem x:Uid="ShowPreviewItem" x:Name="ShowPreview" Click="ShowPreview_Click" />
+                        <MenuFlyoutSeparator />
                         <MenuFlyoutSubItem x:Uid="MenuLanguage">
                             <RadioMenuFlyoutItem x:Uid="LangSystemItem" x:Name="LangSystem" GroupName="Language" Tag="system" Click="Language_Click" />
                             <RadioMenuFlyoutItem x:Uid="LangEnglishItem" x:Name="LangEnglish" GroupName="Language" Tag="en" Click="Language_Click" />
@@ -49,8 +56,13 @@
                             <ColumnDefinition Width="*" />
                         </Grid.ColumnDefinitions>
                         <FontIcon Glyph="{x:Bind ((local:SidebarItem)Content).Glyph}" FontSize="16" />
-                        <TextBlock Grid.Column="1" Text="{x:Bind ((local:SidebarItem)Content).Name}" FontWeight="{x:Bind ((local:SidebarItem)Content).Weight}"
-                                   TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                        <StackPanel Grid.Column="1" VerticalAlignment="Center">
+                            <TextBlock Text="{x:Bind ((local:SidebarItem)Content).Name}" FontWeight="{x:Bind ((local:SidebarItem)Content).Weight}"
+                                       TextTrimming="CharacterEllipsis" />
+                            <TextBlock Text="{x:Bind ((local:SidebarItem)Content).Detail}" Visibility="{x:Bind ((local:SidebarItem)Content).DetailVisibility}"
+                                       MaxLines="1" TextTrimming="CharacterEllipsis" Style="{StaticResource CaptionTextBlockStyle}"
+                                       Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                        </StackPanel>
                     </Grid>
                 </DataTemplate>
             </TreeView.ItemTemplate>
