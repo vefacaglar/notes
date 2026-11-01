@@ -188,4 +188,15 @@
   <data name="Unpin" xml:space="preserve"><value>Sabitlemeyi Kaldır</value></data>
   <data name="OpenRecent" xml:space="preserve"><value>Son Kullanılanlar</value></data>
   <data name="ClearMenu" xml:space="preserve"><value>Menüyü Temizle</value></data>
+  <data name="Duplicate" xml:space="preserve"><value>Çoğalt</value></data>
+  <data name="MoveCanceled" xml:space="preserve"><value>Taşıma iptal edildi.</value></data>
+  <data name="DuplicateCanceled" xml:space="preserve"><value>Çoğaltma iptal edildi.</value></data>
+  <data name="CopyCanceled" xml:space="preserve"><value>Kopyalama iptal edildi.</value></data>
+  <data name="CannotMoveIntoItself" xml:space="preserve"><value>“{0}” kendi içine taşınamaz.</value></data>
+  <data name="MoveTo" xml:space="preserve"><value>{0} içine taşı</value></data>
+  <data name="CopyTo" xml:space="preserve"><value>{0} içine kopyala</value></data>
+  <data name="CopyingText.Text" xml:space="preserve"><value>Kopyalanıyor…</value></data>
+  <data name="EmptyTitle.Text" xml:space="preserve"><value>Klasör Yok</value></data>
+  <data name="EmptyHint.Text" xml:space="preserve"><value>Notlarını burada görmek için çalışma alanına bir klasör ekleyin.</value></data>
+  <data name="EmptyAddFolder.Content" xml:space="preserve"><value>Klasör Ekle…</value></data>
 </root>

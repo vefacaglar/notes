@@ -11,6 +11,7 @@
             <RowDefinition Height="Auto" />
             <RowDefinition Height="*" />
             <RowDefinition Height="Auto" />
+            <RowDefinition Height="Auto" />
         </Grid.RowDefinitions>
 
         <StackPanel Orientation="Horizontal" Spacing="4">
@@ -70,11 +71,13 @@
             </ListView>
         </StackPanel>
 
-        <TreeView x:Name="Tree" Grid.Row="3" SelectionMode="Single" CanDragItems="False" CanReorderItems="False" AllowDrop="False"
+        <TreeView x:Name="Tree" Grid.Row="3" SelectionMode="Single" CanDragItems="True" CanReorderItems="False" AllowDrop="False"
+                  DragItemsStarting="Tree_DragItemsStarting" DragItemsCompleted="Tree_DragItemsCompleted"
                   SelectionChanged="Tree_SelectionChanged" KeyDown="Tree_KeyDown" Expanding="Tree_Expanding" Collapsed="Tree_Collapsed">
             <TreeView.ItemTemplate>
                 <DataTemplate x:DataType="TreeViewNode">
                     <Grid Background="Transparent" ColumnSpacing="8" ContextRequested="Item_ContextRequested"
+                          AllowDrop="True" DragEnter="Item_DragOver" DragOver="Item_DragOver" DragLeave="Item_DragLeave" Drop="Item_Drop"
                           ToolTipService.ToolTip="{x:Bind ((local:SidebarItem)Content).ToolTip}">
                         <Grid.ColumnDefinitions>
                             <ColumnDefinition Width="Auto" />
@@ -113,6 +116,20 @@
         <ScrollViewer x:Name="UnavailableScroll" Grid.Row="4" MaxHeight="240" Visibility="Collapsed">
             <StackPanel x:Name="UnavailableList" Spacing="8" Padding="0,8,0,8" />
         </ScrollViewer>
+
+        <!-- No folder in the workspace at all. -->
+        <StackPanel x:Name="EmptyPanel" Grid.Row="3" Visibility="Collapsed" HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="8" MaxWidth="220">
+            <FontIcon Glyph="&#xE8B7;" FontSize="32" Foreground="{ThemeResource TextFillColorTertiaryBrush}" />
+            <TextBlock x:Uid="EmptyTitle" Style="{StaticResource SubtitleTextBlockStyle}" HorizontalAlignment="Center" TextAlignment="Center" TextWrapping="Wrap" />
+            <TextBlock x:Uid="EmptyHint" TextWrapping="Wrap" TextAlignment="Center" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+            <Button x:Uid="EmptyAddFolder" HorizontalAlignment="Center" Click="AddRoot_Click" />
+        </StackPanel>
+
+        <!-- A copy or move across volumes is running in the background. -->
+        <StackPanel x:Name="OperationsPanel" Grid.Row="5" Orientation="Horizontal" Spacing="8" Padding="4,0,0,8" Visibility="Collapsed">
+            <ProgressRing IsActive="True" Width="16" Height="16" />
+            <TextBlock x:Uid="CopyingText" Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource TextFillColorSecondaryBrush}" VerticalAlignment="Center" />
+        </StackPanel>
 
         <TextBlock x:Name="NoResults" Grid.Row="3" Visibility="Collapsed" HorizontalAlignment="Center" Margin="0,24,0,0"
                    TextWrapping="Wrap" Foreground="{ThemeResource TextFillColorSecondaryBrush}" />

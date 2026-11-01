@@ -25,7 +25,7 @@ internal sealed record ItemRef(RootFolder Root, string Path)
 /// <summary>An item a dialog is about to act on; follows automatic renames while the dialog is open.</summary>
 internal sealed class PathRef(RootFolder root, string path)
 {
-    public RootFolder Root { get; } = root;
+    public RootFolder Root { get; set; } = root;
     public string Path { get; set; } = path;
 }
 
@@ -128,6 +128,7 @@ internal sealed partial class NotesModel
     /// </summary>
     public async Task StartAsync(IReadOnlyList<string> paths, bool createDefault = false)
     {
+        started = true;
         foreach (var path in paths)
         {
             if (configuredRoots.Any(c => Paths.Same(c, path))) continue;
@@ -135,7 +136,13 @@ internal sealed partial class NotesModel
             await OpenConfiguredAsync(path, createDefault && Paths.Same(path, AppSettings.DefaultNotesFolder));
         }
         if (createDefault) await SaveRootsAsync();
+        if (configuredRoots.Count == 0) RootsChanged?.Invoke();
     }
+
+    private bool started;
+
+    /// <summary>The workspace has no folder at all (not even an unavailable one): the sidebar offers "Add Folder…".</summary>
+    public bool IsWorkspaceEmpty => started && configuredRoots.Count == 0;
 
     /// <summary>Opens `path` as a root; when that fails it is listed as unavailable with the reason instead.</summary>
     private async Task<bool> OpenConfiguredAsync(string path, bool createIfMissing)
@@ -874,16 +881,7 @@ internal sealed partial class NotesModel
     }
 
     /// <summary>Rewrites the selection and paths held by open dialogs after `old` became `newPath` in `root`.</summary>
-    private void Moved(RootFolder root, string old, string newPath)
-    {
-        if (Selection is { } selection && selection.Root == root && NoteStore.Moved(selection.Path, old, newPath) is { } moved)
-        {
-            SetSelection(new ItemRef(root, moved));
-        }
-        foreach (var item in tracked.Where(t => t.Root == root))
-            if (NoteStore.Moved(item.Path, old, newPath) is { } movedPath) item.Path = movedPath;
-        ItemMovedInLists(root, old, root, newPath);
-    }
+    private void Moved(RootFolder root, string old, string newPath) => Relocate(root, old, root, newPath);
 
     public PathRef Track(ItemRef item)
     {

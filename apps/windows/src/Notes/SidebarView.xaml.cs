@@ -96,6 +96,8 @@ public sealed partial class SidebarView : UserControl
         model.HitsChanged += ShowHits;
         model.QueryChanged += SyncQuery;
         model.PinsChanged += SyncPinned;
+        model.OperationsChanged += SyncOperations;
+        model.PathMoved += OnPathMoved;
         PreviewCache.Shared.Loaded += OnPreviewLoaded;
         AppSettings.EditorSettingChanged += OnSettingChanged;
         SyncTree();
@@ -112,6 +114,8 @@ public sealed partial class SidebarView : UserControl
         model.HitsChanged -= ShowHits;
         model.QueryChanged -= SyncQuery;
         model.PinsChanged -= SyncPinned;
+        model.OperationsChanged -= SyncOperations;
+        model.PathMoved -= OnPathMoved;
         PreviewCache.Shared.Loaded -= OnPreviewLoaded;
         AppSettings.EditorSettingChanged -= OnSettingChanged;
     }
@@ -301,6 +305,7 @@ public sealed partial class SidebarView : UserControl
             foreach (var root in model.UnavailableRoots) UnavailableList.Children.Add(BuildUnavailable(root));
         }
         UnavailableScroll.Visibility = UnavailableList.Children.Count > 0 && model?.IsSearching != true ? Visibility.Visible : Visibility.Collapsed;
+        EmptyPanel.Visibility = model?.IsWorkspaceEmpty == true && model.IsSearching == false ? Visibility.Visible : Visibility.Collapsed;
     }
 
     /// <summary>A folder of the workspace that can't be opened right now: its name and the reason, greyed, with Retry and Remove.</summary>
@@ -460,6 +465,7 @@ public sealed partial class SidebarView : UserControl
         {
             Add(Loc.Get("OpenInNewTab"), "", () => _ = model.OpenItemAsync(target, newTab: true));
             var full = target.FullPath;
+            Add(Loc.Get("Duplicate"), "", () => _ = model.DuplicateAsync(target));
             if (model.IsPinned(full)) Add(Loc.Get("Unpin"), "", () => model.TogglePin(full));
             else Add(Loc.Get("Pin"), "", () => model.TogglePin(full));
         }
@@ -539,6 +545,143 @@ public sealed partial class SidebarView : UserControl
     private void NewFolder_Click(object sender, RoutedEventArgs e) => _ = owner?.NewFolderAsync(null);
 
     private void AddRoot_Click(object sender, RoutedEventArgs e) => _ = owner?.AddRootAsync();
+
+    // MARK: Drag and drop
+
+    /// <summary>The item being dragged inside the sidebar (a move); null for a drag from another program (a copy in).</summary>
+    private ItemRef? dragging;
+
+    private void Tree_DragItemsStarting(TreeView sender, TreeViewDragItemsStartingEventArgs args)
+    {
+        var dragged = args.Items.Count == 1 ? args.Items[0] switch { TreeViewNode { Content: SidebarItem s } => s, SidebarItem s => s, _ => null } : null;
+        if (dragged is not { Node: not null } item)
+        {
+            args.Cancel = true;
+            return;
+        }
+        dragging = item.Item;
+        // Dragged out to Explorer it is copied, never moved away from the notes folder.
+        args.Data.RequestedOperation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+        // Rendered only if the drop target asks (Explorer); a drop inside the sidebar never needs the file objects.
+        args.Data.SetDataProvider(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems, async request =>
+        {
+            var deferral = request.GetDeferral();
+            try
+            {
+                var path = item.Item.FullPath;
+                Windows.Storage.IStorageItem storage = item.IsFolder
+                    ? await Windows.Storage.StorageFolder.GetFolderFromPathAsync(path)
+                    : await Windows.Storage.StorageFile.GetFileFromPathAsync(path);
+                request.SetData(new[] { storage });
+            }
+            catch (Exception)
+            {
+                // Still draggable inside the sidebar.
+            }
+            finally
+            {
+                deferral.Complete();
+            }
+        });
+    }
+
+    private void Tree_DragItemsCompleted(TreeView sender, TreeViewDragItemsCompletedEventArgs args) => dragging = null;
+
+    /// <summary>The folder a drop on this row goes into: a root's header or a folder; files take no drops.</summary>
+    private static ItemRef? DropTarget(object sender) =>
+        (sender as FrameworkElement)?.DataContext is TreeViewNode { Content: SidebarItem { IsFolder: true } item } ? item.Item : null;
+
+    private static void Highlight(object sender, bool on)
+    {
+        if (sender is not Grid grid) return;
+        grid.Background = on && Application.Current.Resources.TryGetValue("SystemAccentColor", out var color) && color is Windows.UI.Color accent
+            ? new Microsoft.UI.Xaml.Media.SolidColorBrush(accent) { Opacity = 0.25 }
+            : new Microsoft.UI.Xaml.Media.SolidColorBrush(Microsoft.UI.Colors.Transparent);
+    }
+
+    /// <summary>Whether dropping `moving` on `target` could change anything: not into itself or a descendant, not where it already is.</summary>
+    private static bool CanMove(ItemRef moving, ItemRef target) =>
+        moving.Root != target.Root
+        || !(target.Path == moving.Path || target.Path.StartsWith(moving.Path + "/", StringComparison.Ordinal))
+           && !string.Equals(NoteStore.Parent(moving.Path), target.Path, StringComparison.Ordinal);
+
+    private void Item_DragOver(object sender, DragEventArgs e)
+    {
+        var operation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.None;
+        var target = model is null ? null : DropTarget(sender);
+        if (target is not null)
+        {
+            var name = target.IsRoot ? target.Root.Name : NoteStore.DisplayName(target.Path);
+            if (dragging is { } moving)
+            {
+                if (CanMove(moving, target))
+                {
+                    operation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+                    e.DragUIOverride.Caption = Loc.Format("MoveTo", name);
+                    e.DragUIOverride.IsGlyphVisible = false;
+                }
+            }
+            else if (e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems))
+            {
+                operation = Windows.ApplicationModel.DataTransfer.DataPackageOperation.Copy;
+                e.DragUIOverride.Caption = Loc.Format("CopyTo", name);
+            }
+        }
+        e.AcceptedOperation = operation;
+        e.Handled = true;
+        Highlight(sender, operation != Windows.ApplicationModel.DataTransfer.DataPackageOperation.None);
+    }
+
+    private void Item_DragLeave(object sender, DragEventArgs e) => Highlight(sender, false);
+
+    private async void Item_Drop(object sender, DragEventArgs e)
+    {
+        Highlight(sender, false);
+        if (model is null || DropTarget(sender) is not { } target) return;
+        e.Handled = true;
+        if (dragging is { } moving)
+        {
+            if (CanMove(moving, target)) _ = model.MoveAsync(moving, target);
+            return;
+        }
+        if (!e.DataView.Contains(Windows.ApplicationModel.DataTransfer.StandardDataFormats.StorageItems)) return;
+        var deferral = e.GetDeferral();
+        List<string> paths;
+        try
+        {
+            var items = await e.DataView.GetStorageItemsAsync();
+            paths = [.. items.Select(i => i.Path).Where(p => !string.IsNullOrEmpty(p))];
+        }
+        catch (Exception)
+        {
+            return;
+        }
+        finally
+        {
+            deferral.Complete();
+        }
+        _ = model.DropAsync(paths, target);
+    }
+
+    private void SyncOperations() =>
+        OperationsPanel.Visibility = model?.ActiveOperations > 0 ? Visibility.Visible : Visibility.Collapsed;
+
+    /// <summary>A folder moved or was renamed: the open-folder memory follows it.</summary>
+    private void OnPathMoved(string oldFull, string newFull)
+    {
+        var changed = false;
+        foreach (var path in expandedFolders.ToList())
+        {
+            string? updated;
+            if (Paths.Same(path, oldFull)) updated = newFull;
+            else if (Paths.IsInside(path, oldFull)) updated = newFull + path[oldFull.Length..];
+            else continue;
+            expandedFolders.Remove(path);
+            expandedFolders.Add(updated);
+            changed = true;
+        }
+        if (changed) ExpansionChanged?.Invoke();
+    }
 
     // MARK: Pinned
 

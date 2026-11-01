@@ -188,4 +188,15 @@
   <data name="Unpin" xml:space="preserve"><value>Unpin</value></data>
   <data name="OpenRecent" xml:space="preserve"><value>Open Recent</value></data>
   <data name="ClearMenu" xml:space="preserve"><value>Clear Menu</value></data>
+  <data name="Duplicate" xml:space="preserve"><value>Duplicate</value></data>
+  <data name="MoveCanceled" xml:space="preserve"><value>The move was canceled.</value></data>
+  <data name="DuplicateCanceled" xml:space="preserve"><value>Duplicating was canceled.</value></data>
+  <data name="CopyCanceled" xml:space="preserve"><value>Copying was canceled.</value></data>
+  <data name="CannotMoveIntoItself" xml:space="preserve"><value>“{0}” can't be moved into itself.</value></data>
+  <data name="MoveTo" xml:space="preserve"><value>Move to {0}</value></data>
+  <data name="CopyTo" xml:space="preserve"><value>Copy to {0}</value></data>
+  <data name="CopyingText.Text" xml:space="preserve"><value>Copying…</value></data>
+  <data name="EmptyTitle.Text" xml:space="preserve"><value>No Folders</value></data>
+  <data name="EmptyHint.Text" xml:space="preserve"><value>Add a folder to the workspace to see its notes here.</value></data>
+  <data name="EmptyAddFolder.Content" xml:space="preserve"><value>Add Folder…</value></data>
 </root>
