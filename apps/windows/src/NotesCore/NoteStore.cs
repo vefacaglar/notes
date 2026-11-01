@@ -42,6 +42,17 @@ public sealed record NoteNode(string Path, string Name, bool IsFolder, IReadOnly
     public override int GetHashCode() => HashCode.Combine(Path, Name, IsFolder, Children?.Count);
 }
 
+/// <summary>How a folder is listed (a display preference; docs/format.md, "Display order").</summary>
+public sealed record ListingOptions(ListingOrder Order = ListingOrder.Name, bool MarkdownOnly = false, int? MaxDepth = null);
+
+public enum ListingOrder
+{
+    /// <summary>Folders, then files, each in natural order.</summary>
+    Name,
+    /// <summary>Folders by name, then files newest first (ties by name).</summary>
+    Modified,
+}
+
 public sealed record SearchHit(string Path, int? Line, string? Snippet)
 {
     public string Id => $"{Path}:{Line ?? 0}";
@@ -84,6 +95,11 @@ public sealed partial class NoteStore
         var extension = PathExtension(LastComponent(path)).ToLowerInvariant();
         return extension.Length > 0 && ListedExtensions.Contains(extension);
     }
+
+    /// <summary>Markdown files: notes and the longer Markdown extensions.</summary>
+    public static bool IsMarkdown(string path) => IsListed(path) && CodeLanguages.FromPath(LastComponent(path)) == CodeLanguage.Markdown;
+
+    private static bool IsShown(string path, ListingOptions options) => IsListed(path) && (!options.MarkdownOnly || IsMarkdown(path));
 
     // Paths are split on the scalar "/", never on grapheme clusters; UTF-16 '/' is the same thing.
 
@@ -178,11 +194,13 @@ public sealed partial class NoteStore
 
     // MARK: Listing
 
-    public IReadOnlyList<NoteNode> Tree() =>
-        Children(Root, "", 0, [Native.Query(Root)?.FinalPath ?? Root]);
+    /// <summary>`shouldContinue` is asked before each folder is read; once it returns false the scan stops and returns what it has
+    /// (the caller discards that partial result).</summary>
+    public IReadOnlyList<NoteNode> Tree(ListingOptions? options = null, Func<bool>? shouldContinue = null) =>
+        Children(Root, "", 0, [Native.Query(Root)?.FinalPath ?? Root], options ?? new ListingOptions(), shouldContinue ?? (() => true));
 
     /// <summary>Paths of all listed files (notes and other text files), in display order.</summary>
-    public IReadOnlyList<string> NotePaths()
+    public IReadOnlyList<string> NotePaths(ListingOptions? options = null)
     {
         var paths = new List<string>();
         void Flatten(IReadOnlyList<NoteNode> nodes)
@@ -193,7 +211,7 @@ public sealed partial class NoteStore
                 else paths.Add(node.Path);
             }
         }
-        Flatten(Tree());
+        Flatten(Tree(options));
         return paths;
     }
 
@@ -201,9 +219,9 @@ public sealed partial class NoteStore
 
     /// <summary>`ancestors` are the final paths of `dir` and the folders above it: a directory link back to one of them
     /// is listed as an empty folder instead of being followed in a cycle.</summary>
-    private List<NoteNode> Children(string dir, string prefix, int depth, List<string> ancestors)
+    private List<NoteNode> Children(string dir, string prefix, int depth, List<string> ancestors, ListingOptions options, Func<bool> shouldContinue)
     {
-        if (depth > MaxDepth) return [];
+        if (depth > MaxDepth || !shouldContinue() || options.MaxDepth is { } limit && depth >= limit) return [];
         List<FileSystemInfo> entries;
         try { entries = new DirectoryInfo(dir).EnumerateFileSystemInfos().ToList(); }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException) { return []; }
@@ -221,12 +239,16 @@ public sealed partial class NoteStore
                     : System.IO.Path.Join(ancestors[^1], name);
                 var cycle = final is null || ancestors.Any(a => string.Equals(
                     System.IO.Path.TrimEndingDirectorySeparator(a), System.IO.Path.TrimEndingDirectorySeparator(final), StringComparison.OrdinalIgnoreCase));
-                nodes.Add(new NoteNode(path, name, true, cycle ? [] : Children(entry.FullName, path + "/", depth + 1, [.. ancestors, final!])));
+                nodes.Add(new NoteNode(path, name, true, cycle ? [] : Children(entry.FullName, path + "/", depth + 1, [.. ancestors, final!], options, shouldContinue)));
             }
-            else if (IsListed(name))
+            else if (IsShown(name, options))
                 nodes.Add(new NoteNode(path, DisplayName(name), false, null, ModifiedOf(entry)));
         }
-        return nodes.OrderBy(n => n.IsFolder ? 0 : 1).ThenBy(n => n.Name, DisplayOrder).ToList();
+        // Newest first only among files; folders (and the name order) ignore the date.
+        var byDate = options.Order == ListingOrder.Modified;
+        return nodes.OrderBy(n => n.IsFolder ? 0 : 1)
+            .ThenByDescending(n => byDate && !n.IsFolder ? n.Modified ?? DateTime.MinValue : DateTime.MinValue)
+            .ThenBy(n => n.Name, DisplayOrder).ToList();
     }
 
     private static DateTime? ModifiedOf(FileSystemInfo entry)
@@ -351,14 +373,14 @@ public sealed partial class NoteStore
     private const CompareOptions SearchOptions = CompareOptions.IgnoreCase | CompareOptions.IgnoreNonSpace;
 
     /// <summary>Case- and diacritic-insensitive search over file names and contents. File name matches come first.</summary>
-    public List<SearchHit> Search(string query, int limit = 100)
+    public List<SearchHit> Search(string query, int limit = 100, ListingOptions? listing = null)
     {
         query = FoldDotlessI(query.Trim());
         if (query.Length == 0 || query.All(IsIgnorable)) return [];
 
         var nameHits = new List<SearchHit>();
         var contentHits = new List<SearchHit>();
-        foreach (var path in NotePaths())
+        foreach (var path in NotePaths(listing))
         {
             var name = IsNote(path) ? DeletingPathExtension(path) : path;
             if (Comparison.IndexOf(FoldDotlessI(name), query, SearchOptions) >= 0) nameHits.Add(new SearchHit(path, null, null));

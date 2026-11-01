@@ -503,3 +503,74 @@ public sealed class NoteStoreTests : IDisposable
         Assert.True(Directory.Exists(missing));
     }
 }
+
+public sealed class ListingOptionsTests : IDisposable
+{
+    private readonly NotesTempFolder temp = new();
+    private readonly NoteStore store;
+
+    public ListingOptionsTests() => store = new NoteStore(System.IO.Path.Combine(temp.Path, "Notes"));
+
+    public void Dispose() => temp.Dispose();
+
+    private void Put(string path, string text, long modified)
+    {
+        var full = System.IO.Path.Combine(store.Root, path.Replace('/', System.IO.Path.DirectorySeparatorChar));
+        Directory.CreateDirectory(System.IO.Path.GetDirectoryName(full)!);
+        File.WriteAllText(full, text);
+        File.SetLastWriteTimeUtc(full, DateTimeOffset.FromUnixTimeSeconds(modified).UtcDateTime);
+    }
+
+    [Fact]
+    public void TreeDepthCapAndCancellation()
+    {
+        Put("a/b/c/d.md", "", 1);
+        Put("a/x.md", "", 1);
+        var capped = store.Tree(new ListingOptions(MaxDepth: 2));
+        Assert.Equal(["a"], capped.Select(n => n.Path));
+        Assert.Equal(["a/b", "a/x.md"], capped[0].Children!.Select(n => n.Path));
+        Assert.Empty(capped[0].Children![0].Children!);
+        Assert.Empty(store.Tree(shouldContinue: () => false));
+    }
+
+    [Fact]
+    public void ModifiedOrderKeepsFoldersFirstByNameAndPutsNewestFilesFirst()
+    {
+        Put("b.md", "", 100);
+        Put("a.md", "", 300);
+        Put("c.json", "", 200);
+        Put("d.md", "", 200);
+        Put("Zeta/x.md", "", 1);
+        Put("Alfa/y.md", "", 1);
+
+        Assert.Equal(["Alfa", "Zeta", "a.md", "c.json", "d.md", "b.md"], store.Tree(new ListingOptions(ListingOrder.Modified)).Select(n => n.Path));
+        Assert.Equal(["Alfa", "Zeta", "a.md", "b.md", "c.json", "d.md"], store.Tree().Select(n => n.Path));
+    }
+
+    [Fact]
+    public void MarkdownOnlyHidesOtherFilesInTheTreeAndSearch()
+    {
+        Put("a.md", "kahve", 1);
+        Put("b.MARKDOWN", "kahve", 1);
+        Put("c.mkd", "kahve", 1);
+        Put("config.json", "kahve", 1);
+        Put("Kod/app.swift", "kahve", 1);
+
+        var options = new ListingOptions(MarkdownOnly: true);
+        Assert.Equal(["Kod", "a.md", "b.MARKDOWN", "c.mkd"], store.Tree(options).Select(n => n.Path));
+        Assert.Empty(store.Tree(options)[0].Children!);
+        Assert.Equal(["a.md", "b.MARKDOWN", "c.mkd"], store.Search("kahve", listing: options).Select(h => h.Path).ToHashSet().Order());
+        Assert.Equal(5, store.Search("kahve").Select(h => h.Path).ToHashSet().Count);
+    }
+
+    [Theory]
+    [InlineData("a.md", true)]
+    [InlineData("x.Markdown", true)]
+    [InlineData("x.mdown", true)]
+    [InlineData("x.mkd", true)]
+    [InlineData("x.txt", false)]
+    [InlineData("x.json", false)]
+    [InlineData("md", false)]
+    [InlineData("Work/n.md", true)]
+    public void IsMarkdown(string path, bool expected) => Assert.Equal(expected, NoteStore.IsMarkdown(path));
+}
