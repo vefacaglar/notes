@@ -172,6 +172,8 @@ internal sealed partial class MarkdownEditor
             return;
         }
         var path = Note.Path;
+        Sync();
+        var snapshot = LastText;
         var lines = new List<string>();
         string? failure = null;
         foreach (var source in sources)
@@ -192,8 +194,11 @@ internal sealed partial class MarkdownEditor
         }
         if (lines.Count > 0)
         {
+            if (Detached) return;
             Sync();
             var length = LastText.Length;
+            // Text typed or reloaded meanwhile moved the target: insert at the caret instead of replacing what is there now.
+            if (!string.Equals(LastText, snapshot, StringComparison.Ordinal)) range = new MarkdownRange(CurrentSelection().End, 0);
             var at = new MarkdownRange(Math.Min(range.Location, length), Math.Min(range.Length, Math.Max(0, length - Math.Min(range.Location, length))));
             var text = string.Join('\n', lines);
             // At the very end the last image line gets a break too, so the line below can be typed on.

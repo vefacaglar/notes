@@ -28,6 +28,7 @@ internal sealed partial class MarkdownEditor : TextEditor
     private bool showsSource;
     /// <summary>Whether the last styling pass hid the markers.</summary>
     private bool hidesApplied;
+    private bool plainApplied;
     /// <summary>The lines (through their break) with the selection, where markers can be shown while they are hidden elsewhere.
     /// Null when markers are not hidden.</summary>
     private MarkdownRange? revealed;
@@ -141,7 +142,10 @@ internal sealed partial class MarkdownEditor : TextEditor
         if (ShowsSource || length > MaxStyledLength)
         {
             // Source view, or too long to scan on every keystroke: plain text, styled once.
-            if (NeedsFullRestyle) ApplyBase(0, length);
+            // Crossing into plain mode resets everything once: hidden markers and drawn glyphs must not stay behind.
+            var wasStyled = !plainApplied;
+            plainApplied = true;
+            if (NeedsFullRestyle || wasStyled) ApplyBase(0, length);
             else if (PendingEdit is { } plain)
             {
                 var lines = MarkdownStyler.RestyleRange(new MarkdownRange(plain.Start, plain.End - plain.Start), text);
@@ -160,6 +164,7 @@ internal sealed partial class MarkdownEditor : TextEditor
             bright = null;
             return;
         }
+        plainApplied = false;
         var scanned = MarkdownStyler.Spans(text);
         var blocks = scanned.Where(s => s.Kind.Kind == MarkdownKind.CodeBlock).Select(s => s.Range).ToList();
         var reveal = HidesMarkers ? RevealRange() : (MarkdownRange?)null;

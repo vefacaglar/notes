@@ -144,9 +144,12 @@ internal abstract partial class TextEditor
     }
 
     /// <summary>Stops following the document; call when the editor goes away. Unreported typing is handed over first.</summary>
+    protected bool Detached { get; private set; }
+
     public void Detach()
     {
         Sync();
+        Detached = true;
         Note.TextChanged -= OnNoteTextChanged;
         Note.SyncRequested -= Sync;
         Note.ReadOnlyChanged -= OnReadOnlyChanged;
@@ -455,26 +458,31 @@ internal abstract partial class TextEditor
 
     public void SelectAll() => Box.Document.Selection.SetRange(0, LastText.Length);
 
-    private string SelectedText()
+    public bool Copy()
     {
-        Box.Document.Selection.GetText(TextGetOptions.None, out var text);
-        return text.Replace('\r', '\n');
-    }
-
-    public void Copy()
-    {
-        var text = SelectedText();
-        if (text.Length == 0) return;
+        Sync();
+        var selection = Box.Document.Selection;
+        var start = Math.Clamp(selection.StartPosition, 0, LastText.Length);
+        var end = Math.Clamp(selection.EndPosition, start, LastText.Length);
+        if (end == start) return false;
         var package = new DataPackage();
-        package.SetText(text);
-        Clipboard.SetContent(package);
+        package.SetText(LastText.Substring(start, end - start));
+        try
+        {
+            Clipboard.SetContent(package);
+        }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or UnauthorizedAccessException)
+        {
+            return false;
+        }
+        return true;
     }
 
     public void Cut()
     {
         Sync();
         if (Box.IsReadOnly) return;
-        Copy();
+        if (!Copy()) return;
         var selection = Box.Document.Selection;
         var start = selection.StartPosition;
         var end = Math.Min(selection.EndPosition, LastText.Length);
@@ -495,7 +503,7 @@ internal abstract partial class TextEditor
         var redo = Item(Loc.Get("Redo"), "Ctrl+Y", Redo);
         menu.Items.Add(new MenuFlyoutSeparator());
         var cut = Item(Loc.Get("Cut"), "Ctrl+X", Cut);
-        var copy = Item(Loc.Get("Copy"), "Ctrl+C", Copy);
+        var copy = Item(Loc.Get("Copy"), "Ctrl+C", () => Copy());
         var paste = Item(Loc.Get("Paste"), "Ctrl+V", Paste);
         menu.Items.Add(new MenuFlyoutSeparator());
         Item(Loc.Get("SelectAll"), "Ctrl+A", SelectAll);

@@ -697,7 +697,13 @@ public sealed partial class MainWindow : Window
     {
         var package = new Windows.ApplicationModel.DataTransfer.DataPackage();
         package.SetText(text);
-        Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        try
+        {
+            Windows.ApplicationModel.DataTransfer.Clipboard.SetContent(package);
+        }
+        catch (Exception e) when (e is System.Runtime.InteropServices.COMException or UnauthorizedAccessException)
+        {
+        }
     }
 
     /// <summary>Nothing on disk changes, so only unsaved edits in its tabs ask anything.</summary>
