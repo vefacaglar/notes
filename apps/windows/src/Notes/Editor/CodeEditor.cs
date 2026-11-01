@@ -2,7 +2,9 @@ using Microsoft.UI;
 using Microsoft.UI.Text;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
+using Microsoft.UI.Xaml.Media;
 using NotesCore;
+using Windows.Foundation;
 
 namespace Notes.Editor;
 
@@ -17,14 +19,31 @@ internal sealed class CodeEditor : TextEditor
     /// <summary>What Tab inserts; set per file from its existing indentation.</summary>
     private string indentUnit = "    ";
 
+    // Line numbers: one per logical line (wrapped continuations get none), in a column left of the box.
+    private readonly Canvas gutter = new();
+    private readonly Grid gutterHost = new() { IsHitTestVisible = false };
+    private readonly TranslateTransform gutterShift = new();
+    private readonly List<int> lineStarts = [0];
+    private string? lineStartsFor;
+    private readonly List<TextBlock> numbers = [];
+    private int digits = 3;
+
     public CodeEditor(NoteDocument note) : base(note)
     {
         language = note.Language;
         Box.TextWrapping = AppSettings.CodeWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
         FontSettingsChanged();
+        Host.ColumnDefinitions.Add(new ColumnDefinition { Width = GridLength.Auto });
+        Host.ColumnDefinitions.Add(new ColumnDefinition());
+        foreach (var child in Host.Children.OfType<FrameworkElement>()) Grid.SetColumn(child, 1);
+        gutter.RenderTransform = gutterShift;
+        gutterHost.Children.Add(gutter);
+        gutterHost.SizeChanged += (_, e) => gutterHost.Clip = new RectangleGeometry { Rect = new Rect(0, 0, e.NewSize.Width, e.NewSize.Height) };
+        Host.Children.Add(gutterHost);
+        gutterHost.Visibility = AppSettings.CodeLineNumbers ? Visibility.Visible : Visibility.Collapsed;
     }
 
-    protected override Thickness ComputePadding() => new(24, 16, 24, 16);
+    protected override Thickness ComputePadding() => new(AppSettings.CodeLineNumbers ? 12 : 24, 16, 24, 16);
 
     protected override void FontSettingsChanged() =>
         // Four spaces of the monospaced font (about 0.55–0.6 em per character).
@@ -33,6 +52,74 @@ internal sealed class CodeEditor : TextEditor
     protected override void SettingChanged(string key)
     {
         if (key == "codeWrap") Box.TextWrapping = AppSettings.CodeWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+        if (key is "codeLineNumbers" or "highlightCurrentLine" or "zoom" or "lineSpacing" or "codeWrap") InvalidateOverlay(10);
+    }
+
+    protected override void OnSelectionSettled(bool byMouse)
+    {
+        if (AppSettings.HighlightCurrentLine && AppSettings.CodeLineNumbers) InvalidateOverlay(10);
+    }
+
+    protected override void OverlayShifted(double y) => gutterShift.Y = y;
+
+    // MARK: Line numbers
+
+    private void EnsureLineStarts(string text)
+    {
+        if (ReferenceEquals(text, lineStartsFor)) return;
+        lineStartsFor = text;
+        lineStarts.Clear();
+        lineStarts.Add(0);
+        for (var i = text.IndexOf('\n'); i >= 0; i = text.IndexOf('\n', i + 1)) lineStarts.Add(i + 1);
+    }
+
+    /// <summary>Index of the last line starting at or before `position`.</summary>
+    private int LineIndexAt(int position)
+    {
+        var index = lineStarts.BinarySearch(position);
+        return index >= 0 ? index : ~index - 1;
+    }
+
+    protected override void RenderOverlay()
+    {
+        var shows = AppSettings.CodeLineNumbers;
+        gutterHost.Visibility = shows ? Visibility.Visible : Visibility.Collapsed;
+        if (!shows) return;
+        var text = LastText;
+        EnsureLineStarts(text);
+        var numberSize = Math.Max(EditorFonts.Scaled(13) * 0.85, 8);
+        var needed = Math.Max(3, lineStarts.Count.ToString(System.Globalization.CultureInfo.InvariantCulture).Length);
+        var width = Math.Ceiling(needed * numberSize * 0.62) + 16;
+        if (gutterHost.Width != width || digits != needed)
+        {
+            digits = needed;
+            gutterHost.Width = width;
+        }
+        var palette = Palette;
+        var (first, last) = VisibleCharacters(ViewportHeight);
+        var offset = ScrollY;
+        var caretLine = AppSettings.HighlightCurrentLine && CurrentSelection().Length == 0 ? LineIndexAt(CurrentSelection().Location) : -1;
+        var used = 0;
+        for (var line = LineIndexAt(first); line < lineStarts.Count && lineStarts[line] <= last; line++)
+        {
+            if (RectOf(lineStarts[line], lineStarts[line] + 1) is not { } rect) continue;
+            if (used == numbers.Count)
+            {
+                var block = new TextBlock { TextAlignment = TextAlignment.Right, FontFamily = new FontFamily(EditorFonts.Mono) };
+                numbers.Add(block);
+                gutter.Children.Add(block);
+            }
+            var number = numbers[used++];
+            number.Visibility = Visibility.Visible;
+            number.Text = (line + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
+            number.FontSize = numberSize;
+            number.Width = width - 8;
+            var color = line == caretLine ? palette.Secondary : Windows.UI.Color.FromArgb((byte)(palette.Secondary.A / 2), palette.Secondary.R, palette.Secondary.G, palette.Secondary.B);
+            number.Foreground = new SolidColorBrush(color);
+            Canvas.SetLeft(number, 0);
+            Canvas.SetTop(number, rect.Y + offset + Math.Max(0, (rect.Height - numberSize * 1.35) / 2));
+        }
+        for (var i = used; i < numbers.Count; i++) numbers[i].Visibility = Visibility.Collapsed;
     }
 
     protected override void Loading(string text) => indentUnit = language.IndentUnit(text);
