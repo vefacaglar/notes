@@ -82,6 +82,8 @@ internal static class SessionStore
         WriteIndented = true,
     };
 
+    private static readonly object WriteLock = new();
+
     private static string? FilePath => Folder is null ? null : Path.Combine(Folder, "session.json");
 
     /// <summary>A second process (pending drafts) must not overwrite the session of the one that owns the app state.</summary>
@@ -108,8 +110,11 @@ internal static class SessionStore
         if (!CanWrite || FilePath is not { } path) return;
         try
         {
-            Directory.CreateDirectory(Folder!);
-            NoteFile.Write(JsonSerializer.Serialize(new SessionFile { Windows = [main] }, Options) + "\n", path);
+            lock (WriteLock)
+            {
+                Directory.CreateDirectory(Folder!);
+                NoteFile.Write(JsonSerializer.Serialize(new SessionFile { Windows = [main] }, Options) + "\n", path);
+            }
         }
         catch (Exception e) when (e is IOException or UnauthorizedAccessException or NoteFileNotWritableException)
         {

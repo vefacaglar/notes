@@ -25,6 +25,7 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<NoteTab, NoteEditorView> editors = [];
     private readonly Dictionary<NoteTab, (NoteDocument Document, Action Update)> tabWatchers = [];
     private bool syncingTabs;
+    private readonly Func<Task> requestClose;
     private RectInt32[] passthrough = [];
     internal MainWindow(NotesModel model, SessionWindow? session = null)
     {
@@ -33,9 +34,9 @@ public sealed partial class MainWindow : Window
         if (AppSettings.ThemeOverride is { } theme) Root.RequestedTheme = theme;
         Root.LayoutUpdated += (_, _) => UpdateStrokeGap();
         WindowSupport.Place(this, session?.Bounds, 1100, 720);
-        TrackWindow();
+        TrackWindow(session?.Bounds);
         WindowSupport.ExtendIntoTitleBar(this, TitleBar);
-        WindowSupport.GuardClose(this, PrepareToCloseAsync);
+        requestClose = WindowSupport.GuardClose(this, PrepareToCloseAsync);
         // The tabs and the strip's buttons move when the window or a tab changes size, and after tabs are added.
         TitleBar.SizeChanged += (_, _) => UpdatePassthrough();
         Tabs.SizeChanged += (_, _) => UpdatePassthrough();
@@ -59,6 +60,7 @@ public sealed partial class MainWindow : Window
             model.ActiveTabChanged -= ShowActiveTab;
             model.ErrorChanged -= ShowError;
             model.WindowRequested -= BringToFront;
+            sessionEnabled = false;
             Sidebar.Detach();
             foreach (var editor in editors.Values) editor.Detach();
             editors.Clear();
@@ -145,8 +147,10 @@ public sealed partial class MainWindow : Window
     private SessionBounds? windowBounds;
 
     /// <summary>Remembers where the window is while it is neither maximized nor minimized, and whether it is maximized.</summary>
-    private void TrackWindow()
+    private void TrackWindow(SessionBounds? saved)
     {
+        // A window that starts maximized has no normal rectangle to read yet: keep the saved one.
+        windowBounds = saved?.Copy();
         void Update()
         {
             if (AppWindow.Presenter is not OverlappedPresenter presenter || presenter.State == OverlappedPresenterState.Minimized) return;
@@ -469,6 +473,8 @@ public sealed partial class MainWindow : Window
         if (!await model.PrepareToCloseAsync(ConfirmDropAsync)) return false;
         // After the saves: an automatic rename may have changed a path. The editors are still alive to read the caret from.
         await SaveSessionAsync();
+        // The window is going: a later capture would find the editors gone and lose the views.
+        sessionEnabled = false;
         return true;
     }
 
@@ -494,7 +500,7 @@ public sealed partial class MainWindow : Window
         {
             closing.Remove(tab);
         }
-        if (model.Tabs.Count == 0) Close();
+        if (model.Tabs.Count == 0) await requestClose();
     }
 
     /// <summary>True when the tab is gone.</summary>

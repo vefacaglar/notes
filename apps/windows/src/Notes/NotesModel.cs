@@ -132,6 +132,13 @@ internal sealed class NotesModel
         try
         {
             var root = await CreateRootAsync(path, createIfMissing);
+            // A concurrent retry or pick opened it while this one was waiting.
+            if (roots.Any(r => Paths.Same(r.CanonicalRoot, root.CanonicalRoot)))
+            {
+                unavailable.RemoveAll(u => Paths.Same(u.Path, path));
+                RootsChanged?.Invoke();
+                return true;
+            }
             if (Validate(root) is not { } invalid)
             {
                 unavailable.RemoveAll(u => Paths.Same(u.Path, path));
@@ -327,9 +334,25 @@ internal sealed class NotesModel
         IReadOnlyList<NoteNode> tree;
         try { tree = await Task.Run(root.Store.Tree); }
         catch (Exception) { return; }
-        if (!roots.Contains(root) || version != root.ScanVersion || tree.SequenceEqual(root.Tree)) return;
+        if (!roots.Contains(root) || version != root.ScanVersion) return;
+        if (tree.SequenceEqual(root.Tree))
+        {
+            // Same structure, so the sidebar stays as it is, but the stored tree keeps the current modification dates.
+            if (!SameDates(tree, root.Tree)) root.Tree = tree;
+            return;
+        }
         root.Tree = tree;
         TreeChanged?.Invoke(root);
+    }
+
+    private static bool SameDates(IReadOnlyList<NoteNode> a, IReadOnlyList<NoteNode> b)
+    {
+        for (var i = 0; i < a.Count; i++)
+        {
+            if (a[i].Modified != b[i].Modified) return false;
+            if (a[i].Children is { } ca && b[i].Children is { } cb && !SameDates(ca, cb)) return false;
+        }
+        return true;
     }
 
     private async void CheckOpenDocuments()

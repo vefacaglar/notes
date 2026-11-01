@@ -100,7 +100,7 @@ public sealed partial class MainWindow
         AddItem(file, "Save", () => _ = model.SaveActiveAsync(), new(VirtualKey.S, Ctrl));
         AddItem(file, "SaveAs", () => _ = SaveAsAsync(), new(VirtualKey.S, Ctrl | Shift), () => model.ActiveDocument is not null);
         AddSeparator(file);
-        AddItem(file, "Exit", Close);
+        AddItem(file, "Exit", () => _ = requestClose());
 
         var edit = Group("MenuEdit");
         AddItem(edit, "Undo", () => InEditor(e => e.Undo()), new(VirtualKey.Z, Ctrl), () => Edit?.CanUndo == true, register: false);
@@ -169,7 +169,7 @@ public sealed partial class MainWindow
     private void CloseActiveTabOrWindow()
     {
         if (model.ActiveTab is { } tab) _ = CloseTabAsync(tab);
-        else Close();
+        else _ = requestClose();
     }
 
     /// <summary>Ctrl+Tab and Ctrl+Shift+[ ]: the next or previous tab, with the keyboard in its editor.</summary>

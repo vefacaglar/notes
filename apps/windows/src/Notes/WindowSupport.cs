@@ -80,17 +80,15 @@ internal static partial class WindowSupport
 
     /// <summary>
     /// Runs `prepare` (save everything, asking the user where saving fails) before the window closes; the close is
-    /// cancelled when it returns false.
+    /// cancelled when it returns false. Returns the call for closing programmatically through the same path.
     /// </summary>
-    public static void GuardClose(Window window, Func<Task<bool>> prepare)
+    public static Func<Task> GuardClose(Window window, Func<Task<bool>> prepare)
     {
         var allowed = false;
         var busy = false;
-        window.AppWindow.Closing += async (_, e) =>
+        async Task Request()
         {
-            if (allowed) return;
-            e.Cancel = true;
-            if (busy) return;
+            if (allowed || busy) return;
             busy = true;
             try
             {
@@ -102,6 +100,13 @@ internal static partial class WindowSupport
             {
                 busy = false;
             }
+        }
+        window.AppWindow.Closing += (sender, e) =>
+        {
+            if (allowed) return;
+            e.Cancel = true;
+            _ = Request();
         };
+        return Request;
     }
 }
