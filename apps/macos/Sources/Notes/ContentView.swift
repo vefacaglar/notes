@@ -6,6 +6,7 @@ struct WorkspaceView: View {
     @Bindable var workspace: Workspace
     let model: NotesModel
     @Environment(AppSettings.self) private var settings
+    @Environment(\.colorScheme) private var colorScheme
     @State private var detailFrame: ClosedRange<CGFloat> = 0...0
 
     var body: some View {
@@ -30,7 +31,8 @@ struct WorkspaceView: View {
             if let tab = workspace.activeTab {
                 let document = tab.document
                 let language = document.language
-                if language == .markdown, settings.showFormattingBar {
+                // A locked note has no text to format or outline.
+                if language == .markdown, settings.showFormattingBar, !document.isLocked {
                     FormattingToolbar(editor: tab.editor, isReadOnly: document.isReadOnly, column: detailFrame,
                                       trailingRoom: workspace.isMain ? 105 : 8,
                                       showsSyntax: Binding(get: { settings.markerStyle == .dimmed },
@@ -38,11 +40,11 @@ struct WorkspaceView: View {
                         OutlineButton(editor: tab.editor, document: document)
                     }
                 }
-                if language.canFormat {
+                if language.canFormat, !document.isLocked {
                     CodeFormatToolbar(editor: tab.editor, isReadOnly: document.isReadOnly, column: detailFrame,
                                       trailingRoom: workspace.isMain ? 105 : 8)
                 }
-                if language == .markdown, !settings.showFormattingBar {
+                if language == .markdown, !settings.showFormattingBar, !document.isLocked {
                     ToolbarItem { OutlineButton(editor: tab.editor, document: document) }
                 }
             }
@@ -58,6 +60,12 @@ struct WorkspaceView: View {
             }
         }
         .errorAlert($workspace.errorMessage)
+        // Here, not in the sidebar, so the prompts also work with the sidebar hidden.
+        .alert(workspace.prompt?.title ?? "", isPresented: $workspace.prompt.isPresent, presenting: workspace.prompt) { prompt in
+            TextField(loc: "Name", text: $workspace.promptName)
+            Button(prompt.action) { workspace.commitPrompt(prompt) }
+            Button(loc: "Cancel", role: .cancel) {}
+        }
         .sheet(isPresented: $workspace.isQuickOpenVisible) { QuickOpenView(workspace: workspace, model: model) }
         .focusedSceneValue(\.workspace, workspace)
         .background(WindowBridge(workspace: workspace, title: title, representedURL: representedURL))
@@ -87,13 +95,18 @@ struct WorkspaceView: View {
                         .background(.bar)
                     Divider()
                 }
-                NoteEditorView(document: document, editor: tab.editor, showsSource: tab.showsSource,
-                               onOpenLink: { workspace.openLink($0, from: document) })
-                    // Keyed by tab and document, not the URL, so a rename keeps the editor (cursor, undo).
-                    .id(EditorKey(tab: tab.id, document: document.id))
-                    .onAppear { workspace.editorAppeared(tab) }
-                if settings.showStatusBar {
-                    StatusBar(document: document).id(document.id)
+                if document.isLocked {
+                    LockedNoteView(document: document, background: lockedBackground)
+                        .id(document.id)
+                } else {
+                    NoteEditorView(document: document, editor: tab.editor, showsSource: tab.showsSource,
+                                   onOpenLink: { workspace.openLink($0, from: document) })
+                        // Keyed by tab and document, not the URL, so a rename keeps the editor (cursor, undo).
+                        .id(EditorKey(tab: tab.id, document: document.id))
+                        .onAppear { workspace.editorAppeared(tab) }
+                    if settings.showStatusBar {
+                        StatusBar(document: document).id(document.id)
+                    }
                 }
             }
         } else {
@@ -105,6 +118,10 @@ struct WorkspaceView: View {
             // Fills the column so the tab bar stays at the top instead of centring with the placeholder.
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
+    }
+
+    private var lockedBackground: Color {
+        Color(nsColor: settings.resolvedTheme(for: colorScheme).colors.background.nsColor)
     }
 
     private struct EditorKey: Hashable {

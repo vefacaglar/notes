@@ -34,7 +34,8 @@ struct NoteEditorView: View {
                 if language == .markdown {
                     MarkdownEditor(text: $document.text, style: style, showsSource: showsSource, focusOnAppear: focusOnAppear,
                                    proxy: editor, undoManager: document.undoManager, isEditable: !document.isReadOnly, onOpenLink: onOpenLink,
-                                   noteURL: document.isDraft ? nil : document.url, focusMode: settings.focusMode)
+                                   noteURL: document.isDraft ? nil : document.url,
+                                   allowsImageInsertion: !document.isEncrypted, focusMode: settings.focusMode)
                 } else {
                     CodeEditor(text: $document.text, language: language, style: style, focusOnAppear: focusOnAppear, proxy: editor,
                                undoManager: document.undoManager, isEditable: !document.isReadOnly)

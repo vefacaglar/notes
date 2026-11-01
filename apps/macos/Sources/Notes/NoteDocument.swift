@@ -13,8 +13,9 @@ final class NoteDocument {
 
     /// The open document for `url`, or a new one loaded from disk.
     static func open(_ url: URL) throws -> NoteDocument {
-        if let document = existing(url) { return document }
-        return try NoteDocument(url: url, isDraft: false)
+        let document = try existing(url) ?? NoteDocument(url: url, isDraft: false)
+        document.unlockSilently()
+        return document
     }
 
     /// A draft stored at `url` in the draft store; a missing file is an empty draft.
@@ -74,6 +75,17 @@ final class NoteDocument {
     /// Set on a note just made with New Note (or a new draft) so its editor takes keyboard focus.
     @ObservationIgnored var focusOnOpen = false
 
+    /// An encrypted note (`.mdenc`) whose password hasn't been given yet, or that was locked again: `text` and
+    /// `savedText` are empty, nothing is saved, and the tab shows the password field.
+    private(set) var isLocked = false
+    private(set) var isUnlocking = false
+    /// Why the last unlock attempt failed; shown under the password field.
+    var unlockError: String?
+    /// The key of an unlocked encrypted note; every save of the note uses it (so the salt stays).
+    @ObservationIgnored private var key: NoteCrypto.Key?
+    /// The file's bytes as last read or written here; compared with the disk for the conflict check.
+    @ObservationIgnored private var savedData: Data?
+
     private var savedText: String
     /// The file as last loaded or saved here; any other stamp means another program wrote it.
     @ObservationIgnored private var savedStamp: NoteFile.Stamp?
@@ -86,11 +98,12 @@ final class NoteDocument {
 
     /// Only `.md` files (and drafts) are notes: automatic names. Other files keep their names.
     var isNote: Bool { isDraft || NoteStore.isNote(url.lastPathComponent) }
+    var isEncrypted: Bool { !isDraft && NoteStore.isEncrypted(url.lastPathComponent) }
     var language: CodeLanguage { isDraft ? .markdown : CodeLanguage(path: url.lastPathComponent) }
     /// File name without `.md` for notes; the full file name for other files; a draft's first-line title.
     var name: String {
         if isDraft { return NoteStore.title(from: String(text.prefix(2048))) ?? NoteStore.untitledName }
-        return isNote ? url.deletingPathExtension().lastPathComponent : url.lastPathComponent
+        return isNote || isEncrypted ? url.deletingPathExtension().lastPathComponent : url.lastPathComponent
     }
     var hasUnsavedChanges: Bool { text != savedText }
     /// The tab's dot: unsaved edits, or a draft that has text (it is not in a notes folder yet).
@@ -106,13 +119,19 @@ final class NoteDocument {
         let size = NoteFile.size(url) ?? 0
         guard size <= NoteFile.maxOpenSize else { throw NoteFileError.tooLarge(bytes: size) }
         let stamp = NoteFile.stamp(url)
+        // An encrypted file is never read as text: it opens locked and is decrypted with a password.
+        if !isDraft, NoteStore.isEncrypted(url.lastPathComponent) {
+            self.init(url: url, isDraft: false, text: "", stamp: stamp, locked: true)
+            return
+        }
         self.init(url: url, isDraft: isDraft, text: try NoteFile.read(url), stamp: stamp)
     }
 
-    private init(url: URL, isDraft: Bool, text: String, stamp: NoteFile.Stamp?) {
+    private init(url: URL, isDraft: Bool, text: String, stamp: NoteFile.Stamp?, locked: Bool = false) {
         self.url = url
         self.isDraft = isDraft
         self.text = text
+        isLocked = locked
         savedText = text
         savedStamp = stamp
         if !isDraft {
@@ -158,9 +177,10 @@ final class NoteDocument {
     func flush() -> Bool {
         saveTask?.cancel()
         saveTask = nil
-        guard hasUnsavedChanges, !isReadOnly else { return true }
+        guard !isLocked, hasUnsavedChanges, !isReadOnly else { return true }
         let snapshot = NoteFile.normalized(text)
         if isDraft { return flushDraft(snapshot) }
+        if isEncrypted { return flushEncrypted(snapshot) }
         if let stamp = NoteFile.stamp(url) {
             if stamp != savedStamp {
                 // Changed on disk since we loaded or saved it; only a touch without a content change is safe to overwrite.
@@ -233,11 +253,19 @@ final class NoteDocument {
     }
 
     /// Writes `text` to a new "<name> (conflict)" file next to this one; `nil`, with `error` set, if that fails.
-    private func writeConflictCopy(_ text: String, reason: String) -> URL? {
+    /// The copy of an encrypted note is encrypted with the note's key: its text is never written as plain text.
+    private func writeConflictCopy(_ text: String, reason: String) -> (url: URL, data: Data)? {
         let copy = NoteStore.conflictCopyURL(for: url)
         do {
-            try Data(text.utf8).write(to: copy, options: .withoutOverwriting)
-            return copy
+            let data: Data
+            if isEncrypted {
+                guard let key else { throw NoteCryptoError.damaged }
+                data = try NoteCrypto.encrypt(text, with: key)
+            } else {
+                data = Data(text.utf8)
+            }
+            try data.write(to: copy, options: .withoutOverwriting)
+            return (copy, data)
         } catch {
             self.error = L("\(reason) Your changes couldn't be saved to a separate file either: \(error.localizedDescription)")
             return nil
@@ -245,10 +273,10 @@ final class NoteDocument {
     }
 
     /// Saves `local` as a conflict copy and switches the document to the disk version.
-    private func keepConflictCopy(of local: String, disk: String, stamp: NoteFile.Stamp) -> Bool {
+    private func keepConflictCopy(of local: String, disk: String, stamp: NoteFile.Stamp, data: Data? = nil) -> Bool {
         let reason = L("“\(url.lastPathComponent)” was changed in another app.")
-        guard let copy = writeConflictCopy(local, reason: reason) else { return false }
-        replace(with: disk, stamp: stamp)
+        guard let copy = writeConflictCopy(local, reason: reason)?.url else { return false }
+        replace(with: disk, stamp: stamp, data: data)
         error = L("\(reason) The version on disk is open now; your changes were saved as “\(copy.lastPathComponent)”.")
         return false
     }
@@ -257,9 +285,10 @@ final class NoteDocument {
     /// editing that copy, leaving the original untouched.
     private func moveToConflictCopy(_ local: String) -> Bool {
         let reason = L("“\(url.lastPathComponent)” was changed in another app and can't be read, so it wasn't overwritten.")
-        guard let copy = writeConflictCopy(local, reason: reason) else { return false }
+        guard let (copy, data) = writeConflictCopy(local, reason: reason) else { return false }
         url = copy
         savedText = local
+        savedData = isEncrypted ? data : nil
         savedStamp = NoteFile.stamp(copy)
         isAutoNamed = false
         updateReadOnly()
@@ -319,7 +348,7 @@ final class NoteDocument {
     /// detects the change and keeps a conflict copy). Waits while an input method is composing text. A file that grew
     /// beyond what can be opened keeps the text shown and becomes read-only.
     func reloadIfChanged() {
-        guard !isDraft, !hasUnsavedChanges,
+        guard !isDraft, !isLocked, !hasUnsavedChanges,
               !editors.allObjects.contains(where: { $0.textView?.hasMarkedText() == true })
         else { return }
         updateReadOnly()
@@ -329,6 +358,7 @@ final class NoteDocument {
             isReadOnly = true
             return
         }
+        if isEncrypted { return reloadEncrypted(stamp) }
         guard let content = try? NoteFile.read(url) else { return }
         if content == savedText {
             savedStamp = stamp
@@ -337,7 +367,7 @@ final class NoteDocument {
         }
     }
 
-    private func replace(with content: String, stamp: NoteFile.Stamp) {
+    private func replace(with content: String, stamp: NoteFile.Stamp, data: Data? = nil) {
         saveTask?.cancel()
         saveTask = nil
         // The editors' undo steps refer to the old text; close their open typing group first so new typing
@@ -346,8 +376,227 @@ final class NoteDocument {
         undoManager.removeAllActions()
         savedText = content
         savedStamp = stamp
+        savedData = data
         text = content
         isAutoNamed = isNote && NoteStore.isAutoNamed(name, content: content)
+    }
+
+    // MARK: Encrypted notes (docs/format.md, "Encrypted notes")
+
+    private struct Unlocked: Sendable {
+        let key: NoteCrypto.Key
+        let text: String
+        let data: Data
+        let stamp: NoteFile.Stamp?
+        let password: String?
+    }
+
+    /// Saves an unlocked encrypted note: the text is encrypted with the note's key and the bytes are written atomically.
+    /// The conflict check compares bytes with the bytes last read or written here when the stamp is unchanged, and
+    /// decrypts the disk bytes with the key when it changed; what can't be decrypted is never overwritten.
+    private func flushEncrypted(_ snapshot: String) -> Bool {
+        guard let key else {
+            error = L("This encrypted note has no password in memory, so it can't be saved. Your changes are kept in this window.")
+            return false
+        }
+        if let stamp = NoteFile.stamp(url) {
+            let changed = stamp != savedStamp
+            if changed || needsContentCheck(stamp) {
+                guard let disk = try? NoteFile.readData(url) else {
+                    if changed { return moveToConflictCopy(snapshot) }
+                    return writeEncrypted(snapshot, key: key)
+                }
+                if disk != savedData {
+                    guard let decrypted = try? NoteCrypto.decrypt(disk, with: key) else { return moveToConflictCopy(snapshot) }
+                    let diskText = NoteFile.normalized(decrypted)
+                    if diskText != savedText {
+                        return keepConflictCopy(of: snapshot, disk: diskText, stamp: stamp, data: disk)
+                    }
+                }
+            }
+        }
+        return writeEncrypted(snapshot, key: key)
+    }
+
+    private func writeEncrypted(_ snapshot: String, key: NoteCrypto.Key) -> Bool {
+        do {
+            let data = try NoteCrypto.encrypt(snapshot, with: key)
+            try NoteFile.write(data, to: url)
+            savedText = snapshot
+            savedData = data
+            savedStamp = NoteFile.stamp(url)
+            return true
+        } catch {
+            self.error = Self.saveFailure(url.lastPathComponent, error)
+            return false
+        }
+    }
+
+    /// The file changed on disk and this note has no unsaved edits: decrypt it with the key. If that fails (the
+    /// password was changed elsewhere, or the file is damaged), the note locks.
+    private func reloadEncrypted(_ stamp: NoteFile.Stamp) {
+        guard let data = try? NoteFile.readData(url) else { return }
+        if data == savedData {
+            savedStamp = stamp
+            return
+        }
+        do {
+            guard let key else { throw NoteCryptoError.wrongPasswordOrDamaged }
+            let content = NoteFile.normalized(try NoteCrypto.decrypt(data, with: key))
+            if content == savedText {
+                savedStamp = stamp
+                savedData = data
+            } else {
+                replace(with: content, stamp: stamp, data: data)
+            }
+        } catch {
+            dropPlaintext()
+            unlockSilently()
+            unlockError = error.localizedDescription
+        }
+    }
+
+    /// Forgets the plain text, the key and the undo history; the note shows the password field.
+    private func dropPlaintext() {
+        saveTask?.cancel()
+        saveTask = nil
+        breakUndoCoalescing()
+        isLocked = true
+        key = nil
+        savedData = nil
+        savedText = ""
+        text = ""
+        undoManager.removeAllActions()
+    }
+
+    /// Saves pending edits, then drops the text. `false`, with `error` set, when the save failed: the note stays
+    /// unlocked so no edit is lost. (A conflict copy that took the edits counts as saved; its notice is shown.)
+    @discardableResult
+    func lock() -> Bool {
+        guard isEncrypted, !isLocked else { return true }
+        flush()
+        // Never drop text that is not on disk (a note without a key, a read-only note, a failed save).
+        guard !hasUnsavedChanges else { return false }
+        dropPlaintext()
+        unlockError = nil
+        return true
+    }
+
+    /// The key of an unlocked encrypted note, for copies made with the same password.
+    var encryptionKey: NoteCrypto.Key? { key }
+
+    /// The note as a new encrypted file with the same key (Save As).
+    func encryptedCopy() throws -> Data {
+        guard let key, !isLocked else { throw NoteCryptoError.damaged }
+        return try NoteCrypto.encrypt(NoteFile.normalized(text), with: key)
+    }
+
+    /// Whether the file's bytes are still the ones last read or written here (an unlocked encrypted note).
+    var diskMatchesSavedBytes: Bool {
+        guard !isLocked, let data = try? NoteFile.readData(url) else { return false }
+        return data == savedData
+    }
+
+    func unlock(password: String) {
+        guard !password.isEmpty else { return }
+        beginUnlock(passwords: [password], keys: [], typed: true)
+    }
+
+    /// Tries the passwords and keys entered this run; asks nothing and shows no error for a wrong password.
+    func unlockSilently() {
+        let keyring = Keyring.shared
+        guard !keyring.passwords.isEmpty || !keyring.keys.isEmpty else { return }
+        beginUnlock(passwords: keyring.passwords, keys: keyring.keys, typed: false)
+    }
+
+    private func beginUnlock(passwords: [String], keys: [NoteCrypto.Key], typed: Bool) {
+        guard isEncrypted, isLocked, !isUnlocking else { return }
+        isUnlocking = true
+        unlockError = nil
+        let url = url
+        let generation = Keyring.shared.generation
+        Task { [weak self] in
+            let result = await Task.detached(priority: .userInitiated) {
+                Result { try Self.unlockFile(url, passwords: passwords, keys: keys, typed: typed) }
+            }.value
+            self?.finishUnlock(result, startedAt: url, typed: typed, generation: generation)
+        }
+    }
+
+    /// Reads and decrypts the file off the main thread: a cached key that fits first, then each password.
+    /// `nil` when nothing fits and the passwords were not typed for this file.
+    nonisolated private static func unlockFile(_ url: URL, passwords: [String], keys: [NoteCrypto.Key],
+                                               typed: Bool) throws -> Unlocked? {
+        let size = NoteFile.size(url) ?? 0
+        guard size <= NoteFile.maxOpenSize else { throw NoteFileError.tooLarge(bytes: size) }
+        let stamp = NoteFile.stamp(url)
+        let data = try NoteFile.readData(url)
+        for key in keys where key.matches(data) {
+            if let text = try? NoteCrypto.decrypt(data, with: key) {
+                return Unlocked(key: key, text: text, data: data, stamp: stamp, password: nil)
+            }
+        }
+        for password in passwords {
+            let key = try NoteCrypto.key(password: password, for: data)
+            if let text = try? NoteCrypto.decrypt(data, with: key) {
+                return Unlocked(key: key, text: text, data: data, stamp: stamp, password: password)
+            }
+        }
+        if typed { throw NoteCryptoError.wrongPasswordOrDamaged }
+        return nil
+    }
+
+    private func finishUnlock(_ result: Result<Unlocked?, any Error>, startedAt started: URL, typed: Bool, generation: Int) {
+        isUnlocking = false
+        guard isLocked, url == started else { return }
+        // Locked while the key was derived: the result is dropped.
+        guard generation == Keyring.shared.generation else { return }
+        switch result {
+        case .success(nil):
+            break
+        case .success(let unlocked?):
+            let content = NoteFile.normalized(unlocked.text)
+            key = unlocked.key
+            savedData = unlocked.data
+            savedStamp = unlocked.stamp
+            // Together, so the new text is not mistaken for an edit and nothing is scheduled to save.
+            savedText = content
+            text = content
+            isLocked = false
+            unlockError = nil
+            undoManager.removeAllActions()
+            Keyring.shared.remember(password: typed ? unlocked.password : nil, key: unlocked.key)
+            // The password may fit the other locked notes too.
+            if typed { Self.all.forEach { $0.unlockSilently() } }
+        case .failure(let error):
+            unlockError = error.localizedDescription
+        }
+    }
+
+    /// A saved note that was just written, verified and replaced by the encrypted file at `url` (Encrypt…): the
+    /// document goes on in place with its text, selection and undo history.
+    func becomeEncrypted(_ url: URL, key: NoteCrypto.Key, data: Data) {
+        guard !isDraft, !isEncrypted, !hasUnsavedChanges else { return }
+        self.url = url
+        self.key = key
+        savedData = data
+        savedStamp = NoteFile.stamp(url)
+        isLocked = false
+        isAutoNamed = false
+        error = nil
+        updateReadOnly()
+    }
+
+    /// An encrypted note that was just written, verified and replaced by the plain file at `url` (Remove Encryption…).
+    func becomePlain(_ url: URL) {
+        guard isEncrypted, !isLocked, !hasUnsavedChanges else { return }
+        self.url = url
+        key = nil
+        savedData = nil
+        savedStamp = NoteFile.stamp(url)
+        isAutoNamed = false
+        error = nil
+        updateReadOnly()
     }
 
     private func breakUndoCoalescing() {
@@ -356,7 +605,7 @@ final class NoteDocument {
 
     private func scheduleSave() {
         saveTask?.cancel()
-        guard hasUnsavedChanges, !isReadOnly else { return }
+        guard !isLocked, hasUnsavedChanges, !isReadOnly else { return }
         saveTask = Task { [weak self] in
             try? await Task.sleep(for: .milliseconds(500))
             guard !Task.isCancelled else { return }

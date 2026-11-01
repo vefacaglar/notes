@@ -119,11 +119,6 @@ struct SidebarView: View {
             if let hit = workspace.hits.first(where: { $0.id == hitSelection }) { workspace.selection = hit.item }
         }
         .onChange(of: workspace.isSearching) { hitSelection = nil }
-        .alert(workspace.prompt?.title ?? "", isPresented: $workspace.prompt.isPresent, presenting: workspace.prompt) { prompt in
-            TextField(loc: "Name", text: $workspace.promptName)
-            Button(prompt.action) { workspace.commitPrompt(prompt) }
-            Button(loc: "Cancel", role: .cancel) {}
-        }
         .confirmationDialog(
             trashTitle, isPresented: $workspace.trashCandidate.isPresent, titleVisibility: .visible,
             presenting: workspace.trashCandidate
@@ -286,10 +281,24 @@ struct SidebarView: View {
                 workspace.selection = item.id
                 workspace.newFolder()
             }
+            if workspace.isMain {
+                Button(loc: "New Encrypted Note…") {
+                    workspace.selection = item.id
+                    workspace.newEncryptedNote()
+                }
+            }
         } else if let url = workspace.url(for: item.id) {
             Button(loc: "Open in New Tab") { workspace.open(url, newTab: true) }
             Button(loc: model.isPinned(url) ? "Unpin" : "Pin") { model.togglePin(url) }
             Button(loc: "Duplicate") { workspace.duplicate(item.id) }
+            if NoteStore.isNote(item.id.path) {
+                Button(loc: "Encrypt…") { workspace.encrypt(item.id) }
+            } else if NoteStore.isEncrypted(item.id.path) {
+                Button(loc: "Remove Encryption…") {
+                    if let document = workspace.unlockedDocument(at: url) { workspace.removeEncryption(of: document) }
+                }
+                .disabled(workspace.unlockedDocument(at: url) == nil)
+            }
         }
         Divider()
         Button(loc: "Rename Item…") { workspace.rename(item.id) }
@@ -309,6 +318,12 @@ struct SidebarView: View {
             workspace.selection = ItemID(root: root.id, path: "")
             workspace.newFolder()
         }
+        if workspace.isMain {
+            Button(loc: "New Encrypted Note…") {
+                workspace.selection = ItemID(root: root.id, path: "")
+                workspace.newEncryptedNote()
+            }
+        }
         Divider()
         Button(loc: "Show in Finder") { workspace.revealInFinder(ItemID(root: root.id, path: "")) }
         if workspace.isMain {
@@ -320,6 +335,7 @@ struct SidebarView: View {
     /// One symbol per kind of file: notes, structured data, markup, code, tables, plain text.
     static func icon(for path: String) -> String {
         if NoteStore.isNote(path) { return "doc.text" }
+        if NoteStore.isEncrypted(path) { return "lock.doc" }
         switch CodeLanguage(path: path) {
         case .json: return "curlybraces"
         case .yaml, .toml: return "list.bullet.indent"
@@ -365,7 +381,7 @@ private struct ItemRow: View {
                             Text(verbatim: Self.dateText(modified))
                                 .layoutPriority(1)
                         }
-                        if let preview = previews.preview(for: url) {
+                        if !NoteStore.isEncrypted(item.id.path), let preview = previews.preview(for: url) {
                             Text(verbatim: preview)
                         }
                     }

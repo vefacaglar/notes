@@ -37,6 +37,7 @@ final class NotesModel {
     @ObservationIgnored private var sessionTask: Task<Void, Never>?
     @ObservationIgnored private var isRestoring = false
     @ObservationIgnored private var hasQuit = false
+    @ObservationIgnored private var autoLock: AutoLock?
 
     /// The roots the user configured, in order, whether or not they could be opened this time: a folder that is missing
     /// now (an unmounted volume) is still in the list and comes back when it reappears.
@@ -60,6 +61,7 @@ final class NotesModel {
         setUpDrafts()
         loadLists()
         restore()
+        autoLock = AutoLock { [weak self] in self?.lockEncryptedNotes() }
     }
 
     var workspaces: [Workspace] { [main] + external }
@@ -209,6 +211,21 @@ final class NotesModel {
     func documentsRemoved(_ documents: [NoteDocument]) {
         let removed = Set(documents.map(ObjectIdentifier.init))
         workspaces.forEach { $0.removeTabs { removed.contains(ObjectIdentifier($0)) } }
+    }
+
+    // MARK: Encrypted notes
+
+    /// Saves and locks every unlocked encrypted note, then forgets the passwords and keys. A note whose save failed
+    /// stays unlocked and shows its error, so no edit is dropped.
+    func lockEncryptedNotes() {
+        for document in NoteDocument.all where document.isEncrypted && !document.isLocked { document.lock() }
+        Keyring.shared.lock()
+    }
+
+    /// File > New Encrypted Note… from anywhere: in the main window, like New Note.
+    func newEncryptedNote() {
+        main.newEncryptedNote()
+        windowRequests.append(.main)
     }
 
     // MARK: Pins and recents
@@ -441,6 +458,8 @@ final class NotesModel {
     /// Saves for the last time before the app quits; later changes (windows closing) are not recorded.
     func prepareForQuit() {
         guard !hasQuit else { return }
+        // Before anything else can encode the windows' state: the plain text is gone from memory when the app exits.
+        lockEncryptedNotes()
         saveSession()
         hasQuit = true
         finishDrafts()

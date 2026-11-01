@@ -25,7 +25,7 @@ final class PreviewCache {
 
     /// Makes sure the preview for `url` at `modified` is cached. Only Markdown files have previews.
     func load(_ url: URL, modified: Date?) async {
-        guard NoteStore.isMarkdown(url.lastPathComponent) else { return }
+        guard NoteStore.isMarkdown(url.lastPathComponent), !NoteStore.isEncrypted(url.lastPathComponent) else { return }
         let key = url.path
         wanted[key] = Wanted(modified: modified)
         guard inFlight.insert(key).inserted else { return }

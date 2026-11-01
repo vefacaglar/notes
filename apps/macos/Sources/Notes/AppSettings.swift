@@ -56,6 +56,9 @@ final class AppSettings {
     /// A neutral band behind the caret's line in both editors.
     var highlightCurrentLine: Bool { didSet { save(highlightCurrentLine, .highlightCurrentLine) } }
     var restoreTabs: Bool { didSet { save(restoreTabs, .restoreTabs) } }
+    /// Minutes without input after which encrypted notes lock; 0 is never.
+    var lockEncryptedAfterMinutes: Int { didSet { save(lockEncryptedAfterMinutes, .lockEncryptedAfterMinutes) } }
+    nonisolated static let lockAfterChoices = [1, 5, 10, 30, 60, 0]
     var sidebarSort: SidebarSort { didSet { save(sidebarSort.rawValue, .sidebarSort) } }
     var showNonMarkdownFiles: Bool { didSet { save(showNonMarkdownFiles, .showNonMarkdownFiles) } }
     /// The modified date and a one-line preview under each note's name in the sidebar.
@@ -110,6 +113,8 @@ final class AppSettings {
         codeWrap = bool(.codeWrap, true)
         highlightCurrentLine = bool(.highlightCurrentLine, true)
         restoreTabs = bool(.restoreTabs, true)
+        lockEncryptedAfterMinutes = (defaults.object(forKey: Key.lockEncryptedAfterMinutes.name) as? Int)
+            .flatMap { Self.lockAfterChoices.contains($0) ? $0 : nil } ?? 10
         sidebarSort = string(.sidebarSort).flatMap(SidebarSort.init(rawValue:)) ?? .name
         showNonMarkdownFiles = bool(.showNonMarkdownFiles, true)
         showSidebarPreview = bool(.showSidebarPreview, true)
@@ -206,7 +211,7 @@ final class AppSettings {
         case appearanceMode, lightThemeID, darkThemeID, textFont, codeFont, lineSpacing, limitLineWidth, markerStyle
         case spellCheck, codeLineNumbers, codeWrap, restoreTabs, sidebarSort, showNonMarkdownFiles, autoNaming
         case showSidebarPreview, zoom, showStatusBar, showFormattingBar, focusMode
-        case highlightCurrentLine
+        case highlightCurrentLine, lockEncryptedAfterMinutes
 
         var name: String { "settings." + rawValue }
     }

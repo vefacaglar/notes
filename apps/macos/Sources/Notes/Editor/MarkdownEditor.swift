@@ -17,13 +17,17 @@ struct MarkdownEditor: NSViewRepresentable {
     var onOpenLink: ((String) -> Void)?
     /// The note's file, which relative image paths and pasted images are relative to; nil for a draft.
     var noteURL: URL?
+    /// False for an encrypted note: an image file in `assets` would be stored in plain.
+    var allowsImageInsertion = true
     /// Dims all but the caret's paragraph and keeps the caret line centred.
     var focusMode = false
 
     init(text: Binding<String>, style: EditorStyle = .standard, showsSource: Bool = false, focusOnAppear: Bool = false,
          proxy: TextEditorProxy? = nil, undoManager: UndoManager? = nil, isEditable: Bool = true,
-         onOpenLink: ((String) -> Void)? = nil, noteURL: URL? = nil, focusMode: Bool = false) {
+         onOpenLink: ((String) -> Void)? = nil, noteURL: URL? = nil, allowsImageInsertion: Bool = true,
+         focusMode: Bool = false) {
         self.noteURL = noteURL
+        self.allowsImageInsertion = allowsImageInsertion
         self.focusMode = focusMode
         _text = text
         self.style = style
@@ -45,6 +49,7 @@ struct MarkdownEditor: NSViewRepresentable {
         textView.isEditable = isEditable
         textView.onOpenLink = onOpenLink
         textView.noteURL = noteURL
+        textView.allowsImageInsertion = allowsImageInsertion
         textView.registerImageDragTypes()
 
         let coordinator = context.coordinator
@@ -76,6 +81,7 @@ struct MarkdownEditor: NSViewRepresentable {
         guard let textView = scrollView.documentView as? MarkdownTextView else { return }
         textView.isEditable = isEditable
         textView.onOpenLink = onOpenLink
+        textView.allowsImageInsertion = allowsImageInsertion
         proxy?.textView = textView
         proxy?.language = .markdown
         context.coordinator.configure(textView, style: style, showsSource: showsSource, initial: false)
@@ -656,6 +662,7 @@ final class MarkdownTextView: EditorTextView {
     var onOpenLink: ((String) -> Void)?
     /// The note's file (nil for a draft): where relative images are found and pasted images are saved.
     var noteURL: URL?
+    var allowsImageInsertion = true
     /// The lines with images under them, in document order; set by the coordinator.
     var imageSlots: [InlineImageSlot] = []
     var onLayoutWidthChange: (() -> Void)?
@@ -872,6 +879,10 @@ final class MarkdownTextView: EditorTextView {
     /// Saves each image into the note's `assets` folder and inserts `![](assets/…)` for them at `range`, one per
     /// line, as a single undo step. A draft has no folder yet: nothing is saved and a neutral message says so.
     private func insertImages(_ sources: [ImageSource], at range: NSRange) {
+        guard allowsImageInsertion else {
+            showImageMessage(L("Images can't be added to an encrypted note, because the image files would not be encrypted."))
+            return
+        }
         guard let noteURL else {
             showImageMessage(L("Save the note first to add images."))
             return

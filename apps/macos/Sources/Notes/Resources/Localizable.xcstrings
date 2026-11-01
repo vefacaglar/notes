@@ -243,6 +243,91 @@
         }
       }
     },
+    "1 minute": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 minute"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "1 dakika"
+          }
+        }
+      }
+    },
+    "10 minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 minutes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "10 dakika"
+          }
+        }
+      }
+    },
+    "30 minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 minutes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "30 dakika"
+          }
+        }
+      }
+    },
+    "5 minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 minutes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "5 dakika"
+          }
+        }
+      }
+    },
+    "60 minutes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "60 minutes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "60 dakika"
+          }
+        }
+      }
+    },
     "A file was changed elsewhere": {
       "extractionState": "manual",
       "localizations": {
@@ -307,6 +392,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yeni sekme açılamadı: %@"
+          }
+        }
+      }
+    },
+    "A plain copy is written next to it and the encrypted file is moved to the Trash.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A plain copy is written next to it and the encrypted file is moved to the Trash."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yanına düz bir kopya yazılır ve şifreli dosya Çöp Sepeti’ne taşınır."
+          }
+        }
+      }
+    },
+    "A plain note can't be saved with the .mdenc extension. Choose another name.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "A plain note can't be saved with the .mdenc extension. Choose another name."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Düz bir not .mdenc uzantısıyla kaydedilemez. Başka bir ad seçin."
           }
         }
       }
@@ -787,6 +906,40 @@
         }
       }
     },
+    "Choose a password for the copy. There is no way to recover a forgotten password.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a password for the copy. There is no way to recover a forgotten password."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kopya için bir parola seçin. Unutulan parolayı geri getirmenin yolu yoktur."
+          }
+        }
+      }
+    },
+    "Choose a password for “%@”. There is no way to recover a forgotten password.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Choose a password for “%@”. There is no way to recover a forgotten password."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” için bir parola seçin. Unutulan parolayı geri getirmenin yolu yoktur."
+          }
+        }
+      }
+    },
     "Choose folders to add to the workspace": {
       "extractionState": "manual",
       "localizations": {
@@ -974,6 +1127,23 @@
         }
       }
     },
+    "Continue": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Continue"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Devam"
+          }
+        }
+      }
+    },
     "Convert Selection to Table": {
       "extractionState": "manual",
       "localizations": {
@@ -987,6 +1157,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Seçimi Tabloya Dönüştür"
+          }
+        }
+      }
+    },
+    "Copies kept elsewhere (Time Machine, sync history, git) are not removed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Copies kept elsewhere (Time Machine, sync history, git) are not removed."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başka yerlerde tutulan kopyalar (Time Machine, eşitleme geçmişi, git) silinmez."
           }
         }
       }
@@ -1140,6 +1327,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Oluştur"
+          }
+        }
+      }
+    },
+    "Create Encrypted Note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Create Encrypted Note"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreli Not Oluştur"
           }
         }
       }
@@ -1348,6 +1552,74 @@
         }
       }
     },
+    "Encrypt Note": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encrypt Note"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notu Şifrele"
+          }
+        }
+      }
+    },
+    "Encrypt “%@”?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encrypt “%@”?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” şifrelensin mi?"
+          }
+        }
+      }
+    },
+    "Encrypting was cancelled.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encrypting was cancelled."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreleme iptal edildi."
+          }
+        }
+      }
+    },
+    "Encrypt…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Encrypt…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifrele…"
+          }
+        }
+      }
+    },
     "Error": {
       "extractionState": "manual",
       "localizations": {
@@ -1361,6 +1633,57 @@
           "stringUnit": {
             "state": "translated",
             "value": "Hata"
+          }
+        }
+      }
+    },
+    "Export": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Dışa Aktar"
+          }
+        }
+      }
+    },
+    "Export Encrypted Copy": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export Encrypted Copy"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreli Kopyayı Dışa Aktar"
+          }
+        }
+      }
+    },
+    "Export as Encrypted Note…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Export as Encrypted Note…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreli Not Olarak Dışa Aktar…"
           }
         }
       }
@@ -1654,6 +1977,23 @@
         }
       }
     },
+    "Images can't be added to an encrypted note, because the image files would not be encrypted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Images can't be added to an encrypted note, because the image files would not be encrypted."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreli bir nota görsel eklenemez, çünkü görsel dosyaları şifrelenmezdi."
+          }
+        }
+      }
+    },
     "Inline Code": {
       "extractionState": "manual",
       "localizations": {
@@ -1701,6 +2041,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Tablo Ekle…"
+          }
+        }
+      }
+    },
+    "It uses the password you entered earlier.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "It uses the password you entered earlier."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Daha önce girdiğiniz parola kullanılır."
           }
         }
       }
@@ -1875,6 +2232,57 @@
         }
       }
     },
+    "Lock Encrypted Notes": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock Encrypted Notes"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreli Notları Kilitle"
+          }
+        }
+      }
+    },
+    "Lock encrypted notes after": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Lock encrypted notes after"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreli notları şu süre sonra kilitle"
+          }
+        }
+      }
+    },
+    "Make an unencrypted copy of “%@”?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Make an unencrypted copy of “%@”?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” notunun şifresiz bir kopyası oluşturulsun mu?"
+          }
+        }
+      }
+    },
     "Markdown syntax": {
       "extractionState": "manual",
       "localizations": {
@@ -1990,6 +2398,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Notları ilk satırlarına göre adlandır"
+          }
+        }
+      }
+    },
+    "Never": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Never"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Hiçbir zaman"
+          }
+        }
+      }
+    },
+    "New Encrypted Note…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "New Encrypted Note…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni Şifreli Not…"
           }
         }
       }
@@ -2300,6 +2742,23 @@
         }
       }
     },
+    "Password": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Password"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parola"
+          }
+        }
+      }
+    },
     "Pin": {
       "extractionState": "manual",
       "localizations": {
@@ -2364,6 +2823,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Yazdır…"
+          }
+        }
+      }
+    },
+    "Protect with password": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Protect with password"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parola ile koru"
           }
         }
       }
@@ -2453,6 +2929,23 @@
         }
       }
     },
+    "Remove Encryption…": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove Encryption…"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifrelemeyi Kaldır…"
+          }
+        }
+      }
+    },
     "Remove Folder from Workspace": {
       "extractionState": "manual",
       "localizations": {
@@ -2466,6 +2959,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Çalışma Alanından Kaldır"
+          }
+        }
+      }
+    },
+    "Remove encryption from “%@”?": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Remove encryption from “%@”?"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” notunun şifrelemesi kaldırılsın mı?"
           }
         }
       }
@@ -3099,6 +3609,40 @@
         }
       }
     },
+    "The encrypted file didn't match the note.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The encrypted file didn't match the note."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Şifreli dosya notla eşleşmedi."
+          }
+        }
+      }
+    },
+    "The encryption of “%@” couldn't be removed, so the note was left as it was: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The encryption of “%@” couldn't be removed, so the note was left as it was: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” notunun şifrelemesi kaldırılamadı, bu yüzden not olduğu gibi bırakıldı: %@"
+          }
+        }
+      }
+    },
     "The image couldn't be read.": {
       "extractionState": "manual",
       "localizations": {
@@ -3146,6 +3690,108 @@
           "stringUnit": {
             "state": "translated",
             "value": "Taşıma iptal edildi."
+          }
+        }
+      }
+    },
+    "The new file didn't match the note.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The new file didn't match the note."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Yeni dosya notla eşleşmedi."
+          }
+        }
+      }
+    },
+    "The note changed meanwhile.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The note changed meanwhile."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Not bu sırada değişti."
+          }
+        }
+      }
+    },
+    "The notes were locked meanwhile, so nothing was changed.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The notes were locked meanwhile, so nothing was changed."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Notlar bu sırada kilitlendi, bu yüzden hiçbir şey değiştirilmedi."
+          }
+        }
+      }
+    },
+    "The original note is deleted permanently, not moved to the Trash.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The original note is deleted permanently, not moved to the Trash."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Özgün not Çöp Sepeti’ne taşınmaz, kalıcı olarak silinir."
+          }
+        }
+      }
+    },
+    "The password can't be empty.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The password can't be empty."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parola boş olamaz."
+          }
+        }
+      }
+    },
+    "The passwords don't match.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "The passwords don't match."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Parolalar eşleşmiyor."
           }
         }
       }
@@ -3252,6 +3898,40 @@
         }
       }
     },
+    "There is no way to recover a forgotten password.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "There is no way to recover a forgotten password."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unutulan parolayı geri getirmenin yolu yoktur."
+          }
+        }
+      }
+    },
+    "This encrypted note has no password in memory, so it can't be saved. Your changes are kept in this window.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This encrypted note has no password in memory, so it can't be saved. Your changes are kept in this window."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu şifreli notun parolası bellekte değil, bu yüzden kaydedilemiyor. Değişiklikleriniz bu pencerede tutuluyor."
+          }
+        }
+      }
+    },
     "This file changed on disk and is now too large to open; the last version read is shown.": {
       "extractionState": "manual",
       "localizations": {
@@ -3286,6 +3966,23 @@
         }
       }
     },
+    "This makes an unencrypted copy: anyone who can open it can read the note.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This makes an unencrypted copy: anyone who can open it can read the note."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu işlem şifresiz bir kopya oluşturur: açabilen herkes notu okuyabilir."
+          }
+        }
+      }
+    },
     "This note has not been saved to a folder yet.": {
       "extractionState": "manual",
       "localizations": {
@@ -3299,6 +3996,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "Bu not henüz bir klasöre kaydedilmedi."
+          }
+        }
+      }
+    },
+    "This note is a link or has several hard links, so deleting the original would leave its text behind. It can't be encrypted.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "This note is a link or has several hard links, so deleting the original would leave its text behind. It can't be encrypted."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Bu not bir bağlantı ya da birden çok sabit bağlantıya sahip, bu yüzden aslını silmek metnini geride bırakır. Şifrelenemez."
           }
         }
       }
@@ -3320,6 +4034,23 @@
         }
       }
     },
+    "Unlock": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Unlock"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Kilidi Aç"
+          }
+        }
+      }
+    },
     "Unpin": {
       "extractionState": "manual",
       "localizations": {
@@ -3333,6 +4064,40 @@
           "stringUnit": {
             "state": "translated",
             "value": "Sabitlemeyi Kaldır"
+          }
+        }
+      }
+    },
+    "Use Another Password": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Use Another Password"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Başka Parola Kullan"
+          }
+        }
+      }
+    },
+    "Verify": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Verify"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "Doğrula"
           }
         }
       }
@@ -3490,6 +4255,40 @@
         }
       }
     },
+    "“%@” couldn't be created: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” couldn't be created: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” oluşturulamadı: %@"
+          }
+        }
+      }
+    },
+    "“%@” couldn't be encrypted, so the note was left as it was: %@": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” couldn't be encrypted, so the note was left as it was: %@"
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” şifrelenemedi, bu yüzden not olduğu gibi bırakıldı: %@"
+          }
+        }
+      }
+    },
     "“%@” couldn't be opened: %@": {
       "extractionState": "manual",
       "localizations": {
@@ -3588,6 +4387,23 @@
           "stringUnit": {
             "state": "translated",
             "value": "“%@” başka bir uygulamada değiştirildi ve okunamıyor; üzerine yazılmadı."
+          }
+        }
+      }
+    },
+    "“%@” was changed in another app, so its encryption wasn't removed. Try again.": {
+      "extractionState": "manual",
+      "localizations": {
+        "en": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” was changed in another app, so its encryption wasn't removed. Try again."
+          }
+        },
+        "tr": {
+          "stringUnit": {
+            "state": "translated",
+            "value": "“%@” başka bir uygulamada değiştirildi, bu yüzden şifrelemesi kaldırılmadı. Tekrar deneyin."
           }
         }
       }

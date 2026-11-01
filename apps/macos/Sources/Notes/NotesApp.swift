@@ -190,6 +190,7 @@ struct NotesCommands: Commands {
             .keyboardShortcut("t")
             Button(loc: "New Folder") { (workspace ?? model.main).newFolder() }
                 .keyboardShortcut("n", modifiers: [.command, .shift])
+            Button(loc: "New Encrypted Note…") { model.newEncryptedNote() }
             Divider()
             Button(loc: "Add Folder to Workspace…", action: model.chooseRoot)
                 .keyboardShortcut("o", modifiers: [.command, .shift])
@@ -206,20 +207,26 @@ struct NotesCommands: Commands {
                     workspace.errorMessage = error
                 }
             }
-            .disabled(workspace?.activeDocument == nil)
+            .disabled(workspace?.activeDocument == nil || workspace?.activeDocument?.isLocked == true)
             Button(loc: "Export as PDF…") {
                 if let workspace, let document = workspace.activeDocument {
                     NoteExport.exportPDF(document, settings: settings, window: NSApp.keyWindow) { workspace.errorMessage = $0 }
                 }
             }
-            .disabled(workspace?.activeDocument == nil)
+            .disabled(workspace?.activeDocument == nil || workspace?.activeDocument?.isLocked == true)
+            Button(loc: "Export as Encrypted Note…") {
+                if let workspace, let document = workspace.activeDocument {
+                    NoteExport.exportEncrypted(document, window: NSApp.keyWindow) { workspace.errorMessage = $0 }
+                }
+            }
+            .disabled(workspace?.activeDocument?.language != .markdown || workspace?.activeDocument?.isLocked == true)
             Button(loc: "Print…") {
                 if let workspace, let document = workspace.activeDocument {
                     NoteExport.print(document, settings: settings, window: NSApp.keyWindow) { workspace.errorMessage = $0 }
                 }
             }
             .keyboardShortcut("p", modifiers: [.command, .option])
-            .disabled(workspace?.activeDocument == nil)
+            .disabled(workspace?.activeDocument == nil || workspace?.activeDocument?.isLocked == true)
         }
         CommandGroup(after: .newItem) {
             Divider()
@@ -257,7 +264,14 @@ struct NotesCommands: Commands {
             .keyboardShortcut("s")
             Button(loc: "Save As…") { workspace?.saveAs() }
                 .keyboardShortcut("s", modifiers: [.command, .shift])
-                .disabled(workspace?.activeTab == nil)
+                .disabled(workspace?.activeTab == nil || workspace?.activeDocument?.isLocked == true)
+            Divider()
+            Button(loc: "Encrypt…") { workspace?.encryptActive() }
+                .disabled(workspace?.canEncryptActive != true)
+            Button(loc: "Remove Encryption…") { workspace?.removeEncryptionActive() }
+                .disabled(workspace?.canRemoveEncryptionActive != true)
+            Button(loc: "Lock Encrypted Notes") { model.lockEncryptedNotes() }
+                .keyboardShortcut("l", modifiers: [.command, .option])
         }
         CommandGroup(after: .textEditing) {
             Divider()
@@ -277,7 +291,7 @@ struct NotesCommands: Commands {
                 set: { _ in workspace?.toggleSource() }
             ))
             .keyboardShortcut("r", modifiers: [.command, .shift])
-            .disabled(workspace?.activeDocument?.language != .markdown)
+            .disabled(workspace?.activeDocument?.language != .markdown || workspace?.activeDocument?.isLocked == true)
             Toggle(loc: "Show Markdown Syntax", isOn: Binding(
                 get: { settings.markerStyle == .dimmed },
                 set: { settings.markerStyle = $0 ? .dimmed : .hidden }

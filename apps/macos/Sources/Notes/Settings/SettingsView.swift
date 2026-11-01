@@ -77,6 +77,17 @@ private struct GeneralSettingsView: View {
             }
 
             Section {
+                Picker(loc: "Lock encrypted notes after", selection: $settings.lockEncryptedAfterMinutes) {
+                    Text(loc: "1 minute").tag(1)
+                    Text(loc: "5 minutes").tag(5)
+                    Text(loc: "10 minutes").tag(10)
+                    Text(loc: "30 minutes").tag(30)
+                    Text(loc: "60 minutes").tag(60)
+                    Text(loc: "Never").tag(0)
+                }
+            }
+
+            Section {
                 Picker(loc: "Sort by", selection: $settings.sidebarSort) {
                     Text(loc: "Name").tag(SidebarSort.name)
                     Text(loc: "Date Modified").tag(SidebarSort.modified)

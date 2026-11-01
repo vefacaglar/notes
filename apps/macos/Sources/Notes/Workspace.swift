@@ -126,16 +126,24 @@ struct UnavailableRoot: Identifiable, Hashable {
 enum NamePrompt: Equatable {
     case newFolder(in: ItemID)
     case rename(ItemID)
+    case newEncrypted(in: ItemID)
+    case encrypt(ItemID)
 
     var title: String {
         switch self {
         case .newFolder: L("New Folder")
         case .rename: L("Rename")
+        case .newEncrypted: L("Create Encrypted Note")
+        case .encrypt: L("Encrypt Note")
         }
     }
 
     var action: String {
-        if case .rename = self { L("Rename") } else { L("Create") }
+        switch self {
+        case .rename: L("Rename")
+        case .encrypt: L("Continue")
+        default: L("Create")
+        }
     }
 }
 
@@ -452,7 +460,7 @@ final class Workspace: Identifiable {
         return tabs.first { NoteDocument.canonical($0.document.url) == key }
     }
 
-    private func setSelectionQuietly(_ item: ItemID?) {
+    func setSelectionQuietly(_ item: ItemID?) {
         isSyncingSelection = true
         selection = item
         isSyncingSelection = false
@@ -804,17 +812,41 @@ final class Workspace: Identifiable {
         let panel = NSSavePanel()
         panel.canCreateDirectories = true
         let isMarkdownNote = document.isDraft || document.isNote
-        panel.nameFieldStringValue = isMarkdownNote ? document.name + ".md" : document.url.lastPathComponent
-        if isMarkdownNote { panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText] }
+        let isEncrypted = document.isEncrypted
+        // A locked note has no text to save.
+        guard !document.isLocked else { return }
+        panel.nameFieldStringValue = isEncrypted ? document.name + ".mdenc"
+            : isMarkdownNote ? document.name + ".md" : document.url.lastPathComponent
+        if isEncrypted {
+            panel.allowedContentTypes = [.encryptedNote]
+        } else if isMarkdownNote {
+            panel.allowedContentTypes = [.init(filenameExtension: "md") ?? .plainText]
+        }
         panel.directoryURL = document.isDraft ? targetFolder.flatMap(url(for:)) : document.url.deletingLastPathComponent()
-        guard panel.runModal() == .OK, let url = panel.url else { return }
+        guard panel.runModal() == .OK, var url = panel.url else { return }
+        guard !document.isLocked else {
+            errorMessage = Self.lockedMeanwhile
+            return
+        }
+        // Plain text is never saved under the name of an encrypted note.
+        if !isEncrypted, NoteStore.isEncrypted(url.lastPathComponent) {
+            errorMessage = L("A plain note can't be saved with the .mdenc extension. Choose another name.")
+            return
+        }
+        // The copy of an encrypted note is an encrypted note: its name always ends in .mdenc.
+        if isEncrypted, !NoteStore.isEncrypted(url.lastPathComponent) { url.appendPathExtension(NoteCrypto.fileExtension) }
         if !document.isDraft, NoteDocument.canonical(url) == NoteDocument.canonical(document.url) {
             document.flush()
             return
         }
         let text = document.text
         do {
-            try NoteFile.write(text, to: url)
+            if isEncrypted {
+                try NoteFile.write(document.encryptedCopy(), to: url)
+                if let key = document.encryptionKey { Keyring.shared.remember(key) }
+            } else {
+                try NoteFile.write(text, to: url)
+            }
         } catch {
             errorMessage = L("“\(url.lastPathComponent)” couldn't be saved: \(error.localizedDescription)")
             return
@@ -881,7 +913,7 @@ final class Workspace: Identifiable {
         ask(.rename(item), name: NoteStore.displayName(item.path))
     }
 
-    private func ask(_ prompt: NamePrompt, name: String) {
+    func ask(_ prompt: NamePrompt, name: String) {
         promptName = name
         self.prompt = prompt
     }
@@ -894,6 +926,13 @@ final class Workspace: Identifiable {
         self.prompt = nil
         do {
             switch prompt {
+            case .newEncrypted(let parent):
+                let name = promptName
+                // After the alert has gone: the password dialogs run modally.
+                DispatchQueue.main.async { self.createEncryptedNote(named: name, in: parent) }
+            case .encrypt(let item):
+                let name = promptName
+                DispatchQueue.main.async { self.startEncrypting(item, named: name) }
             case .newFolder(let parent):
                 guard let root = root(parent.root) else { return }
                 let path = try root.store.createFolder(named: promptName, in: parent.isRoot ? nil : parent.path)
@@ -940,6 +979,8 @@ final class Workspace: Identifiable {
         if let item = moved(selection) { setSelectionQuietly(item) }
         if case .rename(let target)? = prompt, let item = moved(target) { prompt = .rename(item) }
         if case .newFolder(let target)? = prompt, let item = moved(target) { prompt = .newFolder(in: item) }
+        if case .encrypt(let target)? = prompt, let item = moved(target) { prompt = .encrypt(item) }
+        if case .newEncrypted(let target)? = prompt, let item = moved(target) { prompt = .newEncrypted(in: item) }
         if let item = moved(trashCandidate) { trashCandidate = item }
     }
 
@@ -965,7 +1006,7 @@ final class Workspace: Identifiable {
     /// Saves the open files at or below `path` before it is renamed or trashed and returns `path`, following it if a
     /// save auto-renamed it. `nil` when a save needs the user and its file is still inside `path`: the operation is
     /// then cancelled (`cancelled` says so after the save's own message).
-    private func saveDocuments(in root: RootFolder, inside path: String, cancelled: String) -> String? {
+    func saveDocuments(in root: RootFolder, inside path: String, cancelled: String) -> String? {
         guard let target = try? root.store.url(for: path) else { return path }
         var path = path
         for document in NoteDocument.all where !document.isDraft && FilePaths.isInside(document.url, target) {

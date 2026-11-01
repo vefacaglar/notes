@@ -27,11 +27,13 @@ cat > "$APP/Contents/Resources/en.lproj/InfoPlist.strings" <<'STRINGS'
 "CFBundleName" = "Notes";
 "CFBundleDisplayName" = "Notes";
 "Text and Code" = "Text and Code";
+"Encrypted Note" = "Encrypted Note";
 STRINGS
 cat > "$APP/Contents/Resources/tr.lproj/InfoPlist.strings" <<'STRINGS'
 "CFBundleName" = "Notlar";
 "CFBundleDisplayName" = "Notlar";
 "Text and Code" = "Metin ve Kod";
+"Encrypted Note" = "Şifreli Not";
 STRINGS
 
 cat > "$APP/Contents/Info.plist" <<'PLIST'
@@ -63,6 +65,13 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
             <key>LSHandlerRank</key><string>Default</string>
             <key>LSItemContentTypes</key>
             <array><string>net.daringfireball.markdown</string></array>
+        </dict>
+        <dict>
+            <key>CFBundleTypeName</key><string>Encrypted Note</string>
+            <key>CFBundleTypeRole</key><string>Editor</string>
+            <key>LSHandlerRank</key><string>Default</string>
+            <key>LSItemContentTypes</key>
+            <array><string>com.vefa.notes.encrypted-note</string></array>
         </dict>
         <dict>
             <!-- Alternate: listed under "Open With", never made the default for these types. -->
@@ -103,6 +112,18 @@ cat > "$APP/Contents/Info.plist" <<'PLIST'
             <key>UTTypeDescription</key><string>Notes Tab</string>
             <key>UTTypeConformsTo</key>
             <array><string>public.data</string></array>
+        </dict>
+        <dict>
+            <!-- .mdenc: binary, not text, so Spotlight and Quick Look don't treat it as one. -->
+            <key>UTTypeIdentifier</key><string>com.vefa.notes.encrypted-note</string>
+            <key>UTTypeDescription</key><string>Encrypted Note</string>
+            <key>UTTypeConformsTo</key>
+            <array><string>public.data</string></array>
+            <key>UTTypeTagSpecification</key>
+            <dict>
+                <key>public.filename-extension</key>
+                <array><string>mdenc</string></array>
+            </dict>
         </dict>
     </array>
     <key>UTImportedTypeDeclarations</key>
