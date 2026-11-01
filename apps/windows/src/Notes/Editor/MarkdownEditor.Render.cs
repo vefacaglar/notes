@@ -457,7 +457,7 @@ internal sealed partial class MarkdownEditor
         var length = LastText.Length;
         foreach (var slot in imageSlots)
         {
-            slot.Paths = [.. slot.Destinations.Select(d => MarkdownImages.FilePath(d, folder) is { } path && IsLocalDrive(path) ? path : null)];
+            slot.Paths = [.. slot.Destinations.Select(d => MarkdownImages.FilePath(d, folder) is { } path && (IsLocalDrive(path) || MarkdownImages.IsInside(path, folder)) ? path : null)];
             slot.Sizes = [.. slot.Paths.Select(p => p is not null && cache.Size(p, this, ImagesLoaded) is { } natural
                 ? InlineImageLayout.Size(natural.Width, natural.Height, width) : (0.0, 0.0))];
             if (slot.Paragraph.End > length || IsComposing) continue;

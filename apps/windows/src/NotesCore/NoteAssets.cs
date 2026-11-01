@@ -129,7 +129,23 @@ public static class MarkdownImages
     {
         // Network shares (\\server\share, file://server/share) are not local files: reading one would sign in to that server.
         var path = LocalFilePath(destination, noteFolder);
-        return path is null || path.StartsWith(@"\\", StringComparison.Ordinal) ? null : path;
+        // The note's own folder is the exception: the note itself already came from there.
+        return path is null || (path.StartsWith(@"\\", StringComparison.Ordinal) && !IsInside(path, noteFolder)) ? null : path;
+    }
+
+    /// <summary>Whether <paramref name="path"/> is <paramref name="folder"/> or lies below it.</summary>
+    public static bool IsInside(string path, string? folder)
+    {
+        if (folder is null) return false;
+        try
+        {
+            var relative = Path.GetRelativePath(Path.GetFullPath(folder), path);
+            return !Path.IsPathRooted(relative) && relative != ".." && !relative.StartsWith(".." + Path.DirectorySeparatorChar, StringComparison.Ordinal);
+        }
+        catch (Exception e) when (e is ArgumentException or NotSupportedException or PathTooLongException)
+        {
+            return false;
+        }
     }
 
     private static string? LocalFilePath(string destination, string? noteFolder)
