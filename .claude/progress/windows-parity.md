@@ -22,3 +22,7 @@ User asked: bring every macOS feature to Windows. Core port first (3 parallel wo
 4. Sidebar: pins, recents (Open Recent), duplicate, drag-drop move, copy in from Explorer, sort by name/date, show other files, previews, quick open Ctrl+P, empty-workspace state.
 5. Settings window (Ctrl+,): General, Appearance (themes/fonts from Theme core), Editor, Sidebar; language moves there.
 6. Export HTML/PDF/print (Ctrl+Shift+P), protected PDF, encryption UI (.mdenc lock/unlock, new/encrypt/remove, lock all, auto-lock on lock/sleep/idle), About.
+
+## Batch 2 status (editor commands, 2026-11-01)
+
+Done in code, build and tests green, not yet seen in the running app: Format commands (menu, right-click, bar, shortcuts: Ctrl+Shift where macOS has ⌥⌘/⌃⌘), formatting bar above the editor with active states, Return/Tab/table Tab/task click, links (click or Ctrl+click, Open Link, wiki, programs revealed), find/replace panel, status bar, outline flyout (Ctrl+Shift+D), zoom (keys and Ctrl+wheel), focus mode (colour dim + centring), reading mode (outside files open in it) and Show Source, editor settings persisted in settings.json (spell check default off like macOS). Settings window (batch 5) will expose the toggles. Needs a human check: icon glyphs, GetRect-based current-line band and caret centring, Ctrl+wheel scrolling, task click caret restore, plain-click link opening vs double-click.

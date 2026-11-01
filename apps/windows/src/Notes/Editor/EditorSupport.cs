@@ -18,12 +18,14 @@ namespace Notes.Editor;
 /// undo history. RichEdit stores line breaks as CR and always ends with one extra CR; both are mapped here, and
 /// positions are the same UTF-16 offsets as in the document text.
 /// </summary>
-internal abstract class TextEditor
+internal abstract partial class TextEditor
 {
     /// <summary>Beyond this many UTF-16 units the text stays plain; styling it would stall typing.</summary>
     public const int MaxStyledLength = 2_000_000;
 
     public RichEditBox Box { get; }
+    /// <summary>What goes into the layout: the box with the current-line band behind it.</summary>
+    public Grid Host { get; }
     protected NoteDocument Note { get; }
     /// <summary>The text RichEdit held after the last processed change (LF line breaks).</summary>
     protected string LastText { get; private set; } = "";
@@ -42,6 +44,8 @@ internal abstract class TextEditor
 
     private readonly UndoHistory history = new();
     private bool loaded;
+    /// <summary>The editor has been in the visual tree and holds the document's text.</summary>
+    protected bool IsReady => loaded;
     private bool composing;
     /// <summary>RichEdit reported a content change (not just formatting) that hasn't been processed yet.</summary>
     private bool contentChanged;
@@ -49,12 +53,12 @@ internal abstract class TextEditor
     private bool discreteNext;
     private ScrollViewer? scroller;
 
-    protected TextEditor(NoteDocument note, bool spellCheck)
+    protected TextEditor(NoteDocument note)
     {
         Note = note;
         Box = new RichEditBox
         {
-            IsSpellCheckEnabled = spellCheck,
+            IsSpellCheckEnabled = AppSettings.SpellCheck,
             IsTextPredictionEnabled = false,
             TextWrapping = TextWrapping.Wrap,
             AcceptsReturn = true,
@@ -125,13 +129,16 @@ internal abstract class TextEditor
         Note.TextChanged += OnNoteTextChanged;
         Note.SyncRequested += Sync;
         Note.ReadOnlyChanged += OnReadOnlyChanged;
+        Host = new Grid();
+        InitializeFeatures();
     }
 
     /// <summary>The file became (or stopped being) read-only while open.</summary>
     private void OnReadOnlyChanged()
     {
         Sync();
-        Box.IsReadOnly = Note.IsReadOnly || !IsFaithful;
+        Box.IsReadOnly = Note.IsReadOnly || !IsFaithful || Reading;
+        ReadOnlyStateChanged?.Invoke();
     }
 
     /// <summary>Stops following the document; call when the editor goes away. Unreported typing is handed over first.</summary>
@@ -142,6 +149,7 @@ internal abstract class TextEditor
         Note.SyncRequested -= Sync;
         Note.ReadOnlyChanged -= OnReadOnlyChanged;
         EndComposition(process: false);
+        ReleaseFeatures();
     }
 
     public void Focus() => Box.Focus(FocusState.Programmatic);
@@ -277,7 +285,7 @@ internal abstract class TextEditor
         contentChanged = false;
         LastText = ReadText();
         var faithful = string.Equals(LastText, text, StringComparison.Ordinal);
-        Box.IsReadOnly = Note.IsReadOnly || !faithful;
+        Box.IsReadOnly = Note.IsReadOnly || !faithful || Reading;
         if (faithful != IsFaithful)
         {
             IsFaithful = faithful;
@@ -419,15 +427,6 @@ internal abstract class TextEditor
 
     public void SelectAll() => Box.Document.Selection.SetRange(0, LastText.Length);
 
-    /// <summary>Format &gt; Bold / Italic; only the Markdown editor has them.</summary>
-    public virtual void ToggleBold()
-    {
-    }
-
-    public virtual void ToggleItalic()
-    {
-    }
-
     private string SelectedText()
     {
         Box.Document.Selection.GetText(TextGetOptions.None, out var text);
@@ -495,6 +494,12 @@ internal abstract class TextEditor
     protected static bool IsDown(VirtualKey key) =>
         InputKeyboardSource.GetKeyStateForCurrentThread(key).HasFlag(CoreVirtualKeyStates.Down);
 
+    /// <summary>
+    /// Runs a window-level shortcut (set by the main window: the menu's accelerators). Returns whether the keys are one.
+    /// The editor asks first, so RichEdit's own Ctrl combinations (subscript on Ctrl+=, alignment…) never see them.
+    /// </summary>
+    public static Func<VirtualKey, VirtualKeyModifiers, bool>? ShortcutHook { get; set; }
+
     private void OnPreviewKeyDown(object sender, KeyRoutedEventArgs e)
     {
         if (composing || e.Key is VirtualKey.Control or VirtualKey.Shift or VirtualKey.Menu or VirtualKey.LeftWindows) return;
@@ -504,6 +509,12 @@ internal abstract class TextEditor
         var alt = IsDown(VirtualKey.Menu);
         if (ctrl && !alt)
         {
+            var modifiers = VirtualKeyModifiers.Control | (shift ? VirtualKeyModifiers.Shift : VirtualKeyModifiers.None);
+            if (ShortcutHook?.Invoke(e.Key, modifiers) == true)
+            {
+                e.Handled = true;
+                return;
+            }
             switch (e.Key)
             {
                 case VirtualKey.Z:
@@ -519,20 +530,14 @@ internal abstract class TextEditor
                     history.Break();
                     discreteNext = true;
                     return;
-                // Editing, navigation and the app's own shortcuts pass through (Ctrl+B is Bold, handled below; Ctrl+Shift+B,
-                // Ctrl+F, Ctrl+Shift+F, Ctrl+1..9 and Ctrl+Shift+[ ] belong to the window).
+                // Editing and navigation pass through to RichEdit.
                 case VirtualKey.A or VirtualKey.C or VirtualKey.V or VirtualKey.Insert or VirtualKey.Back or VirtualKey.Delete
                     or VirtualKey.Left or VirtualKey.Right or VirtualKey.Up or VirtualKey.Down or VirtualKey.Home or VirtualKey.End
-                    or VirtualKey.PageUp or VirtualKey.PageDown or VirtualKey.Tab
-                    or VirtualKey.N or VirtualKey.S or VirtualKey.F or VirtualKey.O or VirtualKey.T or VirtualKey.W:
-                case VirtualKey.B when shift:
-                case >= VirtualKey.Number1 and <= VirtualKey.Number9 when !shift:
-                case OemOpenBrackets or OemCloseBrackets when shift:
+                    or VirtualKey.PageUp or VirtualKey.PageDown or VirtualKey.Tab or VirtualKey.O:
                     return;
                 default:
                     // Everything else is a RichEdit formatting shortcut (alignment, lists, line spacing…): swallowed.
                     e.Handled = true;
-                    if (!Box.IsReadOnly) HandleShortcut(e.Key, shift);
                     return;
             }
         }
@@ -543,24 +548,20 @@ internal abstract class TextEditor
             e.Handled = true;
             InsertNewline();
         }
-        else if (e.Key == VirtualKey.Tab && !shift && HandleTab())
+        else if (e.Key == VirtualKey.Tab && HandleTab(backward: shift))
         {
             e.Handled = true;
         }
     }
 
-    /// <summary>Ctrl+`key` in an editable editor.</summary>
-    protected virtual void HandleShortcut(VirtualKey key, bool shift)
-    {
-    }
-
     protected virtual void InsertNewline() => Insert("\n");
 
-    protected virtual bool HandleTab() => false;
+    /// <summary>Tab (or Shift+Tab, `backward`) in an editable editor; true when handled, false for RichEdit's own tab.</summary>
+    protected virtual bool HandleTab(bool backward) => false;
 
     // MARK: Formatting command
 
-    public bool CanFormat => Note.Language.CanFormat() && !Note.IsReadOnly && IsFaithful;
+    public bool CanFormat => Note.Language.CanFormat() && !Note.IsReadOnly && IsFaithful && !Reading;
 
     /// <summary>"Format": reformats the text as one undoable step. On invalid input it puts the caret at the error
     /// and shows the reason.</summary>

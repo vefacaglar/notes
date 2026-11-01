@@ -7,6 +7,7 @@ using Microsoft.UI.Xaml.Controls.Primitives;
 using Microsoft.UI.Xaml.Input;
 using Microsoft.UI.Xaml.Media;
 using Microsoft.UI.Xaml.Shapes;
+using Notes.Editor;
 using NotesCore;
 using Windows.Foundation;
 using Windows.Foundation.Collections;
@@ -26,10 +27,12 @@ public sealed partial class MainWindow : Window
     private readonly Dictionary<NoteTab, (NoteDocument Document, Action Update)> tabWatchers = [];
     private bool syncingTabs;
     private readonly Func<Task> requestClose;
+    private readonly LinkOpener links;
     private RectInt32[] passthrough = [];
     internal MainWindow(NotesModel model, SessionWindow? session = null)
     {
         this.model = model;
+        links = new LinkOpener(model);
         InitializeComponent();
         if (AppSettings.ThemeOverride is { } theme) Root.RequestedTheme = theme;
         Root.LayoutUpdated += (_, _) => UpdateStrokeGap();
@@ -61,6 +64,7 @@ public sealed partial class MainWindow : Window
             model.ErrorChanged -= ShowError;
             model.WindowRequested -= BringToFront;
             sessionEnabled = false;
+            TextEditor.ShortcutHook = null;
             Sidebar.Detach();
             foreach (var editor in editors.Values) editor.Detach();
             editors.Clear();
@@ -410,11 +414,14 @@ public sealed partial class MainWindow : Window
         NoteEditorView? editor = null;
         if (tab?.Document is { } document && !editors.TryGetValue(tab, out editor))
         {
-            editor = new NoteEditorView(document);
+            editor = new NoteEditorView(document, tab);
+            editor.LinkActivated += raw => _ = links.OpenAsync(raw, document);
+            editor.ReadingToggleRequested += ToggleReading;
             editors[tab] = editor;
             if (tab.ViewState is { } view) editor.ApplyViewState(view);
             tab.ViewState = null;
         }
+        editor?.ApplyModes();
         if (EditorHost.Child != editor) EditorHost.Child = editor;
         Placeholder.Visibility = editor is null ? Visibility.Visible : Visibility.Collapsed;
         UpdateTitle();

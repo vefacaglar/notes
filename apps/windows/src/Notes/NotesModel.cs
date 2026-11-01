@@ -39,7 +39,7 @@ internal sealed record UnavailableRoot(string Path, string Reason)
 internal sealed class NoteTab
 {
     public NoteDocument? Document { get; set; }
-    /// <summary>Show Source and Reading Mode (batch 2 gives them an effect); kept so a session round-trips them.</summary>
+    /// <summary>Show Source (Markdown as plain source) and Reading Mode (not editable), saved with the tab in the session.</summary>
     public bool ShowsSource { get; set; }
     public bool Reading { get; set; }
     /// <summary>Selection and scroll position restored from the session; applied when the tab's editor first appears.</summary>
@@ -719,7 +719,7 @@ internal sealed class NotesModel
     /// Shows the file at `fullPath`: focuses its tab if it has one; otherwise opens it in the active tab (after saving that
     /// tab's file; if the save fails, nothing changes and its error says why) or, with `newTab`, in a new tab.
     /// </summary>
-    public async Task OpenFileAsync(string fullPath, bool newTab, bool focus = false, ItemRef? item = null, bool cancellable = true)
+    public async Task OpenFileAsync(string fullPath, bool newTab, bool focus = false, ItemRef? item = null, bool cancellable = true, bool reading = false)
     {
         var version = ++openVersion;
         // A later click supersedes an earlier one; files from Explorer are queued instead and always open.
@@ -772,6 +772,10 @@ internal sealed class NotesModel
                 if (old.IsDraft && old.Text.Length == 0) Drafts.TryDelete(old.Path);
             }
             target.Document = opened;
+            // The tab starts in the mode of the way the file was opened (a file from Explorer opens in reading mode).
+            target.Reading = reading;
+            target.ShowsSource = false;
+            target.ViewState = null;
             TabsChanged?.Invoke();
             ActiveTab = null;
             ActivateTab(target);
@@ -805,7 +809,7 @@ internal sealed class NotesModel
                 var item = Locate(canonical) ?? Locate(path);
                 if (item is not null && await Task.Run(() => IsHidden(item.Root, item.Path))) item = null;
                 SetQuery("");
-                await OpenFileAsync(item?.FullPath ?? canonical, newTab: !IsEmptyTab, item: item, cancellable: false);
+                await OpenFileAsync(item?.FullPath ?? canonical, newTab: !IsEmptyTab, item: item, cancellable: false, reading: true);
             }
         }
     }

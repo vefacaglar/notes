@@ -112,4 +112,63 @@
   <data name="VersionFormat" xml:space="preserve"><value>Version {0}</value></data>
   <data name="AboutDescription" xml:space="preserve"><value>A minimal Markdown notes app for plain .md files.</value></data>
   <data name="Retry" xml:space="preserve"><value>Retry</value></data>
+  <data name="Strikethrough" xml:space="preserve"><value>Strikethrough</value></data>
+  <data name="InlineCode" xml:space="preserve"><value>Inline Code</value></data>
+  <data name="Link" xml:space="preserve"><value>Link</value></data>
+  <data name="Heading" xml:space="preserve"><value>Heading</value></data>
+  <data name="Heading1" xml:space="preserve"><value>Heading 1</value></data>
+  <data name="Heading2" xml:space="preserve"><value>Heading 2</value></data>
+  <data name="Heading3" xml:space="preserve"><value>Heading 3</value></data>
+  <data name="Body" xml:space="preserve"><value>Body</value></data>
+  <data name="BulletedList" xml:space="preserve"><value>Bulleted List</value></data>
+  <data name="NumberedList" xml:space="preserve"><value>Numbered List</value></data>
+  <data name="Checklist" xml:space="preserve"><value>Checklist</value></data>
+  <data name="Quote" xml:space="preserve"><value>Quote</value></data>
+  <data name="CodeBlock" xml:space="preserve"><value>Code Block</value></data>
+  <data name="HorizontalRule" xml:space="preserve"><value>Horizontal Rule</value></data>
+  <data name="InsertTable" xml:space="preserve"><value>Insert Table…</value></data>
+  <data name="ConvertToTable" xml:space="preserve"><value>Convert Selection to Table</value></data>
+  <data name="Table" xml:space="preserve"><value>Table</value></data>
+  <data name="AddRowAbove" xml:space="preserve"><value>Add Row Above</value></data>
+  <data name="AddRowBelow" xml:space="preserve"><value>Add Row Below</value></data>
+  <data name="AddColumnLeft" xml:space="preserve"><value>Add Column Left</value></data>
+  <data name="AddColumnRight" xml:space="preserve"><value>Add Column Right</value></data>
+  <data name="DeleteRow" xml:space="preserve"><value>Delete Row</value></data>
+  <data name="DeleteColumn" xml:space="preserve"><value>Delete Column</value></data>
+  <data name="AlignColumnLeft" xml:space="preserve"><value>Align Column Left</value></data>
+  <data name="AlignColumnCenter" xml:space="preserve"><value>Align Column Center</value></data>
+  <data name="AlignColumnRight" xml:space="preserve"><value>Align Column Right</value></data>
+  <data name="ShowOutline" xml:space="preserve"><value>Show Outline</value></data>
+  <data name="HideOutline" xml:space="preserve"><value>Hide Outline</value></data>
+  <data name="Outline" xml:space="preserve"><value>Outline</value></data>
+  <data name="NoHeadings" xml:space="preserve"><value>No headings</value></data>
+  <data name="FocusMode" xml:space="preserve"><value>Focus Mode</value></data>
+  <data name="ShowSource" xml:space="preserve"><value>Show Source</value></data>
+  <data name="ReadingMode" xml:space="preserve"><value>Reading Mode</value></data>
+  <data name="ShowStatusBar" xml:space="preserve"><value>Show Status Bar</value></data>
+  <data name="ShowFormattingBar" xml:space="preserve"><value>Show Formatting Bar</value></data>
+  <data name="ZoomIn" xml:space="preserve"><value>Zoom In</value></data>
+  <data name="ZoomOut" xml:space="preserve"><value>Zoom Out</value></data>
+  <data name="ActualSize" xml:space="preserve"><value>Actual Size</value></data>
+  <data name="WordsOne" xml:space="preserve"><value>{0} word</value></data>
+  <data name="WordsMany" xml:space="preserve"><value>{0} words</value></data>
+  <data name="CharactersOne" xml:space="preserve"><value>{0} character</value></data>
+  <data name="CharactersMany" xml:space="preserve"><value>{0} characters</value></data>
+  <data name="LinesOne" xml:space="preserve"><value>{0} line</value></data>
+  <data name="LinesMany" xml:space="preserve"><value>{0} lines</value></data>
+  <data name="NoSuchNote" xml:space="preserve"><value>There is no note named “{0}” in the workspace.</value></data>
+  <data name="LinkNotOpened" xml:space="preserve"><value>The link “{0}” couldn't be opened.</value></data>
+  <data name="OpenLink" xml:space="preserve"><value>Open Link</value></data>
+  <data name="Find" xml:space="preserve"><value>Find</value></data>
+  <data name="FindNext" xml:space="preserve"><value>Find Next</value></data>
+  <data name="FindPrevious" xml:space="preserve"><value>Find Previous</value></data>
+  <data name="Replace" xml:space="preserve"><value>Replace</value></data>
+  <data name="FindPlaceholder" xml:space="preserve"><value>Find</value></data>
+  <data name="ReplacePlaceholder" xml:space="preserve"><value>Replace with</value></data>
+  <data name="ReplaceAll" xml:space="preserve"><value>Replace All</value></data>
+  <data name="ToggleReplace" xml:space="preserve"><value>Show Replace</value></data>
+  <data name="CloseFind" xml:space="preserve"><value>Close</value></data>
+  <data name="FindNoResults" xml:space="preserve"><value>No results</value></data>
+  <data name="FindMatches" xml:space="preserve"><value>{0} matches</value></data>
+  <data name="FindPosition" xml:space="preserve"><value>{0} of {1}</value></data>
 </root>

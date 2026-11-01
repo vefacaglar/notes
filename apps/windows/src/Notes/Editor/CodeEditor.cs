@@ -9,19 +9,30 @@ namespace Notes.Editor;
 /// <summary>Monospaced editor with syntax highlighting for code, data and plain text files (port of CodeEditor.swift).</summary>
 internal sealed class CodeEditor : TextEditor
 {
-    private const double FontSize = 13;
+    private const double BaseFontSize = 13;
+    private static double FontSize => EditorFonts.Scaled(BaseFontSize);
 
     private readonly CodeLanguage language;
     private List<CodeSpan> spans = [];
     /// <summary>What Tab inserts; set per file from its existing indentation.</summary>
     private string indentUnit = "    ";
 
-    public CodeEditor(NoteDocument note) : base(note, spellCheck: false)
+    public CodeEditor(NoteDocument note) : base(note)
     {
         language = note.Language;
-        Box.Padding = new Thickness(24, 16, 24, 16);
+        Box.TextWrapping = AppSettings.CodeWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
+        FontSettingsChanged();
+    }
+
+    protected override Thickness ComputePadding() => new(24, 16, 24, 16);
+
+    protected override void FontSettingsChanged() =>
         // Four spaces of the monospaced font (about 0.55–0.6 em per character).
         Box.Document.DefaultTabStop = EditorFonts.Points(FontSize) * 4 * 0.58f;
+
+    protected override void SettingChanged(string key)
+    {
+        if (key == "codeWrap") Box.TextWrapping = AppSettings.CodeWrap ? TextWrapping.Wrap : TextWrapping.NoWrap;
     }
 
     protected override void Loading(string text) => indentUnit = language.IndentUnit(text);
@@ -84,12 +95,13 @@ internal sealed class CodeEditor : TextEditor
         format.Strikethrough = FormatEffect.Off;
         format.ForegroundColor = Palette.Text;
         format.BackgroundColor = Colors.Transparent;
-        range.ParagraphFormat.SetLineSpacing(LineSpacingRule.Multiple, 1.15f);
+        range.ParagraphFormat.SetLineSpacing(LineSpacingRule.Multiple, (float)AppSettings.LineSpacing);
         range.ParagraphFormat.SpaceAfter = 0;
     }
 
-    protected override bool HandleTab()
+    protected override bool HandleTab(bool backward)
     {
+        if (backward) return false;
         Insert(indentUnit);
         return true;
     }
