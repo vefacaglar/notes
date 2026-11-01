@@ -10,6 +10,8 @@ public enum NoteStoreError
 {
     InvalidName,
     AlreadyExists,
+    /// <summary>The root folder is missing or is not a folder.</summary>
+    RootUnavailable,
 }
 
 public sealed class NoteStoreException(NoteStoreError error, string name) : Exception
@@ -20,6 +22,7 @@ public sealed class NoteStoreException(NoteStoreError error, string name) : Exce
     public override string Message => Error switch
     {
         NoteStoreError.InvalidName => Strings.Format("InvalidName", Name),
+        NoteStoreError.RootUnavailable => Strings.Format("RootUnavailable", Name),
         _ => Strings.Format("AlreadyExists", Name),
     };
 }
@@ -52,11 +55,16 @@ public sealed partial class NoteStore
 
     public string Root { get; }
 
-    public NoteStore(string root)
+    /// <summary>
+    /// `createIfMissing` makes a missing root folder; without it a missing root (or one that is a file) throws
+    /// <see cref="NoteStoreError.RootUnavailable"/>, so a folder that went away is never silently recreated.
+    /// </summary>
+    public NoteStore(string root, bool createIfMissing = true)
     {
         Root = Path.TrimEndingDirectorySeparator(Path.GetFullPath(root));
         if (Root.Length == 2 && Root[1] == ':') Root += System.IO.Path.DirectorySeparatorChar;
-        Directory.CreateDirectory(Root);
+        if (createIfMissing) Directory.CreateDirectory(Root);
+        else if (!Directory.Exists(Root)) throw new NoteStoreException(NoteStoreError.RootUnavailable, Root);
     }
 
     /// <summary>Notes are the <c>.md</c> files; only they are created by New Note and named automatically.</summary>

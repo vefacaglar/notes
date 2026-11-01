@@ -40,6 +40,7 @@
   <data name="CryptoWrongPassword" xml:space="preserve"><value>Parola yanlış ya da dosya bozuk.</value></data>
   <data name="NotWritable" xml:space="preserve"><value>“{0}” salt okunur ya da kilitli olduğu için kaydedilemiyor.</value></data>
   <data name="CopyMarker" xml:space="preserve"><value>kopya</value></data>
+  <data name="RootUnavailable" xml:space="preserve"><value>“{0}” klasörü yok ya da bir klasör değil.</value></data>
   <data name="BrokenLink" xml:space="preserve"><value>“{0}”, var olmayan bir dosyaya bağlantı.</value></data>
   <data name="ThemeInvalidColor" xml:space="preserve"><value>Geçersiz renk "{0}": #RRGGBB ya da #RRGGBBAA biçiminde olmalı.</value></data>
   <data name="ThemeInvalidJson" xml:space="preserve"><value>Dosya geçerli bir JSON nesnesi değil.</value></data>

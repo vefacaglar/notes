@@ -489,4 +489,17 @@ public sealed class NoteStoreTests : IDisposable
         Assert.Empty(loop.Children!);
         Assert.Equal(["Üst/Alt/not.md"], store.NotePaths());
     }
+
+    [Fact]
+    public void MissingRootIsOnlyCreatedOnRequest()
+    {
+        var missing = System.IO.Path.Combine(root, "yok");
+        var e = Assert.Throws<NoteStoreException>(() => new NoteStore(missing, createIfMissing: false));
+        Assert.Equal((NoteStoreError.RootUnavailable, missing), (e.Error, e.Name));
+        Assert.False(Directory.Exists(missing));
+        Put("dosya.md");
+        Assert.Throws<NoteStoreException>(() => new NoteStore(System.IO.Path.Combine(root, "dosya.md"), createIfMissing: false));
+        _ = new NoteStore(missing);
+        Assert.True(Directory.Exists(missing));
+    }
 }
