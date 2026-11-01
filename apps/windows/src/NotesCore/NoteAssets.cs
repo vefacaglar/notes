@@ -127,6 +127,13 @@ public static class MarkdownImages
     /// </summary>
     public static string? FilePath(string destination, string? noteFolder)
     {
+        // Network shares (\\server\share, file://server/share) are not local files: reading one would sign in to that server.
+        var path = LocalFilePath(destination, noteFolder);
+        return path is null || path.StartsWith(@"\\", StringComparison.Ordinal) ? null : path;
+    }
+
+    private static string? LocalFilePath(string destination, string? noteFolder)
+    {
         try
         {
             switch (NoteLinks.Classify(destination))

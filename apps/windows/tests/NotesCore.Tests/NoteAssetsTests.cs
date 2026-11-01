@@ -39,6 +39,8 @@ public sealed class MarkdownImagesTests
         Assert.Null(MarkdownImages.FilePath("https://example.com/x.png", folder));
         Assert.Null(MarkdownImages.FilePath("a.png", null));
         Assert.Null(MarkdownImages.FilePath("a:b.png", folder));
+        Assert.Null(MarkdownImages.FilePath(@"\\server\share\x.png", folder));
+        Assert.Null(MarkdownImages.FilePath("file://server/share/x.png", folder));
     }
 }
 
